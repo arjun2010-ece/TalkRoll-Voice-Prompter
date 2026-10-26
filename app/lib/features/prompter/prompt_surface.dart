@@ -11,6 +11,7 @@ import '../../core/settings/prompt_settings.dart';
 import '../../services/platform.dart';
 import '../../services/providers.dart';
 import 'prompter_controller.dart';
+import 'reading_guide.dart';
 import 'word_layout.dart';
 
 enum PromptLayoutStyle { full, compact, notch }
@@ -305,14 +306,12 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
         child: SizedBox(width: double.infinity, child: text),
       );
 
-      // Small `› ‹` marks on the reading line (desktop). They sit still while the text moves to them,
-      // and are symmetric, so mirroring and 180° rotation need no special case.
+      // The reading line's marks (desktop): a faint band under the line and an arrow at each edge.
       if (settings.readingGuide && !isMobile) {
-        final mark = TextStyle(fontSize: math.max(14.0, math.min(22.0, fontSize * 0.6)), height: 1, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.5));
         scroller = Stack(children: [
+          ReadingGuideBand(centerY: anchorY, lineHeight: fontSize * settings.lineSpacing),
           Positioned.fill(child: scroller),
-          Positioned(left: 6, top: anchorY - mark.fontSize! / 2, child: IgnorePointer(child: Text('›', style: mark))),
-          Positioned(right: 6, top: anchorY - mark.fontSize! / 2, child: IgnorePointer(child: Text('‹', style: mark))),
+          Positioned.fill(child: ReadingGuideArrows(centerY: anchorY, fontSize: fontSize)),
         ]);
       }
 

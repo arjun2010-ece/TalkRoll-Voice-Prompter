@@ -3,9 +3,8 @@ import 'prompt_settings.dart';
 /// User-facing names, so the UI never shows raw enum names.
 extension StudioAppearanceLabel on StudioAppearance {
   String get label => switch (this) {
-    StudioAppearance.system => 'System',
-    StudioAppearance.light => 'Light',
     StudioAppearance.dark => 'Dark',
+    StudioAppearance.light => 'Light'
   };
 }
 

@@ -1,6 +1,7 @@
 import 'dart:ui' show Size;
 
-enum StudioAppearance { system, light, dark }
+/// Light or dark. A saved "system" from an older build loads as the default (dark).
+enum StudioAppearance { dark, light }
 
 enum PromptControlMode { normal, voice, recordedAudio }
 

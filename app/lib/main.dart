@@ -80,9 +80,8 @@ class EchoPrompterApp extends ConsumerWidget {
       theme: isDesktop ? _theme(Brightness.light) : mobileTheme(Brightness.light),
       darkTheme: isDesktop ? _theme(Brightness.dark) : mobileTheme(Brightness.dark),
       themeMode: switch (appearance) {
-        StudioAppearance.system => ThemeMode.system,
-        StudioAppearance.light => ThemeMode.light,
         StudioAppearance.dark => ThemeMode.dark,
+        StudioAppearance.light => ThemeMode.light,
       },
       // The macOS menu bar; other platforms keep their own.
       builder: (context, child) => isMacOS ? AppMenuBar(child: child!) : child!,

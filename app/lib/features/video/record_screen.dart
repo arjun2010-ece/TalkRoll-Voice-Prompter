@@ -12,6 +12,11 @@ import '../../core/settings/prompt_settings.dart';
 import '../../services/permissions/permissions.dart';
 import '../../services/analytics/analytics_service.dart';
 import '../../services/platform.dart';
+import '../../ui/adaptive.dart';
+import 'camera_cards.dart';
+import '../studio/start_options.dart';
+import 'mode_chip.dart';
+import 'camera_state.dart';
 import '../../services/providers.dart';
 import '../prompter/prompt_view.dart';
 import '../prompter/prompter_controller.dart';
@@ -50,7 +55,14 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   // Cached because `ref` can't be read in dispose().
   late final AnalyticsService _analytics;
   late final PrompterController _prompter;
-  static const _pausedColor = Colors.amber;
+  // Permissions: nothing yet, the explainer before the first system prompt, or refused.
+  _Perm _perm = _Perm.checking;
+  bool _deniedCam = false;
+  bool _deniedMic = false;
+  Completer<bool>? _primer;
+  // A take that ended: saved by the reader, or stopped by the system (call, full storage).
+  RecordingResult? _saved;
+  ({String title, String body, String? detail, RecordingResult? result})? _stopped;
 
   // Overlay height as a fraction of the screen, remembered per orientation.
   double _fractionFor(bool landscape) =>
@@ -58,8 +70,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   void _saveFraction(bool landscape, double v) =>
       ref.read(prefsProvider).setDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}', v);
   final _dragFractions = <bool, double>{};
-  static const _barHeight = 56.0;
-  static const _recordButtonSize = 45.0;
+  static const _recordButtonSize = 72.0;
   static const _fadeIn = Duration(milliseconds: 250);
 
   @override
@@ -106,14 +117,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     }
     await _transitionDone();
     if (!mounted) return;
-    final a = ref.read(analyticsProvider);
-    final cam = await requestPermission(Permission.camera, 'camera', a);
-    final mic = await requestPermission(Permission.microphone, 'mic', a);
+    if (!await _ensurePermissions()) return;
     if (!mounted) return;
-    if (!cam || !mic) {
-      setState(() => _error = 'Camera and microphone access are needed to record.');
-      return;
-    }
     // Audio mode's video must contain the audio file, so it plays out loud and
     // the microphone records it; other modes pace silently or into headphones.
     _route = ref.read(settingsProvider).mode == PromptControlMode.recordedAudio
@@ -121,7 +126,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         : await EchoPrompterCamera.headphonesConnected ? ReferenceRoute.headphones : ReferenceRoute.silent;
     _events = EchoPrompterCamera.events.listen((e) {
       final type = e['type'];
-      if (type == 'interrupted' || type == 'storage_full') _onStopped(null, '$type');
+      if (type == 'interrupted' || type == 'storage_full') {
+        _onStopped(null, '$type');
+        if (mounted && _saved == null && _stopped == null) {
+          setState(() => _stopped = (
+            title: type == 'storage_full' ? 'Storage is full' : 'Recording stopped',
+            body: type == 'storage_full'
+                ? 'There is no space left to keep recording. What you recorded was saved. Free up space to record again.'
+                : 'A call or another app interrupted the recording. What you recorded was saved.',
+            detail: null,
+            result: null,
+          ));
+        }
+      }
     });
     if (_promptReady && mounted) {
       // The script is already showing, so listening starts now instead of once the camera is up.
@@ -135,6 +152,53 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     _beginPrompter(listen: true);
+  }
+
+  /// The camera and microphone, asked for with an explanation first. False when the reader said no (the screen then
+  /// shows how to carry on without them).
+  Future<bool> _ensurePermissions() async {
+    var cam = await Permission.camera.status;
+    var mic = await Permission.microphone.status;
+    if (cam.isGranted && mic.isGranted) return true;
+    final blocked = cam.isPermanentlyDenied || cam.isRestricted || mic.isPermanentlyDenied || mic.isRestricted;
+    if (!blocked) {
+      _primer = Completer<bool>();
+      if (mounted) setState(() => _perm = _Perm.primer);
+      if (!await _primer!.future) {
+        _leaveForVoiceOnly();
+        return false;
+      }
+      final a = ref.read(analyticsProvider);
+      await requestPermission(Permission.camera, 'camera', a);
+      await requestPermission(Permission.microphone, 'mic', a);
+      cam = await Permission.camera.status;
+      mic = await Permission.microphone.status;
+      if (cam.isGranted && mic.isGranted) {
+        if (mounted) setState(() => _perm = _Perm.ok);
+        return true;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _perm = _Perm.denied;
+        _deniedCam = !cam.isGranted;
+        _deniedMic = !mic.isGranted;
+      });
+    }
+    return false;
+  }
+
+  /// Back to the reader without the camera.
+  void _leaveForVoiceOnly() {
+    if (!mounted) return;
+    ref.read(cameraOnProvider.notifier).set(false);
+    Navigator.of(context).pop(true);
+  }
+
+  /// Microphone refused: Voice and Audio can't follow anything, so offer Normal mode.
+  void _useNormal() {
+    ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: PromptControlMode.normal));
+    _leaveForVoiceOnly();
   }
 
   Future<void> _startPreview() async {
@@ -241,12 +305,18 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   /// Close while recording: save the take, or discard it and go back to the
   /// scripts. [home] also leaves for the scripts list after saving.
   Future<void> _confirmClose({bool home = false}) async {
-    final choice = await showDialog<String>(
+    final choice = await showAdaptiveDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Finish this recording?'),
+        content: Text('You have recorded ${_fmt(_elapsed)}. Save it to your gallery, or leave without saving.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, 'exit'), child: const Text('Exit recording')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep recording')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'exit'),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Exit without saving'),
+          ),
           TextButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save')),
         ],
       ),
@@ -328,10 +398,20 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       a.log('video_saved', {'duration_s': r.duration.inSeconds});
     } catch (_) {}
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(reason == 'user' ? 'Saved to your gallery' : 'Recording stopped ($reason) — saved what was recorded'),
-      action: SnackBarAction(label: 'Share', onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(r.path)]))),
-    ));
+    setState(() {
+      if (reason == 'user') {
+        _saved = r;
+      } else {
+        _stopped = (
+          title: reason == 'storage_full' ? 'Storage is full' : 'Recording stopped',
+          body: reason == 'storage_full'
+              ? 'There is no space left to keep recording. What you recorded was saved. Free up space to record again.'
+              : 'A call or another app interrupted the recording. What you recorded was saved.',
+          detail: 'Saved ${_fmt(r.duration)} to your gallery',
+          result: r,
+        );
+      }
+    });
   }
 
   @override
@@ -352,6 +432,137 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   String _fmt(Duration d) =>
       '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
+  /// Camera options: the countdown, editing the script, and the prompter height. The camera itself is chosen with Flip.
+  Future<void> _showOptions() {
+    return showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => Consumer(builder: (ctx, ref, _) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('Camera options', style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('3-2-1 countdown'),
+                subtitle: const Text('Count down before recording starts.'),
+                value: _useCountdown,
+                onChanged: (v) {
+                  setState(() => _useCountdown = v);
+                  (ctx as Element).markNeedsBuild();
+                },
+              ),
+              Row(children: [
+                const Expanded(child: Text('Edit script')),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _edit();
+                  },
+                  child: const Text('Open'),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Expanded(child: Text('Prompter height')),
+                TextButton(
+                  onPressed: () => setState(() {
+                    for (final land in [true, false]) {
+                      ref.read(prefsProvider).remove('EchoPrompter.overlay.${land ? 'l' : 'p'}');
+                      _dragFractions.remove(land);
+                    }
+                  }),
+                  child: const Text('Reset'),
+                ),
+              ]),
+            ]),
+          ),
+        );
+      }),
+    );
+  }
+
+  void _close() => _recording ? _confirmClose() : Navigator.of(context).pop();
+
+  /// Ends the open take: saved to the gallery or thrown away, without leaving the screen.
+  Future<void> _endTake({required bool save}) async {
+    if (!_micIsIndependent) await ref.read(prompterProvider.notifier).pause();
+    final r = await EchoPrompterCamera.stopRecording();
+    _timer?.cancel();
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    final a = ref.read(analyticsProvider);
+    if (_micStart != null) {
+      a.log('mic_stop', {'duration_s': DateTime.now().difference(_micStart!).inSeconds, 'reason': save ? 'mode_change_saved' : 'mode_change_discarded'});
+      _micStart = null;
+    }
+    if (save) {
+      _recordings++;
+      a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
+      try {
+        await EchoPrompterCamera.saveToGallery(r.path);
+        a.log('video_saved', {'duration_s': r.duration.inSeconds});
+      } catch (_) {}
+    } else {
+      try {
+        await File(r.path).delete();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _paused = false;
+      _elapsed = Duration.zero;
+    });
+    if (save) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: const Text('Saved to your gallery'),
+          action: SnackBarAction(label: 'Share', onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(r.path)]))),
+        ));
+    }
+  }
+
+  /// Opens "How to read". Changing it during a take ends the take first, and asks how. The camera stays on only if
+  /// the reader still wants it; the reader (voice alone) takes over otherwise.
+  Future<void> _changeMode() async {
+    if (_countdown != null) return;
+    if (_recording) {
+      final choice = await showAdaptiveDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog.adaptive(
+          title: const Text('Finish this recording?'),
+          content: Text('To change how you read, this recording has to end first. You have recorded ${_fmt(_elapsed)}.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep recording')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'discard'),
+              style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+              child: const Text('Discard and continue'),
+            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save and continue')),
+          ],
+        ),
+      );
+      if (choice == null || !mounted || !_recording) return;
+      await _endTake(save: choice == 'save');
+      if (!mounted) return;
+    }
+    var applied = false;
+    await showStartOptions(context, apply: StartApply.use, onStart: () async => applied = true);
+    if (!mounted || !applied) return;
+    if (!ref.read(cameraOnProvider) || ref.read(settingsProvider).mode == PromptControlMode.normal) _leaveForVoiceOnly();
+  }
+
+  Future<void> _share(RecordingResult r) => SharePlus.instance.share(ShareParams(files: [XFile(r.path)]));
+
+  /// Ready for another take after a saved or stopped one.
+  void _recordAgain() => setState(() {
+    _saved = null;
+    _stopped = null;
+    _elapsed = Duration.zero;
+  });
+
   @override
   Widget build(BuildContext context) {
     ref.listen(settingsProvider.select((s) => s.mode), (_, mode) {
@@ -361,13 +572,186 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _beginPrompter(listen: true);
     });
     ref.listen(prompterProvider.select((p) => p.voiceUnsupported), (_, unsupported) {
-      if (unsupported) showVoiceUnsupportedDialog(context);
+      if (unsupported) showVoiceUnsupportedDialog(context, onUseNormal: _useNormal);
     });
     final media = MediaQuery.of(context);
+    final size = media.size;
+    final scheme = Theme.of(context).colorScheme;
     final landscape = media.orientation == Orientation.landscape;
+    final tablet = size.shortestSide >= tabletMinWidth;
     final fraction = _dragFractions[landscape] ?? _fractionFor(landscape);
     final p = _preview;
-    final showScript = p != null || (_promptReady && _error == null);
+    final cardOnly = _perm == _Perm.primer || _perm == _Perm.denied || (_error != null && p == null);
+    final showScript = !cardOnly && (p != null || (_promptReady && _error == null));
+    final ended = _saved != null || _stopped != null;
+    final mode = ref.watch(settingsProvider.select((s) => s.mode));
+    final audio = mode == PromptControlMode.recordedAudio;
+
+    if (cardOnly) return _cardScreen(context, scheme, mode);
+
+    // Layout: a phone or portrait tablet stacks the prompter over the picture; in landscape the prompter is a panel
+    // on the left and the controls sit in a rail on the right edge, within reach of the thumb.
+    final panelWidth = size.width * (tablet ? 0.4 : 0.44);
+    final side = tablet && !landscape ? 64.0 : 12.0;
+    final overlayTop = media.padding.top + 58;
+    final pill = _countdown != null
+        ? ('Starting in $_countdown', const Color(0xFFFFB340), const Color(0xCC1C1C1E), Colors.white)
+        : _recording && _paused
+            ? ('Paused ${_fmt(_elapsed)}', const Color(0xFFFFB340), const Color(0xEB33291A), const Color(0xFFFFD79A))
+            : _recording
+                ? ('REC ${_fmt(_elapsed)}', Colors.white, const Color(0xFFD70015), Colors.white)
+                : p == null
+                    ? ('Opening…', const Color(0xFFA1A1A6), const Color(0xCC1C1C1E), Colors.white)
+                    : (_facing == CameraFacing.back ? 'Back camera' : 'Camera ready', const Color(0xFF30D158), const Color(0xCC1C1C1E), Colors.white);
+
+    final topBar = Positioned(
+      left: landscape ? panelWidth + 24 : 8,
+      right: 8,
+      top: landscape ? 12 : media.padding.top + 4,
+      height: 52,
+      child: Row(children: [
+        ChromeButton(icon: Icons.close, tooltip: 'Close', onPressed: _close),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Center(
+            child: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(color: pill.$3, borderRadius: BorderRadius.circular(17)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 9, height: 9, decoration: BoxDecoration(color: pill.$2, shape: BoxShape.circle)),
+                const SizedBox(width: 8),
+                // Shrinks to the room the buttons leave, so the label can never overflow the bar.
+                Flexible(
+                  child: Text(
+                    pill.$1,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: pill.$4, fontSize: 14, fontWeight: FontWeight.w600, fontFeatures: const [FontFeature.tabularFigures()]),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        ModeChip(mode: mode, camera: true, locked: _recording, onPressed: _changeMode),
+        const SizedBox(width: 8),
+        ChromeButton(label: 'Aa', tooltip: 'Reading settings', onPressed: () => showReadingSettings(context)),
+      ]),
+    );
+
+    final flip = ChromeButton(icon: Icons.cameraswitch_outlined, tooltip: 'Flip camera', size: 56, iconSize: 26, onPressed: _recording ? null : _flip);
+    final recordButton = Semantics(
+      button: true,
+      label: _recording ? 'Stop recording' : 'Start recording',
+      child: GestureDetector(
+        onTap: p == null || _countdown != null ? null : () => _toggleRecord(landscape),
+        // Dimmed until the camera is up, since it can't record before then.
+        child: AnimatedOpacity(
+          opacity: p == null ? 0.38 : 1,
+          duration: _fadeIn,
+          child: Container(
+            width: _recordButtonSize,
+            height: _recordButtonSize,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
+            padding: const EdgeInsets.all(6),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: const Color(0xFFFF3B30), borderRadius: BorderRadius.circular(_recording ? 6 : 40)),
+            ),
+          ),
+        ),
+      ),
+    );
+    final rightButton = _recording
+        ? ChromeButton(
+            icon: _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+            tooltip: _paused ? 'Resume recording' : 'Pause recording',
+            size: 56,
+            iconSize: 28,
+            onPressed: _togglePause,
+          )
+        : ChromeButton(icon: Icons.more_horiz, tooltip: 'Camera options', size: 56, iconSize: 26, onPressed: _showOptions);
+
+    // The main controls sit at the bottom, within reach of the thumb.
+    final shutterBottom = media.padding.bottom + 16;
+    final controls = landscape
+        ? Positioned(
+            right: 16,
+            top: 0,
+            bottom: 0,
+            width: 72,
+            child: Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [flip, const SizedBox(height: 22), recordButton, const SizedBox(height: 22), rightButton]),
+            ),
+          )
+        : Positioned(
+            left: tablet ? 160 : 32,
+            right: tablet ? 160 : 32,
+            bottom: shutterBottom,
+            height: 80,
+            // Equal side slots keep the record button centred.
+            child: Row(children: [
+              Expanded(child: Align(alignment: Alignment.centerLeft, child: flip)),
+              recordButton,
+              Expanded(child: Align(alignment: Alignment.centerRight, child: rightButton)),
+            ]),
+          );
+    final hintBottom = landscape ? 16.0 : shutterBottom + 80 + 14;
+    final pausedHint = _paused
+        ? Positioned(
+            left: landscape ? panelWidth + 24 : 24,
+            right: landscape ? 120 : 24,
+            bottom: hintBottom,
+            child: const _Hint("The camera can't change during a take. Stop the recording to switch it."),
+          )
+        : null;
+    final audioHint = audio && !_recording && p != null
+        ? Positioned(
+            left: landscape ? panelWidth + 24 : 24,
+            right: landscape ? 120 : 24,
+            bottom: hintBottom,
+            child: const _Hint('Your audio plays on the speaker so the microphone can follow it.', icon: Icons.volume_up_outlined),
+          )
+        : null;
+
+    final overlay = Positioned(
+      left: landscape ? 12 : side,
+      right: landscape ? null : side,
+      width: landscape ? panelWidth : null,
+      top: landscape ? 12 : overlayTop,
+      bottom: landscape ? 12 : null,
+      height: landscape ? null : size.height * fraction,
+      // Appears together with the camera, or before it in Voice mode (see _init).
+      child: AnimatedOpacity(
+        opacity: showScript ? 1 : 0,
+        duration: _fadeIn,
+        child: Stack(children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: PromptView(
+              style: PromptLayoutStyle.compact,
+              backgroundOpacity: ref.watch(settingsProvider.select((s) => s.opacity)) * 0.4,
+              showControls: false,
+            ),
+          ),
+          if (!landscape)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (d) => setState(() {
+                  _dragFractions[landscape] = ((fraction * size.height + d.delta.dy) / size.height).clamp(0.15, 0.7);
+                }),
+                onVerticalDragEnd: (_) => _saveFraction(landscape, _dragFractions[landscape] ?? fraction),
+                child: const SizedBox(height: 24, child: Center(child: Icon(Icons.drag_handle, color: Colors.white70, size: 18))),
+              ),
+            ),
+        ]),
+      ),
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -388,163 +772,138 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               ),
             ),
           ),
-        if (_error != null)
-          Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center))),
-        // Floating prompter overlay docked at the top, below the safe area.
-        Positioned(
-          left: isMobile ? 0 : 12,
-          right: isMobile ? 0 : 12,
-          top: media.padding.top + 12,
-          height: media.size.height * fraction,
-          // Appears together with the camera, or before it in Voice mode (see _init).
-          child: AnimatedOpacity(
-            opacity: showScript ? 1 : 0,
-            duration: _fadeIn,
-            child: Stack(children: [
-            ClipRRect(
-              borderRadius: isMobile ? const BorderRadius.vertical(bottom: Radius.circular(20)) : BorderRadius.circular(20),
-              child: PromptView(
-                style: PromptLayoutStyle.compact,
-                backgroundOpacity: ref.watch(settingsProvider.select((s) => s.opacity)) * 0.4,
-                showControls: false,
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onVerticalDragUpdate: (d) => setState(() {
-                  _dragFractions[landscape] = ((fraction * media.size.height + d.delta.dy) / media.size.height).clamp(0.15, 0.7);
-                }),
-                onVerticalDragEnd: (_) => _saveFraction(landscape, _dragFractions[landscape] ?? fraction),
-                child: const SizedBox(height: 22, child: Center(child: Icon(Icons.drag_handle, color: Colors.white70, size: 18))),
-              ),
-            ),
-            ]),
-          ),
-        ),
+        if (ended) Positioned.fill(child: ColoredBox(color: Colors.black.withValues(alpha: 0.55))),
+        overlay,
+        topBar,
         if (_countdown != null)
           Center(child: Text('$_countdown', style: const TextStyle(color: Colors.white, fontSize: 120, fontWeight: FontWeight.bold))),
-        if (_recording)
+        if (!ended) controls,
+        ?pausedHint,
+        ?audioHint,
+        if (_saved != null)
           Positioned(
-            right: 12,
-            bottom: media.padding.bottom + 12 + _barHeight + 12 + _recordButtonSize + 12,
-            child: Chip(
-              avatar: _paused
-                  ? const Icon(Icons.pause, color: _pausedColor, size: 14)
-                  : const Icon(Icons.fiber_manual_record, color: Colors.red, size: 14),
-              label: Text(_fmt(_elapsed)),
+            left: landscape ? panelWidth + 28 : 12,
+            right: landscape ? 24 : 12,
+            bottom: media.padding.bottom + 12,
+            child: CameraResultSheet(
+              title: 'Saved to your gallery',
+              subtitle: '${_fmt(_saved!.duration)} · 1080p',
+              onShare: () => _share(_saved!),
+              onRecordAgain: _recordAgain,
+              onDone: _close,
             ),
           ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: media.padding.bottom + 12 + _barHeight + 12,
-          // Equal side slots keep the record button centred.
-          child: Row(children: [
-            Expanded(
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                IconButton.filledTonal(
-                  tooltip: 'Flip camera',
-                  icon: const Icon(Icons.cameraswitch),
-                  onPressed: _recording ? null : _flip,
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'Edit script',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: _recording ? null : _edit,
-                ),
-              ]),
-            ),
-            Semantics(
-              button: true,
-              label: _recording ? 'Stop recording' : 'Start recording',
-              child: GestureDetector(
-                onTap: p == null || _countdown != null ? null : () => _toggleRecord(landscape),
-                // Dimmed until the camera is up, since it can't record before then.
-                child: AnimatedOpacity(
-                  opacity: p == null ? 0.38 : 1,
-                  duration: _fadeIn,
-                  child: Container(
-                    width: _recordButtonSize,
-                    height: _recordButtonSize,
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
-                    padding: const EdgeInsets.all(6),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(_recording ? 3 : 40),
-                      ),
-                    ),
-                  ),
-                ),
+        if (_stopped != null)
+          Positioned(
+            left: landscape ? panelWidth + 28 : 12,
+            right: landscape ? 24 : 12,
+            bottom: media.padding.bottom + 12,
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              elevation: 8,
+              borderRadius: BorderRadius.circular(isApple ? 20 : 28),
+              child: CameraStateCard(
+                icon: Icons.warning_amber_rounded,
+                tone: CameraCardTone.warning,
+                title: _stopped!.title,
+                body: _stopped!.body,
+                detail: _stopped!.detail,
+                primaryLabel: _stopped!.result == null ? 'Record again' : 'Share what was saved',
+                onPrimary: _stopped!.result == null ? _recordAgain : () => _share(_stopped!.result!),
+                secondaryLabel: _stopped!.result == null ? 'Done' : 'Record again',
+                onSecondary: _stopped!.result == null ? _close : _recordAgain,
               ),
-            ),
-            Expanded(
-              child: Center(
-                child: _recording
-                    ? IconButton.filledTonal(
-                        tooltip: _paused ? 'Resume recording' : 'Pause recording',
-                        icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
-                        onPressed: _togglePause,
-                      )
-                    : PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz, color: Colors.white),
-              onSelected: (v) => setState(() {
-                switch (v) {
-                  case 'countdown':
-                    _useCountdown = !_useCountdown;
-                  case 'headphones':
-                    _route = ReferenceRoute.headphones;
-                  case 'silent':
-                    _route = ReferenceRoute.silent;
-                  case 'speaker':
-                    _route = ReferenceRoute.speaker;
-                }
-                if (!_recording) _beginPrompter();
-              }),
-              itemBuilder: (_) => [
-                CheckedPopupMenuItem(value: 'countdown', checked: _useCountdown, child: const Text('3-2-1 countdown')),
-                // Mobile has one way: Audio mode plays on the speaker so the microphone can follow it.
-                if (!isMobile) ...[
-                const PopupMenuDivider(),
-                const PopupMenuItem(enabled: false, child: Text('Reference audio plays through')),
-                CheckedPopupMenuItem(value: 'headphones', checked: _route == ReferenceRoute.headphones, child: const Text('Headphones (not in the video)')),
-                CheckedPopupMenuItem(value: 'silent', checked: _route == ReferenceRoute.silent, child: const Text('Silent pacing (not in the video)')),
-                CheckedPopupMenuItem(value: 'speaker', checked: _route == ReferenceRoute.speaker, child: const Text('Speaker (in the video)')),
-                ],
-              ],
-            ),
-              ),
-            ),
-          ]),
-        ),
-        Positioned(
-          left: 12,
-          right: 12,
-          bottom: media.padding.bottom + 12,
-          height: _barHeight,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(_barHeight / 2),
-            child: PromptControlBar(
-              onSettings: () => showReadingSettings(context, follow: false),
-              compact: false,
-              trailing: [
-                IconButton(
-                  tooltip: 'Scripts',
-                  icon: const Icon(Icons.home_outlined),
-                  onPressed: _recording ? () => _confirmClose(home: true) : _home,
-                ),
-              ],
-              color: Colors.black.withValues(alpha: 0.6),
-              onClose: _recording ? _confirmClose : () => Navigator.of(context).pop(),
             ),
           ),
-        ),
       ]),
+    );
+  }
+
+  /// The screen when there is nothing to film yet: the explainer, a refused permission, or a camera that won't open.
+  Widget _cardScreen(BuildContext context, ColorScheme scheme, PromptControlMode mode) {
+    final apple = isApple;
+    final Widget card;
+    if (_perm == _Perm.primer) {
+      card = CameraStateCard(
+        icon: Icons.videocam_outlined,
+        title: 'Record yourself while you read',
+        body: 'EchoPrompter needs your camera and microphone. Your video stays on this device until you share it.',
+        primaryLabel: 'Continue',
+        onPrimary: () => _primer?.complete(true),
+        secondaryLabel: 'Not now, use voice only',
+        onSecondary: () => _primer?.complete(false),
+      );
+    } else if (_perm == _Perm.denied) {
+      final both = _deniedCam && _deniedMic;
+      final micOnly = _deniedMic && !_deniedCam;
+      card = CameraStateCard(
+        icon: micOnly ? Icons.mic_off_outlined : Icons.videocam_off_outlined,
+        tone: CameraCardTone.warning,
+        title: both ? 'Camera and microphone are off' : micOnly ? 'Microphone access is off' : 'Camera access is off',
+        body: both
+            ? (apple ? 'Turn both on for EchoPrompter in Settings to record video while you read.' : 'Turn both permissions on in the app settings to record video while you read.')
+            : micOnly
+                ? (apple ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings.' : 'Voice mode needs the microphone. Turn it on in the app settings.')
+                : (apple ? 'Turn on Camera for EchoPrompter in Settings to record video.' : 'Camera permission was denied. Turn it on in the app settings to record video.'),
+        primaryLabel: apple ? 'Open Settings' : 'Open app settings',
+        onPrimary: openAppSettings,
+        secondaryLabel: micOnly ? 'Use Normal mode' : 'Continue with voice only',
+        onSecondary: micOnly ? _useNormal : _leaveForVoiceOnly,
+      );
+    } else {
+      card = CameraStateCard(
+        icon: Icons.warning_amber_rounded,
+        tone: CameraCardTone.error,
+        title: 'Camera unavailable',
+        body: 'Another app may be using the camera, or this device has none EchoPrompter can use. Close other camera apps and try again. You can keep reading with voice only.',
+        primaryLabel: 'Try again',
+        onPrimary: () {
+          setState(() => _error = null);
+          _startPreview();
+        },
+        secondaryLabel: 'Continue with voice only',
+        onSecondary: _leaveForVoiceOnly,
+      );
+    }
+    return Scaffold(
+      backgroundColor: scheme.surface,
+      body: SafeArea(
+        child: Stack(children: [
+          Align(
+            alignment: Alignment.topLeft,
+            child: IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+          ),
+          Center(
+            child: SingleChildScrollView(
+              child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 440), child: card),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+enum _Perm { checking, primer, denied, ok }
+
+/// A short explanation floating above the controls.
+class _Hint extends StatelessWidget {
+  const _Hint(this.text, {this.icon = Icons.info_outline});
+  final String text;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: const Color(0xD11C1C1E), borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Flexible(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3))),
+        ]),
+      ),
     );
   }
 }

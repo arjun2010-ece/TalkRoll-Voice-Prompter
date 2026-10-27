@@ -2,21 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/script/clean_script.dart';
+import '../../core/script/saved_script.dart';
 import '../../core/script/reading_time.dart';
-import '../../core/settings/labels.dart';
+import '../../core/script/sections.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/platform.dart';
+import '../../core/entitlements/entitlements.dart';
 import '../../services/providers.dart';
+import '../pro/paywall_dialog.dart';
+import '../pro/pro_state.dart';
+import '../pro/upgrade_card.dart';
 import '../../services/storage/script_io.dart';
+import '../../ui/adaptive.dart';
 import '../../ui/discard_changes_dialog.dart';
 import '../read/read_screen.dart';
-import '../read/reading_settings.dart';
+import '../settings/mobile_settings.dart';
+import '../video/camera_state.dart';
 import '../video/record_screen.dart';
 import 'script_list.dart';
+import 'script_text_controller.dart';
+import 'start_options.dart';
 
 /// Window width from which scripts and the editor sit side by side.
 const _splitMinWidth = 720.0;
-const _listPaneWidth = 340.0;
+const _listPaneWidth = 360.0;
+const _inspectorWidth = 400.0;
 const _editorMaxWidth = 760.0;
 
 /// Mobile Studio. In a narrow window it is a script library that opens an
@@ -41,6 +51,7 @@ Future<bool> _importScript(WidgetRef ref) async {
   final text = await ScriptIO.importText(ref.read(prefsProvider), ref.read(libraryProvider).directory);
   if (text == null) return false;
   await ref.read(studioProvider.notifier).importScript(text);
+  _resetFollow(ref);
   return true;
 }
 
@@ -54,41 +65,59 @@ void _exportScript(WidgetRef ref) {
   );
 }
 
-Future<void> _present(BuildContext context, WidgetRef ref, {required bool record}) async {
+Future<void> presentScript(BuildContext context, WidgetRef ref, {required bool record}) async {
   final studio = ref.read(studioProvider.notifier);
-  await studio.start();
-  if (!context.mounted) return;
-  // The reader can hand over to recording once the mode was switched to Voice or Audio there.
-  var toRecord = record;
-  if (!record) {
-    toRecord = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
-          builder: (_) => const ReadScreen(),
-          fullscreenDialog: true,
-        )) ??
-        false;
-    if (toRecord) {
-      await studio.start();
-      if (!context.mounted) return;
-    }
+  // A new script on the free plan, once the free ones are used, opens the plans straight away.
+  if (!ref.read(proProvider).canPresent(studio.currentId)) {
+    await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
+    return;
   }
-  if (toRecord && context.mounted) {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const RecordScreen(), fullscreenDialog: true));
+  await studio.start();
+  // The built-in demo is never saved, so it never counts toward the free scripts.
+  final id = studio.currentId;
+  if (id != null) ref.read(proProvider.notifier).recordStart(id);
+  if (!context.mounted) return;
+  // The reader hands over to the camera with its Camera button, and the camera screen hands back to reading
+  // with the voice alone. Each hand-over starts a fresh session.
+  var camera = record;
+  while (context.mounted) {
+    if (!camera) {
+      camera = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+            builder: (_) => const ReadScreen(),
+            fullscreenDialog: true,
+          )) ??
+          false;
+      if (!camera) break;
+      await studio.start();
+      if (!context.mounted) break;
+    } else {
+      final voiceOnly = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+            builder: (_) => const RecordScreen(),
+            fullscreenDialog: true,
+          )) ??
+          false;
+      if (!voiceOnly) break;
+      camera = false;
+      await studio.start();
+      if (!context.mounted) break;
+    }
   }
   studio.stopPresenting();
 }
 
-/// What the primary button will do in each mode.
-String _modePlan(PromptControlMode mode) => switch (mode) {
-  PromptControlMode.normal => 'Scrolls at your speed. No camera or microphone: use any recorder you like.',
-  PromptControlMode.voice => 'Records video and your voice while the prompter follows you.',
-  PromptControlMode.recordedAudio => 'Records video while your audio file plays and the prompter follows it.',
-};
+/// A new script starts in Normal mode, voice only, with no recording chosen, whatever the last script used.
+void _resetFollow(WidgetRef ref) {
+  ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: PromptControlMode.normal));
+  ref.read(cameraOnProvider.notifier).set(false);
+  ref.read(audioPathProvider.notifier).set(null);
+}
 
 String _stats(String body) {
   final words = wordCount(body);
   if (words == 0) return 'Empty script';
   final time = readingTimeLabel(words);
-  return '$words ${words == 1 ? 'word' : 'words'} · $time';
+  final sections = sectionMarkers(body).length;
+  return '$words ${words == 1 ? 'word' : 'words'} · $time${sections == 0 ? '' : ' · $sections ${sections == 1 ? 'section' : 'sections'}'}';
 }
 
 // --- Narrow layout: library, then editor ---------------------------------------------
@@ -136,7 +165,7 @@ class _LibraryPage extends ConsumerWidget {
             IconButton(
               tooltip: 'Settings',
               icon: const Icon(Icons.tune),
-              onPressed: () => showReadingSettings(context, app: true),
+              onPressed: () => openMobileSettings(context),
             ),
             const SizedBox(width: 4),
           ],
@@ -147,6 +176,7 @@ class _LibraryPage extends ConsumerWidget {
             child: _EmptyLibrary(
               onNew: () {
                 notifier.newScript();
+                _resetFollow(ref);
                 _openEditor(context);
               },
               onImport: () async {
@@ -162,16 +192,13 @@ class _LibraryPage extends ConsumerWidget {
               child: ScriptListBody(
                 history: history,
                 highlightCurrent: false,
+                showPreview: true,
                 onOpen: (s) {
                   notifier.load(s);
                   _openEditor(context);
                 },
                 onOpenDemo: () {
                   notifier.loadDemo();
-                  _openEditor(context);
-                },
-                onRead: (s) {
-                  notifier.load(s);
                   _openEditor(context);
                 },
                 menuItems: () => [
@@ -195,12 +222,16 @@ class _LibraryPage extends ConsumerWidget {
           ),
       ]),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: ScriptSelectionBar(history: history),
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (!selecting) const SafeArea(top: false, child: UpgradeCard()),
+        ScriptSelectionBar(history: history),
+      ]),
       floatingActionButton: history.isEmpty || selecting
           ? null
           : FloatingActionButton.extended(
               onPressed: () {
                 notifier.newScript();
+                _resetFollow(ref);
                 _openEditor(context);
               },
               icon: const Icon(Icons.add),
@@ -285,7 +316,7 @@ class _EditorPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(actions: [
         IconButton(tooltip: 'Export script', icon: const Icon(Icons.ios_share), onPressed: () => _exportScript(ref)),
-        IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: () => showReadingSettings(context, app: true)),
+        IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: () => openMobileSettings(context)),
         const SizedBox(width: 4),
       ]),
       body: const _Editor(popOnDiscard: true),
@@ -330,6 +361,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
     Future<void> newScript() async {
       if (!await _canReplaceDraft()) return;
       notifier.newScript();
+      _resetFollow(ref);
       _edit();
     }
 
@@ -349,7 +381,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
                 child: Row(children: [
                   Expanded(child: Text('Scripts', style: Theme.of(context).textTheme.headlineSmall)),
                   IconButton(tooltip: 'Import script', icon: const Icon(Icons.file_open_outlined), onPressed: import),
-                  IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: () => showReadingSettings(context, app: true)),
+                  IconButton(tooltip: 'Settings', icon: const Icon(Icons.tune), onPressed: () => openMobileSettings(context)),
                 ]),
               ),
               Padding(
@@ -365,6 +397,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
                   child: ScriptListBody(
                     history: history,
                     highlightCurrent: _editing,
+                    showPreview: true,
                     onOpen: (s) async {
                       if (!await _canReplaceDraft()) return;
                       notifier.load(s);
@@ -375,11 +408,6 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
                       notifier.loadDemo();
                       _edit();
                     },
-                    onRead: (s) async {
-                      if (!await _canReplaceDraft()) return;
-                      notifier.load(s);
-                      _edit();
-                    },
                     menuItems: () => const [PopupMenuItem(value: 'delete', child: Text('Delete'))],
                     onMenu: (s, _) async {
                       final wasOpen = notifier.currentId == s.id;
@@ -388,6 +416,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
                   ),
                 ),
               ),
+              if (ref.watch(scriptSelectionProvider) == null) const UpgradeCard(),
               ScriptSelectionBar(
                 history: history,
                 onDeleted: (currentRemoved) {
@@ -406,7 +435,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
                         IconButton(tooltip: 'Export script', icon: const Icon(Icons.ios_share), onPressed: () => _exportScript(ref)),
                       ]),
                     ),
-                    Expanded(child: _Editor(dirty: _draftDirty)),
+                    Expanded(child: _Editor(dirty: _draftDirty, inspector: isTabletLandscape(context))),
                   ])
                 : _EmptyLibrary(
                     onNew: newScript,
@@ -427,12 +456,17 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
 
 // --- Editor ---------------------------------------------------------------------------
 
-/// The script text plus a bar with its length and the two ways to present it.
+/// The script text with its title, and Start. A phone or a portrait tablet opens Start options from a button;
+/// a tablet in landscape shows them beside the text.
 ///
-/// On Android the text is a draft until Save: Save cleans it, stores it and enables Preview and
-/// Record; Cancel throws the edits away. Elsewhere typing saves as it goes.
+/// On mobile the text and title are a draft until Save: Save cleans the text, stores both and enables Start;
+/// Cancel throws the edits away. Starting also saves them.
 class _Editor extends ConsumerStatefulWidget {
-  const _Editor({this.dirty, this.popOnDiscard = false});
+  const _Editor({
+    this.dirty,
+    this.popOnDiscard = false,
+    this.inspector = false,
+  });
 
   /// Told whether the draft has unsaved edits.
   final ValueNotifier<bool>? dirty;
@@ -440,21 +474,37 @@ class _Editor extends ConsumerStatefulWidget {
   /// Leaving with unsaved edits and agreeing to discard them also leaves the screen.
   final bool popOnDiscard;
 
+  /// Start options sit beside the text instead of behind a button.
+  final bool inspector;
+
   @override
   ConsumerState<_Editor> createState() => _EditorState();
 }
 
 class _EditorState extends ConsumerState<_Editor> {
-  late final _controller = TextEditingController(text: ref.read(studioProvider).script);
+  late final _controller = ScriptTextController(
+    text: ref.read(studioProvider).script,
+  );
+  final _focus = FocusNode();
+  late final _titleController = TextEditingController(
+    text: ref.read(studioProvider).title,
+  );
 
   @override
   void dispose() {
     widget.dirty?.value = false;
     _controller.dispose();
+    _titleController.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
-  bool get _isDirty => isMobile && _controller.text != ref.read(studioProvider).script;
+  bool get _isDirty {
+    if (!isMobile) return false;
+    final studio = ref.read(studioProvider);
+    return _controller.text != studio.script ||
+        _titleController.text.trim() != studio.title.trim();
+  }
 
   void _publishDirty() => widget.dirty?.value = _isDirty;
 
@@ -464,9 +514,16 @@ class _EditorState extends ConsumerState<_Editor> {
     _publishDirty();
   }
 
-  /// Puts the saved script back in the text box.
+  void _titleEdited() {
+    setState(() {});
+    _publishDirty();
+  }
+
+  /// Puts the saved script and title back in the text boxes.
   void _revert() {
-    _controller.text = ref.read(studioProvider).script;
+    final studio = ref.read(studioProvider);
+    _controller.text = studio.script;
+    _titleController.text = studio.title;
     FocusManager.instance.primaryFocus?.unfocus();
     _publishDirty();
     setState(() {});
@@ -477,10 +534,14 @@ class _EditorState extends ConsumerState<_Editor> {
     if (cleaned.isEmpty) return;
     _controller.value = TextEditingValue(
       text: cleaned,
-      selection: TextSelection.collapsed(offset: _controller.selection.baseOffset.clamp(0, cleaned.length)),
+      selection: TextSelection.collapsed(
+        offset: _controller.selection.baseOffset.clamp(0, cleaned.length),
+      ),
     );
     FocusManager.instance.primaryFocus?.unfocus();
-    final saved = ref.read(studioProvider.notifier).commitScript(cleaned);
+    final saved = ref
+        .read(studioProvider.notifier)
+        .commitScript(cleaned, title: _titleController.text.trim());
     _publishDirty();
     setState(() {});
     await saved;
@@ -498,11 +559,67 @@ class _EditorState extends ConsumerState<_Editor> {
     if (widget.popOnDiscard) navigator.pop();
   }
 
+  /// Empties the script (not the title). Cancel restores the saved one, and the snackbar's Undo the text just cleared.
+  void _clear() {
+    final previous = _controller.text;
+    _controller.clear();
+    _edited('');
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Cleared'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () {
+              _controller.text = previous;
+              _edited(previous);
+            },
+          ),
+        ),
+      );
+  }
+
+  /// Puts a new `[Section N]` line at the caret, on a line of its own, with its name selected to type over.
+  void _insertSection() {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    final at = sel.isValid ? sel.start : text.length;
+    final name = 'Section ${sectionMarkers(text).length + 1}';
+    final lead = at > 0 && text[at - 1] != '\n' ? '\n' : '';
+    final inserted = '$lead[$name]\n';
+    final nameStart = at + lead.length + 1;
+    _controller.value = TextEditingValue(
+      text: text.replaceRange(at, sel.isValid ? sel.end : at, inserted),
+      selection: TextSelection(
+        baseOffset: nameStart,
+        extentOffset: nameStart + name.length,
+      ),
+    );
+    _focus.requestFocus();
+    _edited(_controller.text);
+  }
+
+  /// Starting saves the draft first, then presents in the mode and with or without the camera chosen in Start options.
+  Future<void> _start() async {
+    if (_isDirty) {
+      if (cleanScript(_controller.text).isEmpty) return;
+      await _save();
+    }
+    if (!mounted) return;
+    final mode = ref.read(settingsProvider).mode;
+    final camera =
+        ref.read(cameraOnProvider) && mode != PromptControlMode.normal;
+    await presentScript(context, ref, record: camera);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // A script replaced from outside the editor (open, new, import) reloads the text.
+    // A script replaced from outside the editor (open, new, import) reloads the text and title.
     ref.listen(studioProvider.select((s) => s.scriptRevision), (_, _) {
-      _controller.text = ref.read(studioProvider).script;
+      final studio = ref.read(studioProvider);
+      _controller.text = studio.script;
+      _titleController.text = studio.title;
       _publishDirty();
     });
     // A script edited from a prompter screen comes back without a revision bump.
@@ -513,188 +630,221 @@ class _EditorState extends ConsumerState<_Editor> {
     final script = ref.watch(studioProvider.select((s) => s.script));
     final dirty = _isDirty;
     final theme = Theme.of(context);
-    final empty = script.trim().isEmpty;
-    final mode = ref.watch(settingsProvider.select((s) => s.mode));
-    final audio = ref.watch(audioPathProvider);
-    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final scheme = theme.colorScheme;
+    final text = isMobile ? _controller.text : script;
+    final empty = text.trim().isEmpty;
+    final canSave = dirty && cleanScript(_controller.text).isNotEmpty;
 
-    return PopScope(
-      canPop: !dirty,
-      onPopInvokedWithResult: (didPop, _) => _leave(didPop),
-      child: Column(children: [
-      Expanded(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _editorMaxWidth),
-            child: Column(children: [
-              if (isMobile)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    TextButton(onPressed: dirty ? _cancel : null, child: const Text('Cancel')),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: dirty && cleanScript(_controller.text).isNotEmpty ? _save : null,
-                      child: const Text('Save'),
-                    ),
-                  ]),
-                ),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  autofocus: script.isEmpty,
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  textCapitalization: TextCapitalization.sentences,
-                  keyboardType: TextInputType.multiline,
-                  style: theme.textTheme.bodyLarge?.copyWith(fontSize: 19, height: 1.5),
-                  onChanged: _edited,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: 'Write or paste your script…',
-                    contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                    hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
-                  ),
-                ),
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 16, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              dirty ? 'Unsaved changes' : 'Saved',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: dirty ? scheme.secondary : scheme.onSurfaceVariant,
               ),
-            ]),
+            ),
+          ),
+          if (isMobile) ...[
+            TextButton(
+              onPressed: dirty ? _cancel : null,
+              child: const Text('Cancel'),
+            ),
+            const SizedBox(width: 4),
+            FilledButton(
+              onPressed: canSave ? _save : null,
+              style: FilledButton.styleFrom(minimumSize: const Size(72, 40)),
+              child: const Text('Save'),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final titleField = Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _titleController,
+              maxLength: SavedScript.maxTitleLength,
+              maxLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.next,
+              onChanged: (_) => _titleEdited(),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Title',
+                counterText: '',
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+          // The count only shows when the limit is close.
+          ListenableBuilder(
+            listenable: _titleController,
+            builder: (_, _) => _titleController.text.length >= 20
+                ? Text(
+                    '${_titleController.text.length}/${SavedScript.maxTitleLength}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+
+    final statsRow = Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 12, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _stats(text),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (!empty) TextButton(onPressed: _clear, child: const Text('Clear')),
+          OutlinedButton.icon(
+            onPressed: _insertSection,
+            icon: const Icon(Icons.horizontal_rule, size: 18),
+            label: const Text('Insert Section'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final body = Expanded(
+      child: TextField(
+        controller: _controller,
+        focusNode: _focus,
+        autofocus: script.isEmpty,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        textCapitalization: TextCapitalization.sentences,
+        keyboardType: TextInputType.multiline,
+        style: theme.textTheme.bodyLarge?.copyWith(fontSize: 19, height: 1.5),
+        onChanged: _edited,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          hintText: 'Script',
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          hintStyle: TextStyle(
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
         ),
       ),
-      DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          border: Border(top: BorderSide(color: theme.dividerTheme.color ?? Colors.transparent)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _editorMaxWidth),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: LayoutBuilder(builder: (context, c) {
-                  // Short, wide windows (a phone in landscape) keep the bar to one
-                  // row so the script keeps most of the height.
-                  final inline = c.maxWidth >= 520 && MediaQuery.sizeOf(context).height < 600;
-                  final stats = Text(_stats(isMobile ? _controller.text : script), style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant));
-                  final modePicker = SegmentedButton<PromptControlMode>(
-                    showSelectedIcon: false,
-                    segments: [for (final m in PromptControlMode.values) ButtonSegment(value: m, label: Text(m.label))],
-                    selected: {mode},
-                    onSelectionChanged: (v) => ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: v.first)),
-                  );
-                  final audioChip = ActionChip(
-                    avatar: const Icon(Icons.audio_file_outlined, size: 18),
-                    label: Text(
-                      audio == null ? 'Choose audio file' : audio.split(RegExp(r'[\\/]')).last,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () async => ref.read(audioPathProvider.notifier).set(await ScriptIO.chooseAudio() ?? audio),
-                  );
-                  final recordBlocked = empty || dirty || (mode == PromptControlMode.recordedAudio && audio == null);
-                  final actions = [
-                    if (mode != PromptControlMode.normal)
-                      _BarButton(
-                        icon: Icons.visibility_outlined,
-                        label: 'Preview',
-                        onPressed: empty || dirty ? null : () => _present(context, ref, record: false),
-                      ),
-                    if (mode == PromptControlMode.normal)
-                      _BarButton(
-                        icon: Icons.play_arrow_rounded,
-                        label: 'Read',
-                        primary: true,
-                        onPressed: empty || dirty ? null : () => _present(context, ref, record: false),
-                      )
-                    else
-                      _BarButton(
-                        icon: Icons.videocam,
-                        label: 'Record',
-                        primary: true,
-                        onPressed: recordBlocked ? null : () => _present(context, ref, record: true),
-                      ),
-                  ];
+    );
 
-                  if (inline) {
-                    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                      Expanded(
-                        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          ConstrainedBox(constraints: const BoxConstraints(maxWidth: 340), child: modePicker),
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                            stats,
-                            if (mode == PromptControlMode.recordedAudio && !keyboardUp) audioChip,
-                          ]),
-                        ]),
-                      ),
-                      const SizedBox(width: 16),
-                      for (var i = 0; i < actions.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 10),
-                        actions[i],
-                      ],
-                    ]);
-                  }
-                  return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    stats,
-                    // The keyboard needs the room; the mode can be changed once it is down.
-                    if (!keyboardUp) ...[
-                      const SizedBox(height: 10),
-                      modePicker,
-                      const SizedBox(height: 6),
-                      Text(_modePlan(mode), style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                      if (mode == PromptControlMode.recordedAudio) ...[
-                        const SizedBox(height: 6),
-                        Align(alignment: Alignment.centerLeft, child: audioChip),
-                      ],
-                    ],
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      for (var i = 0; i < actions.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 12),
-                        Expanded(child: actions[i]),
-                      ],
-                    ]),
-                  ]);
-                }),
+    final startBar = DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: theme.dividerTheme.color ?? Colors.transparent,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _editorMaxWidth),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    onPressed: empty
+                        ? null
+                        : () => showStartOptions(
+                            context,
+                            dirty: dirty,
+                            scriptText: _controller.text,
+                            onStart: _start,
+                          ),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Start…'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    empty
+                        ? 'Write or paste a script to start.'
+                        : dirty
+                        ? 'Starting saves your changes.'
+                        : 'Choose how the prompter follows you.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
-    ]),
     );
-  }
-}
 
-/// A bar button that keeps its label on one line.
-class _BarButton extends StatelessWidget {
-  const _BarButton({required this.icon, required this.label, required this.onPressed, this.primary = false});
+    final editorColumn = Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _editorMaxWidth),
+              child: Column(
+                children: [
+                  header,
+                  titleField,
+                  const Divider(indent: 24, endIndent: 24),
+                  const SizedBox(height: 4),
+                  statsRow,
+                  body,
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (!widget.inspector) startBar,
+      ],
+    );
 
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool primary;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis);
-    const pad = EdgeInsets.symmetric(horizontal: 18);
-    const min = Size(128, 52);
-    return primary
-        ? FilledButton.icon(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(padding: pad, minimumSize: min),
-            icon: Icon(icon),
-            label: text,
-          )
-        : OutlinedButton.icon(
-            onPressed: onPressed,
-            style: OutlinedButton.styleFrom(padding: pad, minimumSize: min),
-            icon: Icon(icon),
-            label: text,
-          );
+    return PopScope(
+      canPop: !dirty,
+      onPopInvokedWithResult: (didPop, _) => _leave(didPop),
+      child: widget.inspector
+          ? Row(
+              children: [
+                Expanded(child: editorColumn),
+                const VerticalDivider(width: 1),
+                SizedBox(
+                  width: _inspectorWidth,
+                  child: StartOptions(
+                    dirty: dirty,
+                    scriptText: _controller.text,
+                    onStart: _start,
+                  ),
+                ),
+              ],
+            )
+          : editorColumn,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/settings/labels.dart';
 import '../core/settings/prompt_settings.dart';
+import '../services/platform.dart';
 import '../services/providers.dart';
 
 /// A labelled slider whose value is shown beside the label.
@@ -156,14 +157,16 @@ class _PromptTextControlsState extends ConsumerState<PromptTextControls> {
               max: PromptLimits.opacity.max,
               onChanged: (v) => set((c) => c.copyWith(opacity: v)),
             ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: const Text('Reading guide'),
-            subtitle: const Text('Marks the line you read on'),
-            value: s.readingGuide,
-            onChanged: (v) => set((c) => c.copyWith(readingGuide: v)),
-          ),
+          // The guide is drawn on desktop only (see PromptSurface), so phones and tablets don't offer it.
+          if (!isMobile)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Reading guide'),
+              subtitle: const Text('Marks the line you read on'),
+              value: s.readingGuide,
+              onChanged: (v) => set((c) => c.copyWith(readingGuide: v)),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,

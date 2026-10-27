@@ -294,6 +294,8 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
         _spans(layout.script, layout, base, pr.progress, textColor),
         textAlign: TextAlign.center,
         textWidthBasis: TextWidthBasis.parent,
+        // Measured by WordLayout without the system text size; the font size is an in-app setting.
+        textScaler: TextScaler.noScaling,
       );
       if (settings.mirror) text = Transform.flip(flipX: true, child: text);
       // Rotation is for mobile glass rigs; desktop OSes rotate whole displays.
@@ -378,6 +380,7 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       cursor = r.end;
     }
     if (cursor < script.length) children.addAll(layout.gapSpans(cursor, script.length));
-    return TextSpan(style: base, children: children);
+    // Not inheriting the theme's default text style (letter spacing) keeps this identical to WordLayout's measure.
+    return TextSpan(style: base.copyWith(inherit: false), children: children);
   }
 }

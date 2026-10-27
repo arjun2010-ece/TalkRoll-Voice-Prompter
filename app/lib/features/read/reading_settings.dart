@@ -5,7 +5,7 @@ import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../main.dart' show crashReportingKey;
 import '../../services/providers.dart';
-import '../../services/storage/script_io.dart';
+import '../../ui/prompt_text_controls.dart';
 
 /// Width at which settings open as a side panel instead of a bottom sheet.
 const _panelMinWidth = 720.0;
@@ -13,9 +13,8 @@ const _panelMinWidth = 720.0;
 /// Opens the reading settings: a bottom sheet on narrow windows, a panel
 /// anchored to the trailing edge on wide ones. [app] adds the app-wide
 /// choices (appearance, crash reports) that Studio offers but the reader
-/// does not. [follow] shows the mode choice, which the camera screen hides
-/// because its mode is already fixed.
-Future<void> showReadingSettings(BuildContext context, {bool app = false, bool follow = true}) {
+/// does not. The mode and the camera are chosen in "How to read" instead.
+Future<void> showReadingSettings(BuildContext context, {bool app = false}) {
   final wide = MediaQuery.sizeOf(context).width >= _panelMinWidth;
   if (!wide) {
     return showModalBottomSheet<void>(
@@ -28,7 +27,7 @@ Future<void> showReadingSettings(BuildContext context, {bool app = false, bool f
         initialChildSize: 0.62,
         minChildSize: 0.4,
         maxChildSize: 0.95,
-        builder: (_, scroll) => ReadingSettings(app: app, follow: follow, controller: scroll),
+        builder: (_, scroll) => ReadingSettings(app: app, controller: scroll),
       ),
     );
   }
@@ -51,7 +50,7 @@ Future<void> showReadingSettings(BuildContext context, {bool app = false, bool f
             color: Theme.of(ctx).colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(28),
             clipBehavior: Clip.antiAlias,
-            child: SizedBox(width: 400, child: ReadingSettings(app: app, follow: follow)),
+            child: SizedBox(width: 400, child: ReadingSettings(app: app)),
           ),
         ),
       ),
@@ -62,17 +61,15 @@ Future<void> showReadingSettings(BuildContext context, {bool app = false, bool f
 /// How the prompter follows and shows the script. Frequent choices (mode, text
 /// size) sit first; rarely changed ones follow.
 class ReadingSettings extends ConsumerWidget {
-  const ReadingSettings({super.key, this.app = false, this.follow = true, this.controller});
+  const ReadingSettings({super.key, this.app = false, this.controller});
 
   final bool app;
-  final bool follow;
   final ScrollController? controller;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final set = ref.read(settingsProvider.notifier).update;
-    final audio = ref.watch(audioPathProvider);
     final text = Theme.of(context).textTheme;
 
     Widget section(String title) => Padding(
@@ -98,40 +95,21 @@ class ReadingSettings extends ConsumerWidget {
       controller: controller,
       padding: EdgeInsets.fromLTRB(24, controller == null ? 20 : 4, 24, 24 + MediaQuery.viewPaddingOf(context).bottom),
       children: [
-        Text('Reading settings', style: text.titleLarge),
-        if (follow) ...[
-        section('Follow'),
-        SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<PromptControlMode>(
-            showSelectedIcon: false,
-            segments: [
-              for (final m in PromptControlMode.values) ButtonSegment(value: m, label: Text(m.label)),
-            ],
-            selected: {s.mode},
-            onSelectionChanged: (v) => set((c) => c.copyWith(mode: v.first)),
-          ),
-        ),
+        Row(children: [
+          Expanded(child: Text('Reading settings', style: text.titleLarge)),
+          TextButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Done')),
+        ]),
+        const SizedBox(height: 4),
         Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(s.mode.explanation, style: text.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          padding: const EdgeInsets.only(top: 20, bottom: 4),
+          child: Row(children: [
+            Expanded(child: Text('Text', style: text.labelLarge?.copyWith(color: Theme.of(context).colorScheme.primary))),
+            const ResetTextButton(),
+          ]),
         ),
-        if (s.mode == PromptControlMode.recordedAudio)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.audio_file_outlined),
-              label: Text(audio == null ? 'Choose audio file' : audio.split(RegExp(r'[\\/]')).last, overflow: TextOverflow.ellipsis),
-              onPressed: () async => ref.read(audioPathProvider.notifier).set(await ScriptIO.chooseAudio() ?? audio),
-            ),
-          ),
-        ],
-        section('Text'),
-        slider('Size', '${s.fontSize.round()}', s.fontSize, PromptLimits.fontSize, (c, x) => c.copyWith(fontSize: x)),
-        slider('Spacing', '${s.lineSpacing.toStringAsFixed(2)}×', s.lineSpacing, PromptLimits.lineSpacing, (c, x) => c.copyWith(lineSpacing: x)),
+        const PromptTextControls(),
         if (s.mode == PromptControlMode.normal)
           slider('Speed', '${(s.speed / 24).toStringAsFixed(1)}×', s.speed, PromptLimits.speed, (c, x) => c.copyWith(speed: x)),
-        if (app) slider('Overlay opacity', '${(s.opacity * 100).round()}%', s.opacity, PromptLimits.opacity, (c, x) => c.copyWith(opacity: x)),
         section('Teleprompter glass'),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,

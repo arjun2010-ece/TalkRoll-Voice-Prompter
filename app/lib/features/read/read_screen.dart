@@ -5,7 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 import '../../core/settings/prompt_settings.dart';
+import '../../services/permissions/permissions.dart';
+import '../../ui/permission_dialogs.dart';
+import '../studio/start_options.dart';
+import '../video/mode_chip.dart';
+import '../video/camera_state.dart';
+import '../prompter/progress_line.dart';
 import '../../services/providers.dart';
 import '../prompter/prompt_surface.dart';
 import '../prompter/prompter_controller.dart';
@@ -89,12 +97,6 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
     Navigator.of(context).pop();
   }
 
-  /// Back to the scripts list, skipping the editor.
-  void _home() {
-    ref.read(prompterProvider.notifier).pause();
-    Navigator.of(context).popUntil((r) => r.isFirst);
-  }
-
   Future<void> _edit() async {
     if (!await showScriptEditor(context, ref)) return;
     final studio = ref.read(studioProvider);
@@ -107,16 +109,47 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
   }
 
   void _record() {
+    ref.read(cameraOnProvider.notifier).set(true);
     _toRecord = true;
     ref.read(prompterProvider.notifier).pause();
     Navigator.of(context).pop(true);
   }
 
-  void _togglePlay() {
-    // Voice and Audio play from the Record screen, not here.
-    if (ref.read(settingsProvider).mode != PromptControlMode.normal) return;
+  /// Opens "How to read". The reader pauses while it is open and keeps its mode until the sheet's button is pressed.
+  /// Choosing the camera there moves to the camera screen; another mode restarts the prompter at the same word.
+  Future<void> _changeMode() async {
+    _hideTimer?.cancel();
+    final prompter = ref.read(prompterProvider.notifier);
+    await prompter.pause();
+    if (!mounted) return;
+    final before = ref.read(settingsProvider).mode;
+    final word = before == PromptControlMode.normal
+        ? ref.read(readingWordProvider)
+        : math.max(ref.read(prompterProvider).progress.confirmedWordIndex, 0);
+    var applied = false;
+    await showStartOptions(context, apply: StartApply.use, onStart: () async => applied = true);
+    if (!mounted || !applied) return;
+    final mode = ref.read(settingsProvider).mode;
+    if (ref.read(cameraOnProvider) && mode != PromptControlMode.normal) {
+      _record();
+    } else if (mode != before && mode != PromptControlMode.normal) {
+      prompter.seekTo(word);
+    }
+  }
+
+  /// Voice and Audio listen through the microphone, so the first Play asks for it. Without the camera the
+  /// recogniser opens the microphone itself.
+  Future<void> _togglePlay() async {
     HapticFeedback.selectionClick();
-    ref.read(prompterProvider.notifier).togglePlay();
+    final prompter = ref.read(prompterProvider.notifier);
+    if (ref.read(settingsProvider).mode != PromptControlMode.normal && !ref.read(prompterProvider).playing) {
+      final granted = await requestPermission(Permission.microphone, 'mic', ref.read(analyticsProvider));
+      if (!granted) {
+        if (mounted) showMicrophoneDenied(context);
+        return;
+      }
+    }
+    await prompter.togglePlay();
   }
 
   @override
@@ -132,7 +165,12 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
     });
     ref.listen(prompterProvider.select((p) => p.playing), (_, playing) => _syncChrome(playing));
     ref.listen(prompterProvider.select((p) => p.voiceUnsupported), (_, unsupported) {
-      if (unsupported) showVoiceUnsupportedDialog(context);
+      if (unsupported) {
+        showVoiceUnsupportedDialog(
+          context,
+          onUseNormal: () => ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: PromptControlMode.normal)),
+        );
+      }
     });
 
     return Scaffold(
@@ -161,13 +199,13 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
                 top: 0,
                 left: 0,
                 right: 0,
-                child: _TopBar(visible: _chrome, wide: wide, topInset: pad.top, onClose: _close, onHome: _home),
+                child: _TopBar(visible: _chrome, wide: wide, topInset: pad.top, onClose: _close, onMode: _changeMode, onSettings: () => showReadingSettings(context)),
               ),
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _Dock(visible: _chrome, wide: wide, bottomInset: pad.bottom, onTogglePlay: _togglePlay, onEdit: _edit, onRecord: _record),
+                child: _Dock(visible: _chrome, wide: wide, bottomInset: pad.bottom, onTogglePlay: _togglePlay, onEdit: _edit),
               ),
             ]);
           }),
@@ -179,17 +217,15 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
 
 // --- Top bar -----------------------------------------------------------------------
 
-/// Two round buttons and the gap between them.
-const _sideSlotWidth = 48.0 * 2 + 8;
-
 class _TopBar extends ConsumerWidget {
-  const _TopBar({required this.visible, required this.wide, required this.topInset, required this.onClose, required this.onHome});
+  const _TopBar({required this.visible, required this.wide, required this.topInset, required this.onClose, required this.onMode, required this.onSettings});
 
   final bool visible;
   final bool wide;
   final double topInset;
   final VoidCallback onClose;
-  final VoidCallback onHome;
+  final VoidCallback onMode;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -203,24 +239,16 @@ class _TopBar extends ConsumerWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(12, math.max(topInset, 8) + 4, 12, 0),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Equal-width side slots keep the status centred.
-        SizedBox(
-          width: _sideSlotWidth,
-          child: _FadeIn(
-            visible: visible,
-            duration: duration,
-            child: Row(children: [
-              _RoundButton(icon: Icons.close, tooltip: 'Close', onPressed: onClose),
-              const SizedBox(width: 8),
-              _RoundButton(icon: Icons.home_outlined, tooltip: 'Scripts', onPressed: onHome),
-            ]),
-          ),
+        _FadeIn(
+          visible: visible,
+          duration: duration,
+          child: _RoundButton(icon: Icons.close, tooltip: 'Close', onPressed: onClose),
         ),
         Expanded(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: TrackingPill(mode: mode, status: status, showMode: visible || wide),
+              child: TrackingPill(mode: mode, status: status, showMode: false),
             ),
             if (status.detail != null)
               Padding(
@@ -238,20 +266,14 @@ class _TopBar extends ConsumerWidget {
               ),
           ]),
         ),
-        SizedBox(
-          width: _sideSlotWidth,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: _FadeIn(
-              visible: visible,
-              duration: duration,
-              child: _RoundButton(
-                icon: Icons.tune,
-                tooltip: 'Reading settings',
-                onPressed: () => showReadingSettings(context),
-              ),
-            ),
-          ),
+        _FadeIn(
+          visible: visible,
+          duration: duration,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            ModeChip(mode: mode, camera: false, onPressed: onMode),
+            const SizedBox(width: 8),
+            _RoundButton(icon: Icons.tune, tooltip: 'Reading settings', onPressed: onSettings),
+          ]),
         ),
       ]),
     );
@@ -267,7 +289,6 @@ class _Dock extends ConsumerWidget {
     required this.bottomInset,
     required this.onTogglePlay,
     required this.onEdit,
-    required this.onRecord,
   });
 
   final bool visible;
@@ -275,7 +296,6 @@ class _Dock extends ConsumerWidget {
   final double bottomInset;
   final VoidCallback onTogglePlay;
   final VoidCallback onEdit;
-  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,15 +304,12 @@ class _Dock extends ConsumerWidget {
     final c = ref.read(prompterProvider.notifier);
     final set = ref.read(settingsProvider.notifier).update;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final audio = ref.watch(audioPathProvider);
     final playSize = wide ? 76.0 : 68.0;
-    final normal = s.mode == PromptControlMode.normal;
     final leftActions = Row(mainAxisSize: MainAxisSize.min, children: [
       _RoundButton(icon: Icons.replay, tooltip: 'Restart', onPressed: c.restart),
       const SizedBox(width: 8),
       _RoundButton(icon: Icons.edit_outlined, tooltip: 'Edit script', onPressed: onEdit),
     ]);
-    final recordBlocked = s.mode == PromptControlMode.recordedAudio && audio == null;
 
     final stepper = s.mode == PromptControlMode.normal
         ? _Stepper(
@@ -323,34 +340,29 @@ class _Dock extends ConsumerWidget {
             constraints: BoxConstraints(maxWidth: wide ? 560 : 440),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1B19).withValues(alpha: 0.94),
+                color: const Color(0xFF1C1C1E).withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(36),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (!normal) ...[
+                  if (s.showProgress) ...[
                     SizedBox(
                       width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: recordBlocked ? null : onRecord,
-                        icon: const Icon(Icons.videocam),
-                        label: const Text('Record'),
+                      child: DefaultTextStyle.merge(
+                        textAlign: TextAlign.center,
+                        child: ProgressLine(style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: 13)),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                   ],
-                  if (normal)
-                    // Equal side slots keep the play button centred whatever the side widths.
-                    Row(children: [
-                      Expanded(child: Align(alignment: Alignment.centerLeft, child: leftActions)),
-                      _PlayButton(size: playSize, playing: pr.playing, busy: pr.preparing, onPressed: onTogglePlay),
-                      Expanded(child: Align(alignment: Alignment.centerRight, child: stepper)),
-                    ])
-                  else
-                    // Recording has its own play control, so this screen only offers Record.
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [leftActions, stepper]),
+                  // Equal side slots keep the play button centred whatever the side widths.
+                  Row(children: [
+                    Expanded(child: Align(alignment: Alignment.centerLeft, child: leftActions)),
+                    _PlayButton(size: playSize, playing: pr.playing, busy: pr.preparing, onPressed: onTogglePlay),
+                    Expanded(child: Align(alignment: Alignment.centerRight, child: stepper)),
+                  ]),
                 ]),
               ),
             ),
@@ -378,7 +390,7 @@ class _PlayButton extends StatelessWidget {
       child: SizedBox.square(
         dimension: size,
         child: Material(
-          color: busy ? Colors.white24 : const Color(0xFFFFA24A),
+          color: busy ? Colors.white24 : const Color(0xFF0B63CE),
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -386,7 +398,7 @@ class _PlayButton extends StatelessWidget {
             child: Center(
               child: busy
                   ? const SizedBox.square(dimension: 26, child: CircularProgressIndicator(strokeWidth: 3, color: promptText))
-                  : Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: size * 0.6, color: const Color(0xFF1B0F00)),
+                  : Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: size * 0.6, color: Colors.white),
             ),
           ),
         ),
@@ -435,7 +447,7 @@ class _RoundButton extends StatelessWidget {
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool filled;
 
   @override
@@ -494,7 +506,7 @@ class _ProgressLine extends ConsumerWidget {
         value: value,
         minHeight: 3,
         backgroundColor: Colors.white.withValues(alpha: 0.08),
-        color: const Color(0xFFFFA24A).withValues(alpha: 0.8),
+        color: const Color(0xFFFF9F0A).withValues(alpha: 0.8),
       ),
     );
   }

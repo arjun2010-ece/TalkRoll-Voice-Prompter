@@ -609,7 +609,7 @@ Attribution from the web site to the app store uses UTM-tagged store links (App 
   - Adjustable background opacity so the user can still see themselves.
 - **Why the top:** it keeps the presenter's eyes close to the front lens. On phones held in landscape, the lens sits at a *side* edge. The strip is still at the top as specified, and a later "dock near camera" option can move it.
 - **Rotation:** the preview and prompter re-layout when the device rotates before recording. **Orientation is locked while recording**, so the file has one orientation. The lock is released on stop.
-- **Controls:** record/stop with a timer, camera flip (disabled while recording), prompter mode (**Normal / Voice / Audio**), speed, font size, pause scrolling, and a 3-2-1 countdown option.
+- **Controls:** record/stop with a timer, pause/resume as a separate button from stop, camera flip (available only before recording starts: it stays disabled while recording **and while paused**; see "Future: more flexible camera recording" below), prompter mode (**Normal / Voice / Audio**), speed, font size, pause scrolling, and a 3-2-1 countdown option.
 - **What the recording contains:**
   - The prompter is **not** in the video; it is a UI overlay only.
   - Front-camera video is saved un-mirrored, like the system Camera app.
@@ -660,6 +660,17 @@ The stock Flutter `camera` plugin takes the mic exclusively and doesn't control 
 - One mic stream feeds both the video file and the speech engine. Audio and video stay in sync, and there is no OS conflict over the microphone.
 - **Phase 0 spike 5** validates all three modes while recording, including headphone playback with built-in-mic input, before we commit. Fallback on Android: CameraX `VideoCapture` without audio, plus our own AAC track, remuxed by timestamp on stop.
 - **Permissions:** camera, microphone, photo-library add (iOS), and `READ_MEDIA_VIDEO` only if we show past recordings.
+
+#### Future: more flexible camera recording (not scheduled)
+Today the camera is chosen before recording (front by default) and cannot change during a take. **Pause** and **Stop** are separate buttons: Pause keeps one file open and resumes into it; Stop ends the take. The mobile design (`EchoPrompter Mobile v2 · Camera`) follows this: Flip is disabled while recording and while paused, with a hint to stop first.
+
+**Candidate: switch cameras while paused, in one recording.** Pause, flip front/back, resume, and still get a single saved video.
+- **Why it isn't built:** `EchoPrompterCamera.switchCamera` stops and restarts the preview, and `packages/echoprompter_camera` writes one continuous encoder session. A camera change mid-take needs the encoder to accept frames from a new source with a different orientation, mirroring and (on some devices) resolution.
+- **Approach to evaluate:**
+  - Keep the audio track and the muxer open across the switch, and rebind the video source only, inserting a keyframe at the cut. Preferred: one file, no join step.
+  - Fallback: record each camera as its own segment and concatenate them on stop (iOS `AVMutableComposition`, Android `MediaMuxer`/Media3 Transformer). Simpler, but slower to finish and needs a re-encode when the segment formats differ.
+- **Design to add when this is built:** Flip enabled while paused, a "Switching camera…" state, a "Camera changed, still recording" confirmation, and a result that says the video has a camera change in it. Check the front-camera un-mirroring rule (above) on both sides of the cut.
+- **Related ideas to weigh at the same time:** resume after an interruption into the same take instead of ending it, and keeping several takes in one session.
 
 ### 10.3 Commercial licence
 

@@ -764,7 +764,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             builder: (_, v, child) => Opacity(opacity: v, child: child),
             child: Center(
               child: AspectRatio(
-                aspectRatio: p.aspectRatio,
+                // The preview is upright, so its shape follows the screen orientation, not the one it started in.
+                aspectRatio: landscape == (p.aspectRatio >= 1) ? p.aspectRatio : 1 / p.aspectRatio,
                 child: Transform.flip(
                   flipX: p.mirrored,
                   child: RotatedBox(quarterTurns: p.quarterTurns, child: Texture(textureId: p.textureId)),

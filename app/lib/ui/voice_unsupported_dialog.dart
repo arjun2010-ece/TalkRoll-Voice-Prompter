@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Tells the reader that Voice mode can't run on this device: neither its on-device recogniser nor its system
 /// recogniser can be used.
-Future<void> showVoiceUnsupportedDialog(BuildContext context) => showDialog<void>(
+Future<void> showVoiceUnsupportedDialog(BuildContext context, {VoidCallback? onUseNormal}) => showDialog<void>(
   context: context,
   builder: (context) => AlertDialog(
     icon: const Icon(Icons.mic_off_rounded, size: 32),
@@ -12,6 +12,16 @@ Future<void> showVoiceUnsupportedDialog(BuildContext context) => showDialog<void
       'If it should, the device may still be downloading the English speech files, or speech recognition may be turned off for EchoPrompter in Settings: try again in a few minutes.\n\n'
       'Normal mode still scrolls at the pace you set.',
     ),
-    actions: [FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it'))],
+    actions: [
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it')),
+      if (onUseNormal != null)
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onUseNormal();
+          },
+          child: const Text('Use Normal mode'),
+        ),
+    ],
   ),
 );

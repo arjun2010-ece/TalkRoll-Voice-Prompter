@@ -733,6 +733,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               style: PromptLayoutStyle.compact,
               backgroundOpacity: ref.watch(settingsProvider.select((s) => s.opacity)) * 0.4,
               showControls: false,
+              showProgress: true,
+              // Portrait's drag handle sits over the panel's bottom 24.
+              bottomInset: landscape ? 0 : 24,
             ),
           ),
           if (!landscape)

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
 import 'prompt_surface.dart';
+import 'progress_line.dart';
 import 'prompter_controller.dart';
 import 'tracking_status.dart';
 
@@ -20,12 +21,19 @@ class PromptView extends ConsumerWidget {
     this.style = PromptLayoutStyle.full,
     this.backgroundOpacity,
     this.showControls = true,
+    this.showProgress = false,
+    this.bottomInset = 0,
     this.onClose,
     this.trailing = const [],
   });
 
   final PromptLayoutStyle style;
   final double? backgroundOpacity;
+
+  /// Shows the percent / elapsed / time-left line under the text, when the "Show progress" setting is on.
+  /// [bottomInset] keeps it clear of anything the host draws over the panel's bottom edge.
+  final bool showProgress;
+  final double bottomInset;
 
   /// False when the host screen shows [PromptControlBar] itself.
   final bool showControls;
@@ -44,6 +52,18 @@ class PromptView extends ConsumerWidget {
         color: bg,
         child: Column(children: [
           Expanded(child: PromptSurface(style: style, onWordTap: true)),
+          if (showProgress && s.showProgress)
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 4, 12, 8 + bottomInset),
+              child: SizedBox(
+                width: double.infinity,
+                child: DefaultTextStyle.merge(
+                  textAlign: TextAlign.center,
+                  // The camera screen's top bar already shows the recording time.
+                  child: ProgressLine(showElapsed: false, style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: 12)),
+                ),
+              ),
+            ),
           if (showControls) PromptControlBar(compact: compact, onClose: onClose, trailing: trailing),
         ]),
       ),

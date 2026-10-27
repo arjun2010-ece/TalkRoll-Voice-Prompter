@@ -28,8 +28,11 @@ String _clock(int seconds) => '${seconds ~/ 60}:${(seconds % 60).toString().padL
 /// rebuilds this line and never the script text. Elapsed counts only while the prompter is playing,
 /// and starts over with Restart and with each new session.
 class ProgressLine extends ConsumerStatefulWidget {
-  const ProgressLine({super.key, this.style});
+  const ProgressLine({super.key, this.style, this.showElapsed = true});
   final TextStyle? style;
+
+  /// False where the host screen already shows the time elapsed (the camera screen's recording timer).
+  final bool showElapsed;
 
   @override
   ConsumerState<ProgressLine> createState() => _ProgressLineState();
@@ -139,7 +142,7 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
       }
     }
     return Text(
-      '$section$percent%  ·  ${_clock(elapsed.inSeconds)} elapsed  ·  ${pr.finished ? '' : '~'}${_clock(shownLeft)} left',
+      '$section$percent%  ·  ${widget.showElapsed ? '${_clock(elapsed.inSeconds)} elapsed  ·  ' : ''}${pr.finished ? '' : '~'}${_clock(shownLeft)} left',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: (widget.style ?? const TextStyle()).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),

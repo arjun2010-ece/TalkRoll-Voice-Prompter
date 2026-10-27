@@ -20,6 +20,9 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
     private var front = true
     private var orientationLocked = false
     private var lockedAngle: CGFloat = 90
+    private var interfaceAngle: CGFloat?  // guarded by latestLock
+    private var rotationCoordinator: Any?  // AVCaptureDevice.RotationCoordinator (iOS 17+)
+    private var rotationObserver: NSKeyValueObservation?
 
     private var audioSink: FlutterEventSink?
     private var eventSink: FlutterEventSink?
@@ -66,6 +69,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         NotificationCenter.default.addObserver(p, selector: #selector(interrupted), name: .AVCaptureSessionWasInterrupted, object: nil)
         NotificationCenter.default.addObserver(p, selector: #selector(interrupted), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(p, selector: #selector(deviceRotated), name: UIDevice.orientationDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(p, selector: #selector(interfaceRotated), name: UIApplication.didChangeStatusBarOrientationNotification, object: nil)
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     }
 
@@ -116,6 +120,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
     private func startPreview(front: Bool, result: @escaping FlutterResult) {
         stopPreview()
         self.front = front
+        updateInterfaceAngle()
         AVCaptureDevice.requestAccess(for: .video) { granted in
             guard granted else { DispatchQueue.main.async { result(FlutterError(code: "permission", message: "Camera access denied", details: nil)) }; return }
             self.queue.async {
@@ -128,6 +133,13 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
                     return
                 }
                 s.addInput(input)
+                if #available(iOS 17.0, *) {
+                    let rc = AVCaptureDevice.RotationCoordinator(device: dev, previewLayer: nil)
+                    self.rotationCoordinator = rc
+                    self.rotationObserver = rc.observe(\.videoRotationAngleForHorizonLevelCapture) { [weak self] _, _ in
+                        self?.queue.async { self?.updateVideoRotation() }
+                    }
+                }
                 let v = AVCaptureVideoDataOutput()
                 v.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
                 v.alwaysDiscardsLateVideoFrames = true
@@ -152,6 +164,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         if writer != nil { finishRecording(reason: "user", result: { _ in }) }
         queue.sync {
             session?.stopRunning(); session = nil; videoOut = nil; audioOut = nil
+            rotationObserver = nil; rotationCoordinator = nil
             latestLock.lock(); latest = nil; latestLock.unlock()
         }
         if textureId >= 0 { textures.unregisterTexture(textureId); textureId = -1 }
@@ -165,8 +178,35 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
 
     // MARK: Orientation (locked while recording so the file has one orientation)
 
+    /// The orientation the app's screen is actually in. The device orientation can disagree with it (iPad
+    /// rotation lock, face up/down), which would show the preview upside down, so it is preferred.
+    private func updateInterfaceAngle() {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        var angle: CGFloat?
+        switch scene?.interfaceOrientation {
+        case .landscapeRight: angle = 0
+        case .landscapeLeft: angle = 180
+        case .portraitUpsideDown: angle = 270
+        case .portrait: angle = 90
+        default: angle = nil
+        }
+        latestLock.lock(); interfaceAngle = angle; latestLock.unlock()
+    }
+
+    @objc private func interfaceRotated() {
+        updateInterfaceAngle()
+        queue.async { self.updateVideoRotation() }
+    }
+
     private func currentAngle() -> CGFloat {
         if orientationLocked { return lockedAngle }
+        // The coordinator knows how the sensor is mounted on this device (the iPad front camera sits on the
+        // long edge, so fixed angles come out upside down there).
+        if #available(iOS 17.0, *), let rc = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
+            return rc.videoRotationAngleForHorizonLevelCapture
+        }
+        latestLock.lock(); let screen = interfaceAngle; latestLock.unlock()
+        if let screen { return screen }
         switch UIDevice.current.orientation {
         case .landscapeLeft: return 0     // home button on the right
         case .landscapeRight: return 180
@@ -288,8 +328,8 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
 
     private func beginWriter() throws {
         guard writer == nil, session != nil else { throw NSError(domain: "echoprompter", code: 1, userInfo: [NSLocalizedDescriptionKey: "No preview"]) }
+        lockedAngle = currentAngle()  // read before locking, or it just returns the stale locked value
         orientationLocked = true
-        lockedAngle = currentAngle()
         updateVideoRotation()
         updateAudioInput()
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_\(Int(Date().timeIntervalSince1970)).mp4")

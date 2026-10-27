@@ -1,11 +1,9 @@
-import 'dart:io' show Platform;
-
 /// Section markers: a line holding only a name in square brackets, like `[Intro]`. A section runs
 /// until the next marker. Markers are shown on the prompter as dividers but are never read, counted
 /// or highlighted, so every word index stays the same as in the script without them.
 ///
-/// Desktop only for now: on phones and tablets a bracketed line is ordinary text.
-final bool sectionMarkersOn = !(Platform.isIOS || Platform.isAndroid);
+/// On every platform. Kept as one switch so section handling can be turned off in a single place.
+const bool sectionMarkersOn = true;
 
 /// Longest section name.
 const maxSectionNameLength = 40;

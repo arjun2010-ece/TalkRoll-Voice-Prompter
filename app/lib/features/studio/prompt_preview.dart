@@ -23,9 +23,12 @@ Size promptWindowSize(PromptSettings s) => switch (s.placement) {
 /// live session. [wordIndex] is the word shown on the reading line, normally
 /// the one under the editor's caret.
 class PromptPreview extends ConsumerStatefulWidget {
-  const PromptPreview({super.key, required this.wordIndex, this.height});
+  const PromptPreview({super.key, required this.wordIndex, this.height, this.script});
 
   final int wordIndex;
+
+  /// Shows this text instead of the saved script, for an editor that holds unsaved edits.
+  final String? script;
 
   /// Fixed height; by default the preview is 16:10 at whatever width it gets.
   final double? height;
@@ -65,7 +68,7 @@ class _PromptPreviewState extends ConsumerState<PromptPreview> {
     final surface = PromptSurface(
       style: style,
       previewWordIndex: widget.wordIndex,
-      scriptOverride: _script,
+      scriptOverride: widget.script ?? _script,
     );
 
     final Widget window = s.placement == PromptPlacement.notch

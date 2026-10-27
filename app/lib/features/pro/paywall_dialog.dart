@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/entitlements/entitlements.dart';
+import '../../services/platform.dart';
 import '../../services/external_links.dart';
 
 /// Opens the plans. [reason] sits under the title when the paywall came from a locked Start.
@@ -50,7 +51,14 @@ class _PaywallDialogState extends State<PaywallDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final phone = isMobile && MediaQuery.sizeOf(context).shortestSide < 600;
+    final plans = [
+      _PlanCard(plan: ProPlan.monthly, price: ProPrices.monthly, line1: 'per month', line2: 'cancel anytime', selected: _plan, onSelect: _select),
+      _PlanCard(plan: ProPlan.yearly, price: ProPrices.yearly, line1: 'per year', line2: 'about ${ProPrices.yearlyPerMonth} a month', badge: 'SAVE 34%', selected: _plan, onSelect: _select),
+      _PlanCard(plan: ProPlan.lifetime, price: ProPrices.lifetime, line1: 'one payment', line2: 'Pro forever', selected: _plan, onSelect: _select),
+    ];
     return Dialog(
+      insetPadding: phone ? const EdgeInsets.all(12) : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 580),
         child: SingleChildScrollView(
@@ -89,13 +97,17 @@ class _PaywallDialogState extends State<PaywallDialog> {
                 ]),
               ),
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _PlanCard(plan: ProPlan.monthly, price: ProPrices.monthly, line1: 'per month', line2: 'cancel anytime', selected: _plan, onSelect: _select)),
-              const SizedBox(width: 10),
-              Expanded(child: _PlanCard(plan: ProPlan.yearly, price: ProPrices.yearly, line1: 'per year', line2: 'about ${ProPrices.yearlyPerMonth} a month', badge: 'SAVE 34%', selected: _plan, onSelect: _select)),
-              const SizedBox(width: 10),
-              Expanded(child: _PlanCard(plan: ProPlan.lifetime, price: ProPrices.lifetime, line1: 'one payment', line2: 'Pro forever', selected: _plan, onSelect: _select)),
-            ]),
+            if (phone)
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (final c in plans) Padding(padding: const EdgeInsets.only(bottom: 10), child: c),
+              ])
+            else
+              Row(children: [
+                for (var i = 0; i < plans.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  Expanded(child: plans[i]),
+                ],
+              ]),
             if (_notice != null) ...[
               const SizedBox(height: 14),
               Container(

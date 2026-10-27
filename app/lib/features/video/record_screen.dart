@@ -51,7 +51,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   // Voice mode: the prompter started as the screen opened, so the script shows before the camera.
   bool _promptReady = false;
   // Voice mode: the microphone was listening when the app went to the background.
-  bool _micWasOn = false;
   // Cached because `ref` can't be read in dispose().
   late final AnalyticsService _analytics;
   late final PrompterController _prompter;
@@ -110,7 +109,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // Voice mode's start-up is light, so its script shows at once, on black, and the camera fades
     // in behind it once open (as in the reference). Audio mode transcribes its file on this thread, so it
     // starts once the preview is up (below).
-    if (_micIsIndependent) {
+    if (_scriptFirst) {
       await _beginPrompter();
       if (!mounted) return;
       setState(() => _promptReady = true);
@@ -141,8 +140,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       }
     });
     if (_promptReady && mounted) {
-      // The script is already showing, so listening starts now instead of once the camera is up.
-      unawaited(_beginPrompter(listen: true));
+      // The script is already showing.
       await _startPreview();
       return;
     }
@@ -151,7 +149,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // (e.g. transcribing the audio file in Audio mode) on the same thread.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
-    _beginPrompter(listen: true);
+    _beginPrompter();
   }
 
   /// The camera and microphone, asked for with an explanation first. False when the reader said no (the screen then
@@ -221,17 +219,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     }
   }
 
-  /// Voice mode: the microphone listens from the moment the screen opens and only the
-  /// play button switches it. Recording, pausing and stopping the take never touch it.
-  bool get _micIsIndependent => isMobile && ref.read(settingsProvider).mode == PromptControlMode.voice;
+  /// Voice mode's start-up is light, so its script can show before the camera is up. Voice only starts listening
+  /// when the take does, so the script stays at the start until then.
+  bool get _scriptFirst => isMobile && ref.read(settingsProvider).mode == PromptControlMode.voice;
 
-  /// Starts the prompter on the current script. In Voice mode it also starts listening when
-  /// [listen] is set, or when it was listening before (so editing the script keeps the mic as it was).
-  Future<void> _beginPrompter({bool listen = false}) async {
+  /// Sets the prompter up on the current script; recording starts it.
+  Future<void> _beginPrompter() async {
     final studio = ref.read(studioProvider);
     final s = ref.read(settingsProvider);
     final prompter = ref.read(prompterProvider.notifier);
-    final wasListening = ref.read(prompterProvider).playing;
     await prompter.begin(
       sessionId: studio.sessionId,
       script: studio.script,
@@ -240,8 +236,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       // One mic stream feeds the video file and the speech engine.
       externalSamples: EchoPrompterCamera.audioSamples,
     );
-    if (!mounted || !_micIsIndependent || !(listen || wasListening)) return;
-    if (!ref.read(prompterProvider).playing) await prompter.play();
   }
 
   Future<void> _edit() async {
@@ -264,19 +258,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      final prompter = ref.read(prompterProvider.notifier);
-      if (_micIsIndependent && ref.read(prompterProvider).playing) {
-        _micWasOn = true;
-        prompter.pause();
-      }
       if (_preview == null) return;
       EchoPrompterCamera.stopPreview();
       setState(() => _preview = null);
     } else if (state == AppLifecycleState.resumed) {
-      if (_micWasOn) {
-        _micWasOn = false;
-        ref.read(prompterProvider.notifier).play();
-      }
       if (_preview == null && _error == null && !_opening) _startPreview();
     }
   }
@@ -291,12 +276,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       await EchoPrompterCamera.resumeRecording();
       _startTimer();
       setState(() => _paused = false);
-      if (!_micIsIndependent) await prompter.play();
+      await prompter.play();
     } else {
       _timer?.cancel();
       await EchoPrompterCamera.pauseRecording();
       setState(() => _paused = true);
-      if (!_micIsIndependent) await prompter.pause();
+      await prompter.pause();
     }
   }
 
@@ -322,7 +307,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       ),
     );
     if (choice == null || !_recording || !mounted) return;
-    if (!_micIsIndependent) await ref.read(prompterProvider.notifier).pause();
+    await ref.read(prompterProvider.notifier).pause();
     final r = await EchoPrompterCamera.stopRecording();
     if (choice == 'save') {
       await _onStopped(r, 'user');
@@ -340,11 +325,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final prompter = ref.read(prompterProvider.notifier);
     final analytics = ref.read(analyticsProvider);
     if (_recording) {
-      if (!_micIsIndependent) await prompter.pause();
+      await prompter.pause();
       final r = await EchoPrompterCamera.stopRecording();
       await _onStopped(r, 'user');
       return;
     }
+    // Voice mode listens from the tap, so the recogniser is up for the first words; the other modes start with the take.
+    if (ref.read(settingsProvider).mode == PromptControlMode.voice) await prompter.play();
     if (_useCountdown) {
       for (var i = 3; i >= 1; i--) {
         setState(() => _countdown = i);
@@ -374,7 +361,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     if (mode == PromptControlMode.voice) _micStart = DateTime.now();
     // Playback / scrolling starts on the first recorded frame (after the
     // countdown); Audio mode's clock starts here too.
-    if (!_micIsIndependent) await prompter.play();
+    if (mode != PromptControlMode.voice) await prompter.play();
   }
 
   Future<void> _onStopped(RecordingResult? r, String reason) async {
@@ -486,7 +473,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
   /// Ends the open take: saved to the gallery or thrown away, without leaving the screen.
   Future<void> _endTake({required bool save}) async {
-    if (!_micIsIndependent) await ref.read(prompterProvider.notifier).pause();
+    await ref.read(prompterProvider.notifier).pause();
     final r = await EchoPrompterCamera.stopRecording();
     _timer?.cancel();
     await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -569,7 +556,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _routeInput(mode);
       if (_recording) return;
       if (mode == PromptControlMode.recordedAudio) _route = ReferenceRoute.speaker;
-      _beginPrompter(listen: true);
+      _beginPrompter();
     });
     ref.listen(prompterProvider.select((p) => p.voiceUnsupported), (_, unsupported) {
       if (unsupported) showVoiceUnsupportedDialog(context, onUseNormal: _useNormal);

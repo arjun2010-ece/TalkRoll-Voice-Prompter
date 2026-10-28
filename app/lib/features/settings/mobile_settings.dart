@@ -10,6 +10,7 @@ import '../../main.dart' show crashReportingKey;
 import '../../services/external_links.dart';
 import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
+import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 
@@ -390,6 +391,14 @@ class _HelpContent extends StatelessWidget {
           style: muted,
         ),
       ),
+      _Group(title: 'Welcome tour', children: [
+        ListTile(
+          leading: const Icon(Icons.play_circle_outline),
+          title: const Text('Show the tour again'),
+          subtitle: const Text('Microphone and camera setup, and how to choose a mode.'),
+          onTap: () => replayOnboarding(context),
+        ),
+      ]),
       _Group(title: 'Website & FAQ', children: [
         Padding(
           padding: const EdgeInsets.all(16),

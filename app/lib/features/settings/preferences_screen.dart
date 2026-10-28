@@ -15,6 +15,7 @@ import '../../core/shortcuts/shortcut_binding.dart';
 import '../../main.dart' show crashReportingKey;
 import '../../services/external_links.dart';
 import '../../services/providers.dart';
+import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 
@@ -421,6 +422,11 @@ class _HelpTab extends StatelessWidget {
           style: muted,
         ),
       ),
+      _Group(title: 'Welcome tour', children: [
+        row(Icons.play_circle_outline, 'Show the tour again', 'Position and voice setup', [
+          OutlinedButton(onPressed: () => replayOnboarding(context), child: const Text('Show')),
+        ]),
+      ]),
       _Group(title: 'Resources', children: [
         row(Icons.language, 'Website & FAQ', 'echoprompter.app', [
           OutlinedButton(onPressed: () => openExternal(Uri.parse(websiteUrl)), child: const Text('Open')),

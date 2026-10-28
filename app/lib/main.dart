@@ -7,6 +7,9 @@ import 'package:echoprompter_window/echoprompter_window.dart';
 import 'core/settings/prompt_settings.dart';
 import 'features/menu/app_menu_bar.dart';
 import 'features/notes/notes_state.dart';
+import 'features/onboarding/desktop_onboarding.dart';
+import 'features/onboarding/mobile_onboarding.dart';
+import 'features/onboarding/onboarding_state.dart';
 import 'features/prompter/desktop_prompter_screen.dart';
 import 'features/studio/desktop_studio_screen.dart';
 import 'features/studio/studio_screen.dart';
@@ -74,6 +77,7 @@ class EchoPrompterApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appearance = ref.watch(settingsProvider.select((s) => s.studioAppearance));
     final presenting = isDesktop && ref.watch(studioProvider.select((s) => s.presenting));
+    final onboarded = ref.watch(onboardingDoneProvider);
     return MaterialApp(
       title: 'EchoPrompter',
       debugShowCheckedModeBanner: false,
@@ -85,7 +89,9 @@ class EchoPrompterApp extends ConsumerWidget {
       },
       // The macOS menu bar; other platforms keep their own.
       builder: (context, child) => isMacOS ? AppMenuBar(child: child!) : child!,
-      home: !isDesktop
+      home: !onboarded
+          ? (isDesktop ? const DesktopOnboarding() : const MobileOnboarding())
+          : !isDesktop
           ? const StudioScreen()
           : presenting
               ? const DesktopPrompterScreen()

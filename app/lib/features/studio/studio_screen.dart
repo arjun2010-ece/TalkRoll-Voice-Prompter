@@ -14,6 +14,7 @@ import '../pro/pro_state.dart';
 import '../pro/upgrade_card.dart';
 import '../../services/storage/script_io.dart';
 import '../../ui/adaptive.dart';
+import '../../ui/fade_route.dart';
 import '../../ui/discard_changes_dialog.dart';
 import '../read/read_screen.dart';
 import '../settings/mobile_settings.dart';
@@ -82,19 +83,13 @@ Future<void> presentScript(BuildContext context, WidgetRef ref, {required bool r
   var camera = record;
   while (context.mounted) {
     if (!camera) {
-      camera = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
-            builder: (_) => const ReadScreen(),
-            fullscreenDialog: true,
-          )) ??
+      camera = await Navigator.of(context).push<bool>(FadeCoverRoute<bool>(builder: (_) => const ReadScreen())) ??
           false;
       if (!camera) break;
       await studio.start();
       if (!context.mounted) break;
     } else {
-      final voiceOnly = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
-            builder: (_) => const RecordScreen(),
-            fullscreenDialog: true,
-          )) ??
+      final voiceOnly = await Navigator.of(context).push<bool>(FadeCoverRoute<bool>(builder: (_) => const RecordScreen())) ??
           false;
       if (!voiceOnly) break;
       camera = false;

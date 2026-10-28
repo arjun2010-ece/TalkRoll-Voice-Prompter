@@ -20,8 +20,8 @@ import 'prompt_preview.dart';
 enum StartApply { start, use }
 
 /// Opens "How to read": a bottom sheet on phones, a panel on the trailing edge on tablets. [onStart] runs after the
-/// sheet has closed and after the choices have been saved, so nothing behind the sheet changes until the main
-/// button is pressed.
+/// choices have been saved, so nothing behind the sheet changes until the main button is pressed. Starting leaves
+/// the sheet up while the next screen fades in over it; applying closes the sheet first.
 Future<void> showStartOptions(
   BuildContext context, {
   required Future<void> Function() onStart,
@@ -30,8 +30,29 @@ Future<void> showStartOptions(
   StartApply apply = StartApply.start,
 }) {
   Future<void> start(BuildContext sheet) async {
-    Navigator.of(sheet).pop();
-    await onStart();
+    final route = ModalRoute.of(sheet)!;
+    if (apply == StartApply.use) {
+      Navigator.of(sheet).pop();
+      // The next screen only starts once the sheet has finished leaving, or it shows through the fade.
+      await route.completed;
+      await onStart();
+      return;
+    }
+    // Starting keeps the sheet frozen while the prompter fades in over it, so the script behind never shows on its
+    // own; the sheet is dropped from underneath once it is fully covered (or at once if nothing was presented).
+    final navigator = Navigator.of(sheet);
+    void leave() {
+      if (navigator.mounted && route.isActive) navigator.removeRoute(route);
+    }
+
+    route.secondaryAnimation?.addStatusListener((status) {
+      if (status == AnimationStatus.completed) leave();
+    });
+    try {
+      await onStart();
+    } finally {
+      leave();
+    }
   }
 
   if (!isTabletWidth(context)) {

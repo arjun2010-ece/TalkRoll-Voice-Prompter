@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import '../script/saved_script.dart';
 
 /// Paywall seam. Phase 3 replaces [UnlockedEntitlements] with the real state
@@ -15,11 +17,28 @@ class UnlockedEntitlements implements Entitlements {
   bool canStartPrompter(SavedScript script) => true;
 }
 
-/// Whether the free-script limit is enforced. Off in normal builds until billing is connected (plan Phase 3): the Pro
-/// screens work and free scripts are counted, but nothing is locked, because a locked free user with no way to buy
-/// would be stuck. Build with `--dart-define=ENFORCE_FREE_LIMIT=true` to run the whole upgrade path: the locked Start,
-/// the upgrade sheet, the reminder card and the sheet on app open.
-const proEnforced = bool.fromEnvironment('ENFORCE_FREE_LIMIT');
+/// Real store payments, one switch per store, so Apple can go live first and Android later. Off by default: a release
+/// built without the switch for its platform keeps every script free and shows no limit (nobody is locked out when no
+/// store can sell them Pro).
+///
+/// - `--dart-define=PAYMENTS_APPLE=true`: iPhone, iPad and Mac use the App Store (StoreKit).
+/// - `--dart-define=PAYMENTS_ANDROID=true`: Android uses Google Play Billing.
+///
+/// Windows has no store integration yet, so it never turns payments on.
+const paymentsApple = bool.fromEnvironment('PAYMENTS_APPLE');
+const paymentsAndroid = bool.fromEnvironment('PAYMENTS_ANDROID');
+
+/// Whether this build, on this platform, sells Pro through its store.
+final bool storePaymentsLive = (Platform.isIOS || Platform.isMacOS)
+    ? paymentsApple
+    : Platform.isAndroid
+    ? paymentsAndroid
+    : false;
+
+/// Whether the free-script limit is enforced: when the store payments for this platform are live, or when a developer
+/// build asks for it with `--dart-define=ENFORCE_FREE_LIMIT=true` (the debug fake store then sells Pro, so the whole
+/// upgrade path can be run without any store account).
+final bool proEnforced = storePaymentsLive || const bool.fromEnvironment('ENFORCE_FREE_LIMIT');
 
 /// Scripts a free user may present.
 const freeScriptLimit = 5;

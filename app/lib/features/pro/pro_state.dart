@@ -1,19 +1,25 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
 import '../../services/providers.dart';
+import '../../services/purchases/fake_purchase_service.dart';
+import '../../services/purchases/purchase_service.dart';
 import '../../services/storage/reinstall_store.dart';
 
 const _proKey = 'EchoPrompter.proState.v1';
 const _promptKey = 'EchoPrompter.upgradePrompt.v1';
+// The real store and the debug fake keep their last answer apart, so trying one never leaks Pro into the other.
+String get _planKey => storePaymentsLive ? 'EchoPrompter.proPlan.store.v1' : 'EchoPrompter.proPlan.debug.v1';
 
 /// The upgrade sheet opens by itself on app start at most this often.
 const upgradePromptGap = Duration(hours: 24);
 
-/// Free-script counter and plan. Purchases aren't connected yet, so the plan stays Free outside debug
-/// builds; the counter is kept now so the numbers are right when the limit is switched on.
+/// Free-script counter and plan. The plan comes from the purchase service: the real store when its payments switch is on,
+/// the debug fake in debug builds, and Free otherwise. The counter is kept even while the limit is off, so the numbers
+/// are right when it is switched on.
 class ProNotifier extends Notifier<ProState> {
   static const _store = ReinstallStore();
 
@@ -22,7 +28,26 @@ class ProNotifier extends Notifier<ProState> {
     // After a reinstall the preferences can be empty while the count survives elsewhere (see [ReinstallStore]);
     // the two are merged once the store answers, and a restore can only raise the count.
     Future.microtask(_restore);
-    return ProState(presented: _decode(ref.read(prefsProvider).getString(_proKey)));
+    // The store tells us what the account owns; the last answer is kept so a paying user stays Pro offline.
+    final service = ref.read(purchaseServiceProvider);
+    final updates = service.entitlement.listen(setPlan);
+    ref.onDispose(updates.cancel);
+    return ProState(presented: _decode(ref.read(prefsProvider).getString(_proKey)), plan: _cachedPlan());
+  }
+
+  /// The plan last confirmed by the store. Only trusted where a store (real or the debug fake) can confirm it, so a
+  /// release build with payments off is always Free.
+  ProPlan _cachedPlan() {
+    if (!storePaymentsLive && !kDebugMode) return ProPlan.free;
+    final name = ref.read(prefsProvider).getString(_planKey);
+    return ProPlan.values.where((p) => p.name == name).firstOrNull ?? ProPlan.free;
+  }
+
+  /// Sets the plan the store reported and remembers it.
+  void setPlan(ProPlan plan) {
+    if (plan == state.plan) return;
+    state = state.copyWith(plan: plan);
+    ref.read(prefsProvider).setString(_planKey, plan.name);
   }
 
   static Set<String> _decode(String? raw) {
@@ -71,8 +96,16 @@ class ProNotifier extends Notifier<ProState> {
   void notePromptShown([DateTime? now]) =>
       ref.read(prefsProvider).setInt(_promptKey, (now ?? DateTime.now()).millisecondsSinceEpoch);
 
-  /// Debug builds only: preview the Pro screens in each state. Never saved.
-  void previewPlan(ProPlan plan) => state = state.copyWith(plan: plan);
+  /// Debug builds only: set the plan from Settings → Preview. With the debug fake store this changes what the "store"
+  /// owns (so Restore and a restart agree); otherwise it only changes what the screens show.
+  void previewPlan(ProPlan plan) {
+    final service = ref.read(purchaseServiceProvider);
+    if (service is FakePurchaseService) {
+      service.setPlan(plan);
+    } else {
+      state = state.copyWith(plan: plan);
+    }
+  }
 }
 
 final proProvider = NotifierProvider<ProNotifier, ProState>(ProNotifier.new);

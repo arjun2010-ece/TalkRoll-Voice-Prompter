@@ -85,3 +85,14 @@ class UpgradeCardHidden extends Notifier<bool> {
 }
 
 final upgradeCardHiddenProvider = NotifierProvider<UpgradeCardHidden, bool>(UpgradeCardHidden.new);
+
+/// Counts the times a new script was refused because the free scripts are used up. The Studio's app-wide wrapper
+/// listens and opens the upgrade sheet, so every way of creating a script (New, Import, Duplicate, typing over the
+/// demo) gets the same answer.
+class SaveBlocked extends Notifier<int> {
+  @override
+  int build() => 0;
+  void blocked() => state = state + 1;
+}
+
+final saveBlockedProvider = NotifierProvider<SaveBlocked, int>(SaveBlocked.new);

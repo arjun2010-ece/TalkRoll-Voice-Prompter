@@ -57,6 +57,10 @@ class ProState {
     return at >= 0 ? at < freeScriptLimit : used < freeScriptLimit;
   }
 
+  /// Whether a new script may be saved: the limit is off, the user is Pro, or a free slot is left. Once the free
+  /// scripts are used a new script is not created at all; the upgrade sheet opens instead.
+  bool get canCreate => !proEnforced || isPro || used < freeScriptLimit;
+
   ProState copyWith({Set<String>? presented, ProPlan? plan}) =>
       ProState(presented: presented ?? this.presented, plan: plan ?? this.plan);
 }

@@ -49,9 +49,11 @@ class StudioScreen extends ConsumerWidget {
 
 /// Imports a script into the editor; true if one was loaded.
 Future<bool> _importScript(WidgetRef ref) async {
+  // Checked before the file picker, so a user with no free scripts left is not asked to choose a file first.
+  if (!ref.read(studioProvider.notifier).mayCreate()) return false;
   final text = await ScriptIO.importText(ref.read(prefsProvider), ref.read(libraryProvider).directory);
   if (text == null) return false;
-  await ref.read(studioProvider.notifier).importScript(text);
+  if (!await ref.read(studioProvider.notifier).importScript(text)) return false;
   _resetFollow(ref);
   return true;
 }
@@ -170,7 +172,7 @@ class _LibraryPage extends ConsumerWidget {
             hasScrollBody: false,
             child: _EmptyLibrary(
               onNew: () {
-                notifier.newScript();
+                if (!notifier.newScript()) return;
                 _resetFollow(ref);
                 _openEditor(context);
               },
@@ -225,7 +227,7 @@ class _LibraryPage extends ConsumerWidget {
           ? null
           : FloatingActionButton.extended(
               onPressed: () {
-                notifier.newScript();
+                if (!notifier.newScript()) return;
                 _resetFollow(ref);
                 _openEditor(context);
               },
@@ -355,7 +357,7 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
 
     Future<void> newScript() async {
       if (!await _canReplaceDraft()) return;
-      notifier.newScript();
+      if (!notifier.newScript()) return;
       _resetFollow(ref);
       _edit();
     }

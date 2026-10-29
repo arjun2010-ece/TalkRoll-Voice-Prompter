@@ -98,7 +98,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
   Future<void> _newScript() async {
     if (!await _canReplaceDraft()) return;
     ref.read(libraryTabProvider.notifier).show(LibraryTab.scripts);
-    ref.read(studioProvider.notifier).newScript();
+    ref.read(studioProvider.notifier).newScript(); // opens the upgrade sheet instead when the free scripts are used
   }
 
   bool get _onNotes => ref.read(libraryTabProvider) == LibraryTab.notes;
@@ -196,6 +196,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
   Future<void> _import() async {
     if (_onNotes) return _importNote();
     if (!await _canReplaceDraft()) return;
+    if (!ref.read(studioProvider.notifier).mayCreate()) return;
     final file = await ScriptIO.importTextFile(
       ref.read(prefsProvider),
       ref.read(libraryProvider).directory,
@@ -510,8 +511,7 @@ class _ScriptList extends ConsumerWidget {
                 icon: const Icon(Icons.add),
                 onPressed: () async {
                   if (!await canReplace()) return;
-                  notifier.newScript();
-                  onNew();
+                  if (notifier.newScript()) onNew();
                 },
               ),
             ],

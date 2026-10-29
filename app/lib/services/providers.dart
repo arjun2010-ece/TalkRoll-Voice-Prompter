@@ -150,6 +150,17 @@ class StudioNotifier extends Notifier<StudioState> {
   Timer? _saveTimer;
   Future<void> _saving = Future.value();
 
+  /// The upgrade sheet was already opened for the script being typed, so autosave does not open it again.
+  bool _blockSignalled = false;
+
+  /// Whether a new script may be created now. When the free scripts are used up this opens the upgrade sheet (through
+  /// [saveBlockedProvider]) and says no; the script being edited is left as it is.
+  bool mayCreate() {
+    if (ref.read(proProvider).canCreate) return true;
+    ref.read(saveBlockedProvider.notifier).blocked();
+    return false;
+  }
+
   /// Typing saves the script to the list once it pauses, so a new script
   /// appears as soon as it has content rather than only after Start.
   void setScript(String text) {
@@ -171,6 +182,14 @@ class StudioNotifier extends Notifier<StudioState> {
     _saveTimer = null;
     final text = state.script;
     if (text.trim().isEmpty || (_currentId == null && text == welcome)) return _saving;
+    // A new script past the free ones is not saved. The sheet opens once, not on every autosave.
+    if (_currentId == null && !ref.read(proProvider).canCreate) {
+      if (!_blockSignalled) {
+        _blockSignalled = true;
+        ref.read(saveBlockedProvider.notifier).blocked();
+      }
+      return _saving;
+    }
     return _persist(_currentId ??= DateTime.now().microsecondsSinceEpoch.toString(), text, state.title);
   }
 
@@ -208,6 +227,7 @@ class StudioNotifier extends Notifier<StudioState> {
 
   void load(SavedScript s) {
     flush();
+    _blockSignalled = false;
     _currentId = s.id;
     state = state.copyWith(
       script: s.body,
@@ -220,6 +240,7 @@ class StudioNotifier extends Notifier<StudioState> {
   /// Opens the built-in demo script; like the welcome text it is never saved.
   void loadDemo() {
     flush();
+    _blockSignalled = false;
     _currentId = null;
     state = state.copyWith(
       script: welcome,
@@ -229,9 +250,12 @@ class StudioNotifier extends Notifier<StudioState> {
     );
   }
 
-  /// Starts an empty script; it is saved on the first Start.
-  void newScript() {
+  /// Starts an empty script; it is saved on the first Start. False when the free scripts are used up: nothing changes
+  /// and the upgrade sheet opens.
+  bool newScript() {
+    if (!mayCreate()) return false;
     flush();
+    _blockSignalled = false;
     _currentId = null;
     state = state.copyWith(
       script: '',
@@ -239,11 +263,14 @@ class StudioNotifier extends Notifier<StudioState> {
       scriptRevision: state.scriptRevision + 1,
       resumeWordIndex: () => null,
     );
+    return true;
   }
 
-  /// Opens a copy of [s] as a new, unsaved script.
-  void duplicate(SavedScript s) {
+  /// Opens a copy of [s] as a new, unsaved script. False when the free scripts are used up.
+  bool duplicate(SavedScript s) {
+    if (!mayCreate()) return false;
     flush();
+    _blockSignalled = false;
     _currentId = null;
     state = state.copyWith(
       script: s.body,
@@ -251,6 +278,7 @@ class StudioNotifier extends Notifier<StudioState> {
       scriptRevision: state.scriptRevision + 1,
       resumeWordIndex: () => null,
     );
+    return true;
   }
 
   Future<void> delete(SavedScript s) async {
@@ -272,9 +300,11 @@ class StudioNotifier extends Notifier<StudioState> {
   void stopPresenting({int? wordIndex}) =>
       state = state.copyWith(presenting: false, resumeWordIndex: () => wordIndex);
 
-  /// Loads an imported script as a new, unsaved script.
-  Future<void> importScript(String body, {String? title}) async {
+  /// Loads an imported script as a new, unsaved script. False when the free scripts are used up.
+  Future<bool> importScript(String body, {String? title}) async {
+    if (!mayCreate()) return false;
     flush();
+    _blockSignalled = false;
     _currentId = null;
     state = state.copyWith(
       script: body,
@@ -284,6 +314,7 @@ class StudioNotifier extends Notifier<StudioState> {
       resumeWordIndex: () => null,
     );
     flush();
+    return true;
   }
 }
 

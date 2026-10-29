@@ -31,5 +31,11 @@ class _LaunchUpgradePromptState extends ConsumerState<LaunchUpgradePrompt> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // A new script was refused because the free scripts are used up: say why and offer Pro.
+    ref.listen(saveBlockedProvider, (_, _) {
+      showPaywall(context, source: 'save', reason: 'You\'ve used your $freeScriptLimit free scripts, so a new one can\'t be saved.');
+    });
+    return widget.child;
+  }
 }

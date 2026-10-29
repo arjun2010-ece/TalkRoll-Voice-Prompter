@@ -308,12 +308,12 @@ class _ProContent extends ConsumerWidget {
           ]),
           const SizedBox(height: 10),
           if (!pro.isPro) ...[
-            Text('$used of $freeScriptLimit free scripts used. A script uses a slot as soon as you save it. Pro lets you present as many as you like, on all your devices. Writing, editing and exporting are always free.', style: muted),
+            Text('$used of $freeScriptLimit free scripts used. Pro lets you save and present as many as you like. Editing and exporting your scripts is always free.', style: muted),
             const SizedBox(height: 12),
             LinearProgressIndicator(value: used / freeScriptLimit, minHeight: 4, color: proAccent, backgroundColor: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(2)),
             const SizedBox(height: 14),
             FilledButton(
-              onPressed: () => showPaywall(context),
+              onPressed: () => showPaywall(context, source: 'settings'),
               style: FilledButton.styleFrom(backgroundColor: proAccent, foregroundColor: const Color(0xFF1A1A1A)),
               child: const Text('Upgrade to Pro', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
@@ -331,11 +331,6 @@ class _ProContent extends ConsumerWidget {
           title: Text(pro.isPro ? 'Purchase not showing?' : 'Already bought Pro?'),
           subtitle: const Text('Restore it from your store.'),
           trailing: TextButton(onPressed: () => _unavailable(context, 'Restoring purchases'), child: const Text('Restore purchases')),
-        ),
-        ListTile(
-          title: const Text('Use Pro on all your devices'),
-          subtitle: const Text('Sign in to use one purchase on up to 5 devices.'),
-          trailing: TextButton(onPressed: () => _unavailable(context, 'Signing in'), child: const Text('Sign in')),
         ),
       ]),
       // Debug builds only: lets the Pro screens be checked in each state before purchases exist.

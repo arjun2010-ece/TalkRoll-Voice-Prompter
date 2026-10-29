@@ -323,10 +323,10 @@ class _ProTab extends ConsumerWidget {
                   Text('$used of $freeScriptLimit free scripts used', style: muted),
                 ]),
                 const SizedBox(height: 6),
-                Text('Your first $freeScriptLimit saved scripts are free to present, as often as you like. A script uses a slot as soon as you save it. Writing, editing and exporting are always free.', style: muted),
+                Text('Your first $freeScriptLimit saved scripts are free, and you can present them as often as you like. Editing and exporting them is always free.', style: muted),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: () => showPaywall(context),
+                  onPressed: () => showPaywall(context, source: 'settings'),
                   style: FilledButton.styleFrom(backgroundColor: proAccent, foregroundColor: const Color(0xFF1A1A1A)),
                   child: const Text('Upgrade to Pro…', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
@@ -344,9 +344,7 @@ class _ProTab extends ConsumerWidget {
           ),
         ]),
       ),
-      _Group(title: 'Account', children: [
-        row(Icons.person_outline, 'Use Pro on all your devices', 'Sign in to use one Pro purchase on up to 5 devices.',
-            OutlinedButton(onPressed: () => _unavailable(context, 'Signing in'), child: const Text('Sign In…'))),
+      _Group(title: 'Purchases', children: [
         row(Icons.restore, pro.isPro ? 'Purchase not showing?' : 'Already bought Pro?', 'Restore it from your store.',
             OutlinedButton(onPressed: () => _unavailable(context, 'Restoring purchases'), child: const Text('Restore Purchases'))),
       ]),

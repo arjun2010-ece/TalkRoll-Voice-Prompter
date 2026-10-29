@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 6 to 11 Auto Backup. Keeps the settings, the free-script count and the scripts folder through a reinstall
+     on the same Google account. Nothing else (caches, recordings, temporary files) is backed up. -->
+<full-backup-content>
+    <include domain="sharedpref" path="FlutterSharedPreferences.xml" />
+    <include domain="file" path="app_flutter/EchoPrompter Scripts" />
+</full-backup-content>

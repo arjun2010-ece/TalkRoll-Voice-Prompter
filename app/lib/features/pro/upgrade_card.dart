@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
+import '../../services/purchases/purchase_service.dart';
 import 'paywall_dialog.dart';
 import 'pro_state.dart';
 
@@ -22,6 +23,13 @@ class UpgradeCard extends ConsumerWidget {
     // Closed with the × this session; it comes back on the next launch. Only the used-up card can be closed.
     if (limit && ref.watch(upgradeCardHiddenProvider)) return const SizedBox.shrink();
     // One free script left: say so, so the last slot is a decision and not a surprise.
+    // The price line comes from the store; nothing is shown until it has answered.
+    final yearly = ref.watch(proOffersProvider).value?.where((o) => o.plan == ProPlan.yearly).firstOrNull;
+    final priceLine = yearly == null
+        ? null
+        : yearly.perMonth != null
+        ? 'From ${yearly.perMonth} a month, billed yearly'
+        : 'Yearly plan: ${yearly.price} a year';
     final lastOne = proEnforced && !limit && used == freeScriptLimit - 1;
 
     final button = FilledButton(
@@ -78,10 +86,10 @@ class UpgradeCard extends ConsumerWidget {
         ],
         const SizedBox(height: 10),
         button,
-        if (limit) ...[
+        if (limit && priceLine != null) ...[
           const SizedBox(height: 6),
           Text(
-            'From ${ProPrices.yearlyPerMonth} a month, billed yearly',
+            priceLine,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),

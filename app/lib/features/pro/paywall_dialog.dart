@@ -5,6 +5,7 @@ import '../../core/entitlements/entitlements.dart';
 import '../../services/platform.dart';
 import '../../services/external_links.dart';
 import '../../services/providers.dart' show analyticsProvider;
+import '../../services/purchases/purchase_service.dart';
 import 'pro_state.dart';
 
 /// Opens the plans. [reason] sits under the title when the paywall came from a locked Start. [source] says which
@@ -33,38 +34,88 @@ String _planName(ProPlan p) => switch (p) {
   ProPlan.free => 'Free',
 };
 
-class PaywallDialog extends StatefulWidget {
+class PaywallDialog extends ConsumerStatefulWidget {
   const PaywallDialog({super.key, this.reason});
   final String? reason;
 
   @override
-  State<PaywallDialog> createState() => _PaywallDialogState();
+  ConsumerState<PaywallDialog> createState() => _PaywallDialogState();
 }
 
-class _PaywallDialogState extends State<PaywallDialog> {
+class _PaywallDialogState extends ConsumerState<PaywallDialog> {
   // Yearly is the default: best value, and a year of revenue up front.
   ProPlan _plan = ProPlan.yearly;
   String? _notice;
+  bool _busy = false;
 
-  String get _buyLabel => switch (_plan) {
-    ProPlan.monthly => 'Subscribe for ${ProPrices.monthly} a month',
-    ProPlan.yearly => 'Subscribe for ${ProPrices.yearly} a year',
-    ProPlan.lifetime => 'Buy Lifetime for ${ProPrices.lifetime}',
-    ProPlan.free => '',
-  };
+  ProOffer? _offer(List<ProOffer> offers, ProPlan plan) => offers.where((o) => o.plan == plan).firstOrNull;
 
-  // Purchases connect in plan Phase 3. Until then the buttons say so instead of doing nothing.
-  void _unavailable(String what) => setState(() => _notice = '$what isn\'t available in this build yet.');
+  String _buyLabel(List<ProOffer> offers) {
+    final price = _offer(offers, _plan)?.price;
+    if (price == null) return 'Not available right now';
+    return switch (_plan) {
+      ProPlan.monthly => 'Subscribe for $price a month',
+      ProPlan.yearly => 'Subscribe for $price a year',
+      ProPlan.lifetime => 'Buy Lifetime for $price',
+      ProPlan.free => '',
+    };
+  }
+
+  /// Percent saved by the yearly plan against twelve monthly payments, from the store's own amounts.
+  String? _yearlyBadge(List<ProOffer> offers) {
+    final m = _offer(offers, ProPlan.monthly)?.amount;
+    final y = _offer(offers, ProPlan.yearly)?.amount;
+    if (m == null || y == null || m <= 0) return null;
+    final pct = ((1 - y / (m * 12)) * 100).round();
+    return pct >= 5 ? 'SAVE $pct%' : null;
+  }
+
+  /// Runs a store call, shows what happened, and closes the sheet with a thank-you when Pro is on.
+  Future<void> _run(Future<PurchaseResult> Function() action, {required String success}) async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    final result = await action();
+    if (!mounted) return;
+    if (result.purchased) {
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(success)));
+      return;
+    }
+    setState(() {
+      _busy = false;
+      // A cancelled purchase is the user's own choice: nothing to explain.
+      _notice = result.outcome == PurchaseOutcome.cancelled ? null : (result.message ?? 'Something went wrong. Please try again.');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final phone = isMobile && MediaQuery.sizeOf(context).shortestSide < 600;
+    final loaded = ref.watch(proOffersProvider);
+    final offers = loaded.value ?? const <ProOffer>[];
+    final monthly = _offer(offers, ProPlan.monthly);
+    final yearly = _offer(offers, ProPlan.yearly);
+    final lifetime = _offer(offers, ProPlan.lifetime);
     final plans = [
-      _PlanCard(plan: ProPlan.monthly, price: ProPrices.monthly, line1: 'per month', line2: 'cancel anytime', selected: _plan, onSelect: _select),
-      _PlanCard(plan: ProPlan.yearly, price: ProPrices.yearly, line1: 'per year', line2: 'about ${ProPrices.yearlyPerMonth} a month', badge: 'SAVE 34%', selected: _plan, onSelect: _select),
-      _PlanCard(plan: ProPlan.lifetime, price: ProPrices.lifetime, line1: 'one payment', line2: 'Pro forever', selected: _plan, onSelect: _select),
+      if (monthly != null) _PlanCard(plan: ProPlan.monthly, price: monthly.price, line1: 'per month', line2: 'cancel anytime', selected: _plan, onSelect: _select),
+      if (yearly != null)
+        _PlanCard(
+          plan: ProPlan.yearly,
+          price: yearly.price,
+          line1: 'per year',
+          line2: yearly.perMonth != null ? 'about ${yearly.perMonth} a month' : 'billed every year',
+          badge: _yearlyBadge(offers),
+          selected: _plan,
+          onSelect: _select,
+        ),
+      if (lifetime != null) _PlanCard(plan: ProPlan.lifetime, price: lifetime.price, line1: 'one payment', line2: 'Pro forever', selected: _plan, onSelect: _select),
     ];
     return Dialog(
       insetPadding: phone ? const EdgeInsets.all(12) : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
@@ -110,7 +161,18 @@ class _PaywallDialogState extends State<PaywallDialog> {
                 ]),
               ),
             const SizedBox(height: 16),
-            if (phone)
+            if (plans.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Column(children: [
+                  if (loaded.isLoading) const CircularProgressIndicator() else ...[
+                    Text('The store did not answer, so prices are not available right now.', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+                    const SizedBox(height: 8),
+                    TextButton(onPressed: () => ref.invalidate(proOffersProvider), child: const Text('Try again')),
+                  ],
+                ]),
+              )
+            else if (phone)
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 for (final c in plans) Padding(padding: const EdgeInsets.only(bottom: 10), child: c),
               ])
@@ -140,13 +202,26 @@ class _PaywallDialogState extends State<PaywallDialog> {
           padding: const EdgeInsets.fromLTRB(32, 8, 32, 22),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             FilledButton(
-              onPressed: () => _unavailable('Buying Pro'),
+              onPressed: _busy || _offer(offers, _plan) == null
+                  ? null
+                  : () => _run(
+                      () {
+                        ref.read(analyticsProvider).log('purchase_started', {'plan': _plan.name});
+                        return ref.read(purchaseServiceProvider).buy(_plan);
+                      },
+                      success: 'Pro is on. Thank you!',
+                    ),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-              child: Text(_buyLabel),
+              child: _busy
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(_buyLabel(offers)),
             ),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              TextButton(onPressed: () => _unavailable('Restoring purchases'), child: const Text('Restore Purchases')),
+              TextButton(
+                onPressed: _busy ? null : () => _run(() => ref.read(purchaseServiceProvider).restore(), success: 'Pro is back on this device.'),
+                child: const Text('Restore Purchases'),
+              ),
               const SizedBox(width: 12),
               TextButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Not Now')),
             ]),

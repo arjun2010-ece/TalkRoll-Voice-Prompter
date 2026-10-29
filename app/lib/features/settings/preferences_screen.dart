@@ -17,6 +17,7 @@ import '../../services/external_links.dart';
 import '../../services/providers.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
+import '../pro/purchase_actions.dart';
 import '../pro/pro_state.dart';
 
 /// Opens Settings (⌘, on macOS, Ctrl+, on Windows).
@@ -256,12 +257,10 @@ class _ShortcutsTab extends ConsumerWidget {
   }
 }
 
-/// Plan and purchases. The buttons say so while purchases aren't connected (plan Phase 3).
+/// Plan and purchases: Restore and Manage go to the store (or the debug fake, or say they are not available).
 class _ProTab extends ConsumerWidget {
   const _ProTab();
 
-  void _unavailable(BuildContext context, String what) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text('$what isn\'t available in this build yet.')));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -337,7 +336,7 @@ class _ProTab extends ConsumerWidget {
                 ),
                 if (pro.plan != ProPlan.lifetime) ...[
                   const SizedBox(height: 12),
-                  OutlinedButton(onPressed: () => _unavailable(context, 'Managing your subscription'), child: const Text('Manage Subscription…')),
+                  OutlinedButton(onPressed: () => manageSubscription(context, ref), child: const Text('Manage Subscription…')),
                 ],
               ],
             ]),
@@ -346,7 +345,7 @@ class _ProTab extends ConsumerWidget {
       ),
       _Group(title: 'Purchases', children: [
         row(Icons.restore, pro.isPro ? 'Purchase not showing?' : 'Already bought Pro?', 'Restore it from your store.',
-            OutlinedButton(onPressed: () => _unavailable(context, 'Restoring purchases'), child: const Text('Restore Purchases'))),
+            OutlinedButton(onPressed: () => restorePurchases(context, ref), child: const Text('Restore Purchases'))),
       ]),
       // Debug builds only: lets the Pro screens be checked in each state before purchases exist.
       if (kDebugMode)
@@ -360,6 +359,7 @@ class _ProTab extends ConsumerWidget {
               onSelectionChanged: (v) => ref.read(proProvider.notifier).previewPlan(v.first),
             ),
           ),
+          const FakeOutcomeControls(),
         ]),
     ]);
   }

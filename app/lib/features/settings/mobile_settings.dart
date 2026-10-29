@@ -12,6 +12,7 @@ import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
+import '../pro/purchase_actions.dart';
 import '../pro/pro_state.dart';
 
 enum _Section { general, pro, help }
@@ -271,12 +272,10 @@ class _ProSummary extends ConsumerWidget {
   }
 }
 
-/// Plan and purchases. The buttons say so while purchases aren't connected (plan Phase 3).
+/// Plan and purchases: Restore and Manage go to the store (or the debug fake, or say they are not available).
 class _ProContent extends ConsumerWidget {
   const _ProContent();
 
-  void _unavailable(BuildContext context, String what) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$what isn\'t available in this build yet.')));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -321,7 +320,7 @@ class _ProContent extends ConsumerWidget {
             Text(pro.plan == ProPlan.lifetime ? 'One purchase, yours for good. Thank you.' : 'Present as many scripts as you like.', style: muted),
             if (pro.plan != ProPlan.lifetime) ...[
               const SizedBox(height: 14),
-              OutlinedButton(onPressed: () => _unavailable(context, 'Managing your subscription'), child: const Text('Manage subscription')),
+              OutlinedButton(onPressed: () => manageSubscription(context, ref), child: const Text('Manage subscription')),
             ],
           ],
         ]),
@@ -330,7 +329,7 @@ class _ProContent extends ConsumerWidget {
         ListTile(
           title: Text(pro.isPro ? 'Purchase not showing?' : 'Already bought Pro?'),
           subtitle: const Text('Restore it from your store.'),
-          trailing: TextButton(onPressed: () => _unavailable(context, 'Restoring purchases'), child: const Text('Restore purchases')),
+          trailing: TextButton(onPressed: () => restorePurchases(context, ref), child: const Text('Restore purchases')),
         ),
       ]),
       // Debug builds only: lets the Pro screens be checked in each state before purchases exist.
@@ -345,6 +344,7 @@ class _ProContent extends ConsumerWidget {
               onSelectionChanged: (v) => ref.read(proProvider.notifier).previewPlan(v.first),
             ),
           ),
+          const FakeOutcomeControls(),
         ]),
     ]);
   }

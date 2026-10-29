@@ -167,6 +167,15 @@ Advice:
    (`com.echoprompter.app`).
 4. Do you want Windows covered in this round? It would need the Microsoft Store's own purchase API.
 
+## 6. Not checked
+
+- Store rules are from my own knowledge and the guidelines page read earlier; re-read them when submitting.
+- I did not check RevenueCat's current Flutter and macOS support in its docs, or whether it has a local "test store" that
+  avoids store setup; check the docs before step 4.
+- RevenueCat's pricing is from its plans page on 2026-10-29. Third-party listings showed different free-tier numbers
+  (for example $1,000 and $10,000), so use the vendor's page.
+- No purchase code was written or run for this document.
+
 ## 7. Built (2026-10-29): purchase layer, per-store switches, debug fake
 
 Decision taken: **Flutter's `in_app_purchase`** (as the reference app does with the native billing APIs), no RevenueCat. The
@@ -244,14 +253,64 @@ Android emulator, debug builds:
 - **Terms of Use and Privacy Policy links** on the sheet (no pages exist yet).
 - A StoreKit configuration file for local Apple testing (created in Xcode) is still to do; it does not need an account.
 
-## 6. Not checked
+## 8. Full integrated check once the accounts exist (Apple first, Google later)
 
-- Store rules are from my own knowledge and the guidelines page read earlier; re-read them when submitting.
-- I did not check RevenueCat's current Flutter and macOS support in its docs, or whether it has a local "test store" that
-  avoids store setup; check the docs before step 4.
-- RevenueCat's pricing is from its plans page on 2026-10-29. Third-party listings showed different free-tier numbers
-  (for example $1,000 and $10,000), so use the vendor's page.
-- No purchase code was written or run for this document.
+Order agreed: ship Apple first with `PAYMENTS_APPLE=true`, and only then apply for Google Play Console and add
+`PAYMENTS_ANDROID=true` (see 7.1). Each store is checked on its own; the other flag stays off.
+
+### 8.1 Apple: macOS, iOS and iPadOS
+
+What can be done **before** the Apple Developer account (no account needed, I believe; confirm in Xcode):
+- Create an Xcode **StoreKit configuration file** with the three products (monthly, yearly with an introductory free trial,
+  lifetime) and run the simulator or a Mac build against it. This exercises `StorePurchaseService` for real: prices from
+  the file, buy, cancel, renewal, refund, trial, Restore.
+- Fix what that shows (section 7.4: expiry and refund handling, the trial, "about X a month" formatting, Apple Restore).
+
+What **needs** the account:
+1. Enrol in the Apple Developer Program (do this early; approval takes time) and accept the Paid Applications agreement,
+   with tax and banking details. These gate sandbox purchases.
+2. Create the three in-app purchases in App Store Connect with the ids in `ProProductIds`, prices, the free trial as an
+   introductory offer, and the review screenshot and notes.
+3. Add the In-App Purchase capability in Xcode for iOS and macOS. Use one app record for iPhone, iPad and Mac if you want
+   **Universal Purchase** (one purchase covers all three).
+4. Test with **sandbox testers** and **TestFlight** on a real iPhone or iPad and a Mac: real prices and currency, trial,
+   renewal on the accelerated sandbox clock, cancel, refund, Restore on a second device, buying again as an existing
+   subscriber, family sharing if enabled.
+5. Check the whole path with `--dart-define=PAYMENTS_APPLE=true`: fresh install shows no limit until five scripts are
+   used; the sixth is blocked with the sheet; buying turns Pro on everywhere; reinstalling and pressing Restore brings it
+   back; the Keychain count survives deletion (`free-script-limit-persistence.md`).
+6. Publish Terms of Use and Privacy Policy pages and link them from the sheet and the store listing; update the privacy
+   label (the free-script count in the Keychain is on-device; purchases go through Apple).
+7. Submit the app with the in-app purchases attached, review notes explaining how to reach the sheet (save five scripts, then
+   create a sixth) and the sandbox account. Read App Review Guidelines 5.6 first.
+
+### 8.2 Google Play (Android), after Apple is live
+
+There is no local equivalent of the StoreKit file, so real Android testing needs the Play Console account.
+1. Create a Google Play Console developer account (one-time fee, identity checks). I recall that **new personal accounts
+   must run a closed test with a minimum number of testers for about two weeks before production access**; I did not
+   verify this, so read Play Console help before planning the Android launch date.
+2. Create the app, then the in-app products with the **same ids** (subscriptions with base plans and the free-trial offer;
+   lifetime as a one-time product).
+3. Upload a **signed** build (same application ID, `com.echoprompter.app`) to the **Internal testing** track and add
+   **licence testers**, who buy for free.
+4. Test on a device or an emulator image with the Play Store, signed in as a tester, using
+   `--dart-define=PAYMENTS_ANDROID=true`: prices, buy, cancel, pending, refund, Restore after reinstall, subscription
+   renewal and lapse. Android restores owned purchases silently at launch (see `StorePurchaseService`); confirm that on a
+   fresh install.
+5. Check how Android backup interacts: the free-script count restores with Auto Backup (`free-script-limit-persistence.md`),
+   so test a reinstall from the Internal testing track with and without Google backup.
+6. Fill in the Play **Data safety** form (purchases through Google Play) and the store listing's in-app purchase
+   disclosure, then promote the build to production.
+
+### 8.3 Checks that apply to both
+
+- `ProState.plan` must come back correctly after a restart while **offline** (the last answer is cached under
+  `EchoPrompter.proPlan.store.v1`).
+- A lapsed or refunded subscription must stop being Pro (not implemented yet, section 7.4).
+- Every upgrade surface keeps its close button and the free scripts keep working after it is closed.
+- The debug fake is not in the release build: in a release without a switch, buying says it is not available; with a
+  switch, only the real store can grant Pro.
 
 ## Sources
 

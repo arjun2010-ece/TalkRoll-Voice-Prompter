@@ -323,7 +323,7 @@ class _ProTab extends ConsumerWidget {
                   Text('$used of $freeScriptLimit free scripts used', style: muted),
                 ]),
                 const SizedBox(height: 6),
-                Text('Present up to $freeScriptLimit different scripts, as often as you like. Writing, editing and exporting are always free.', style: muted),
+                Text('Your first $freeScriptLimit saved scripts are free to present, as often as you like. A script uses a slot as soon as you save it. Writing, editing and exporting are always free.', style: muted),
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () => showPaywall(context),

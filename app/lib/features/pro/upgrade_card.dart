@@ -61,7 +61,7 @@ class UpgradeCard extends ConsumerWidget {
         ),
         if (limit) ...[
           const SizedBox(height: 8),
-          Text('Upgrade to present new scripts. Your $freeScriptLimit scripts still work.', style: theme.textTheme.bodySmall),
+          Text('Upgrade to present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),
         ],
         const SizedBox(height: 10),
         button,

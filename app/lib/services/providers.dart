@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/entitlements/entitlements.dart';
 import '../core/script/saved_script.dart';
 import '../core/shortcuts/shortcut_binding.dart';
+import '../features/pro/pro_state.dart';
 import '../core/settings/prompt_settings.dart';
 import 'analytics/analytics_service.dart';
 import 'storage/script_library.dart';
@@ -187,6 +188,8 @@ class StudioNotifier extends Notifier<StudioState> {
     );
     final history = await ref.read(libraryProvider).save(state.history, script);
     state = state.copyWith(history: history);
+    // A new script takes one of the free slots as soon as it is saved, whether or not it is ever played.
+    if (existing == null) ref.read(proProvider.notifier).recordStart(id);
   });
 
   /// Saves the script and starts a new presentation session.

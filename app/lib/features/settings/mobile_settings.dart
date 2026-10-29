@@ -308,7 +308,7 @@ class _ProContent extends ConsumerWidget {
           ]),
           const SizedBox(height: 10),
           if (!pro.isPro) ...[
-            Text('$used of $freeScriptLimit free scripts used. Pro lets you present as many as you like, on all your devices. Writing, editing and exporting are always free.', style: muted),
+            Text('$used of $freeScriptLimit free scripts used. A script uses a slot as soon as you save it. Pro lets you present as many as you like, on all your devices. Writing, editing and exporting are always free.', style: muted),
             const SizedBox(height: 12),
             LinearProgressIndicator(value: used / freeScriptLimit, minHeight: 4, color: proAccent, backgroundColor: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(2)),
             const SizedBox(height: 14),

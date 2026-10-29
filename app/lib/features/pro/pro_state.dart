@@ -47,7 +47,8 @@ class ProNotifier extends Notifier<ProState> {
     _store.write(_encoded);
   }
 
-  /// Counts the script with [id] as presented, once.
+  /// Counts the script with [id] as used, once. Called when a script is first saved and when it is presented, so a
+  /// script that is written but never played still takes its slot.
   void recordStart(String id) {
     if (state.presented.contains(id)) return;
     state = state.copyWith(presented: {...state.presented, id});

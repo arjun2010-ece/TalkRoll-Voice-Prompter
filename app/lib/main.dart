@@ -10,6 +10,7 @@ import 'features/notes/notes_state.dart';
 import 'features/onboarding/desktop_onboarding.dart';
 import 'features/onboarding/mobile_onboarding.dart';
 import 'features/onboarding/onboarding_state.dart';
+import 'features/pro/launch_upgrade_prompt.dart';
 import 'features/prompter/desktop_prompter_screen.dart';
 import 'features/studio/desktop_studio_screen.dart';
 import 'features/studio/studio_screen.dart';
@@ -91,11 +92,13 @@ class EchoPrompterApp extends ConsumerWidget {
       builder: (context, child) => isMacOS ? AppMenuBar(child: child!) : child!,
       home: !onboarded
           ? (isDesktop ? const DesktopOnboarding() : const MobileOnboarding())
-          : !isDesktop
-          ? const StudioScreen()
-          : presenting
-              ? const DesktopPrompterScreen()
-              : const DesktopStudioScreen(),
+          : LaunchUpgradePrompt(
+              child: !isDesktop
+                  ? const StudioScreen()
+                  : presenting
+                      ? const DesktopPrompterScreen()
+                      : const DesktopStudioScreen(),
+            ),
     );
   }
 }

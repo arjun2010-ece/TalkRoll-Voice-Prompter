@@ -19,9 +19,13 @@ class UpgradeCard extends ConsumerWidget {
     // Only when the limit is really switched on does running out mean anything.
     final limit = proEnforced && pro.limitReached;
     final used = pro.used.clamp(0, freeScriptLimit);
+    // Closed with the × this session; it comes back on the next launch. Only the used-up card can be closed.
+    if (limit && ref.watch(upgradeCardHiddenProvider)) return const SizedBox.shrink();
+    // One free script left: say so, so the last slot is a decision and not a surprise.
+    final lastOne = proEnforced && !limit && used == freeScriptLimit - 1;
 
     final button = FilledButton(
-      onPressed: () => showPaywall(context),
+      onPressed: () => showPaywall(context, source: 'card', reason: limit ? 'You\'ve used your $freeScriptLimit free scripts.' : null),
       style: FilledButton.styleFrom(
         backgroundColor: proAccent,
         foregroundColor: const Color(0xFF1A1A1A),
@@ -44,12 +48,21 @@ class UpgradeCard extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              limit ? 'All $freeScriptLimit free scripts used' : 'Free plan',
+              limit ? 'All $freeScriptLimit free scripts used' : lastOne ? '1 free script left' : 'Free plan',
               style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           if (!limit)
             Text('$used of $freeScriptLimit scripts used', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          if (limit)
+            InkResponse(
+              onTap: () => ref.read(upgradeCardHiddenProvider.notifier).hide(),
+              radius: 18,
+              child: Tooltip(
+                message: 'Hide until next launch',
+                child: Padding(padding: const EdgeInsets.all(6), child: Icon(Icons.close, size: 18, color: scheme.onSurfaceVariant)),
+              ),
+            ),
         ]),
         const SizedBox(height: 8),
         LinearProgressIndicator(
@@ -61,7 +74,7 @@ class UpgradeCard extends ConsumerWidget {
         ),
         if (limit) ...[
           const SizedBox(height: 8),
-          Text('Upgrade to present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),
+          Text('Upgrade to save and present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),
         ],
         const SizedBox(height: 10),
         button,

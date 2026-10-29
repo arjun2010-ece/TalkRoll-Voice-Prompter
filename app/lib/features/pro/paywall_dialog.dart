@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
 import '../../services/platform.dart';
 import '../../services/external_links.dart';
+import '../../services/providers.dart' show analyticsProvider;
+import 'pro_state.dart';
 
-/// Opens the plans. [reason] sits under the title when the paywall came from a locked Start.
-Future<void> showPaywall(BuildContext context, {String? reason}) =>
-    showDialog<void>(context: context, builder: (_) => PaywallDialog(reason: reason));
+/// Opens the plans. [reason] sits under the title when the paywall came from a locked Start. [source] says which
+/// surface opened it (`start`, `card`, `settings`, `launch`), for the event log only.
+Future<void> showPaywall(BuildContext context, {String? reason, String source = 'start'}) async {
+  final container = ProviderScope.containerOf(context);
+  container.read(proProvider.notifier).notePromptShown();
+  container.read(analyticsProvider).log('upgrade_prompt_shown', {'source': source});
+  await showDialog<void>(context: context, builder: (_) => PaywallDialog(reason: reason));
+  container.read(analyticsProvider).log('upgrade_prompt_closed', {'source': source});
+}
 
 /// Pro accent: amber, so the buy path stands apart from the blue Start button.
 const proAccent = Color(0xFFFFB340);
@@ -61,8 +70,12 @@ class _PaywallDialogState extends State<PaywallDialog> {
       insetPadding: phone ? const EdgeInsets.all(12) : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 580),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(32, 24, 32, 22),
+        child: Stack(children: [
+        // The plans scroll on a small screen; the buy button, Restore and the terms stay in view below them.
+        Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Flexible(
+          child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(32, 24, 32, 8),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Center(
               child: Container(
@@ -77,16 +90,16 @@ class _PaywallDialogState extends State<PaywallDialog> {
             const SizedBox(height: 6),
             Text(
               widget.reason == null
-                  ? 'Present as many scripts as you like, on all your devices.'
-                  : '${widget.reason} Pro lets you present as many as you like, on all your devices.',
+                  ? 'Save and present as many scripts as you like.'
+                  : '${widget.reason} Pro lets you save and present as many as you like.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             for (final line in const [
-              'Unlimited scripts in the prompter',
-              'One purchase for up to 5 devices when you sign in',
-              'Writing, editing and exporting stay free',
+              'Save and present unlimited scripts',
+              'Get it back on a new phone or computer with Restore Purchases',
+              'Editing and exporting your scripts stay free',
             ])
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
@@ -120,7 +133,12 @@ class _PaywallDialogState extends State<PaywallDialog> {
                 ]),
               ),
             ],
-            const SizedBox(height: 16),
+          ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 8, 32, 22),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             FilledButton(
               onPressed: () => _unavailable('Buying Pro'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -140,6 +158,17 @@ class _PaywallDialogState extends State<PaywallDialog> {
             ),
           ]),
         ),
+        ]),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IconButton(
+            tooltip: 'Close',
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+        ]),
       ),
     );
   }

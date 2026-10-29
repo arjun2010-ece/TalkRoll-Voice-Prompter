@@ -15,9 +15,11 @@ class UnlockedEntitlements implements Entitlements {
   bool canStartPrompter(SavedScript script) => true;
 }
 
-/// Whether the free-script limit is enforced. Off until billing is connected (plan Phase 3): the Pro screens
-/// work and free scripts are counted, but nothing is locked, so every build presents as before.
-const proEnforced = false;
+/// Whether the free-script limit is enforced. Off in normal builds until billing is connected (plan Phase 3): the Pro
+/// screens work and free scripts are counted, but nothing is locked, because a locked free user with no way to buy
+/// would be stuck. Build with `--dart-define=ENFORCE_FREE_LIMIT=true` to run the whole upgrade path: the locked Start,
+/// the upgrade sheet, the reminder card and the sheet on app open.
+const proEnforced = bool.fromEnvironment('ENFORCE_FREE_LIMIT');
 
 /// Scripts a free user may present.
 const freeScriptLimit = 5;

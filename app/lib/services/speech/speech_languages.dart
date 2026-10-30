@@ -79,6 +79,16 @@ String speechLanguageName(String tag) {
   return tag;
 }
 
+/// Whether [a] and [b] are the same language for the "different language" question: the same language code, and for
+/// Chinese the same writing (Simplified or Traditional).
+bool sameSpeechLanguage(String a, String b) {
+  String code(String t) => t.replaceAll('_', '-').split('-').first.toLowerCase();
+  if (code(a) != code(b)) return false;
+  if (code(a) != 'zh') return true;
+  bool traditional(String t) => const {'zh-tw', 'zh-hk', 'zh-mo'}.contains(_key(t)) || t.contains('Hant');
+  return traditional(a) == traditional(b);
+}
+
 /// [tag] lowercased, `_` as `-`, without a script subtag (`yue-Hant-HK` -> `yue-hk`), for comparing tags
 /// from different sources.
 String _key(String tag) {
@@ -172,7 +182,7 @@ String _variantOf(String detected, String deviceTag, Iterable<String> supported)
       if (sameSpeechTag(v, want)) return v;
     }
   }
-  return variants.isEmpty ? detected : variants.first;
+  return variants.isEmpty ? defaultSpeechLanguage : variants.first;
 }
 
 /// Reference `rg3.e0`: the language of [script] from its writing system, or from letters only some Latin-script

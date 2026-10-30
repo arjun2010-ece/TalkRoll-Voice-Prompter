@@ -15,6 +15,7 @@ import '../pro/upgrade_card.dart';
 import '../../services/storage/script_io.dart';
 import '../../ui/adaptive.dart';
 import '../../ui/fade_route.dart';
+import '../../ui/speech_language_prompt.dart';
 import '../../ui/discard_changes_dialog.dart';
 import '../read/read_screen.dart';
 import '../settings/mobile_settings.dart';
@@ -75,6 +76,8 @@ Future<void> presentScript(BuildContext context, WidgetRef ref, {required bool r
     await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
     return;
   }
+  await confirmSpeechLanguage(context, ref, ref.read(studioProvider).script);
+  if (!context.mounted) return;
   await studio.start();
   // The built-in demo is never saved, so it never counts toward the free scripts.
   final id = studio.currentId;

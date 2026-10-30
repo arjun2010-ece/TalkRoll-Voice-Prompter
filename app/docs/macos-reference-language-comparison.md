@@ -1,6 +1,6 @@
 # Multi-language: macOS reference app vs our implementation
 
-Status: **analysis only, nothing changed in code.** Source: the decompiled macOS reference app
+Status: **analysis; gaps 1 to 3 are now done in code (see §5), gap 4 was a misreading (see §3.4).** Source: the decompiled macOS reference app
 (`~/Downloads/mac-vp/decompiled`, VoicePrompter 4.0.2, arm64, Ghidra; method names are stripped, so functions are
 `FUN_<address>`). Compared with our code on branch `mobile-redesign` (commits `9555cb6` to `e8fcf45`).
 
@@ -44,13 +44,13 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
    Siri/Dictation disabled, permissions allowed but request rejected (`100103bc0`, strings `10024cfd0` to `10024d310`).
    Which code maps to which message is [inferred]. There is **no switch to the servers after an on-device error**; it
    relies on `supportsOnDeviceRecognition` alone.
-7. **Script text** [read]: the script is split on newlines (`FUN_1001d6280`); words for display come from
-   `NLTokenizer(unit: .word)` with `setLanguage` set to the effective locale's language code (`FUN_1001d4f20`), so
-   Chinese, Japanese and Thai are segmented by Apple's tokenizer. Word matching normalises with `lowercased()` and a
-   split on non-alphanumerics (`FUN_1001d4600`); **no diacritic folding** exists in the binary [not found]. Text in
-   `[square brackets]` is ignored. Sentence navigation skips sentences under 20 letters or digits. I found no
-   CJK-specific code in the matcher itself; how recogniser segments for Chinese are paired with tokenizer words is
-   unresolved.
+7. **Script text** [read]: the script is split on newlines (`FUN_1001d6280`) and words on whitespace, for every
+   language. Word matching normalises with `lowercased()` and a split on non-alphanumerics (`FUN_1001d4600`); **no
+   diacritic folding** exists in the binary [not found]. Text in `[square brackets]` is ignored. The `NLTokenizer` in
+   `FUN_1001d4f20` is created with unit **1 = sentence** (`NLTokenUnit.sentence`), and its results are kept only when
+   they hold at least 20 letters or digits: it serves **sentence navigation**, not word splitting (an earlier version
+   of this document read it as a word tokenizer, which was wrong). I found no Chinese, Japanese or Thai word
+   segmentation anywhere in the matcher.
 8. **Voice commands** [read]: a 37-language enum (`goStart goNext goBack goFinish nextSentence previousSentence
    toggleMirroring toggleFollowMouse startRecording stopRecording`, plus special `hi-Latn`, `yue-Hans`, `zh-Hant`
    variants), phrases follow the recognition language and are user-editable. We dropped voice commands, so this is out of
@@ -68,10 +68,10 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
 | Model download | none, points to Dictation settings | OS 26+ `AssetInventory` download | ours is a superset; keep |
 | `contextualStrings` | script words, 150 | script bias words | match |
 | Language list | all `supportedLocales`, localised names | fixed 43 tags filtered by `supportedLocales` | gap, small (see 3.6) |
-| Automatic detection | `NLLanguageRecognizer` on the script | letter counts per script plus marker letters (`speech_languages.dart`), port of the Android reference | **gap, large (3.1)** |
-| Detected tag to supported locale | picks a locale this device supports | picks from our list; unsupported gives "can't recognise <name>" | gap (3.2) |
-| Fixed choice vs a different script | asks Use / Keep | silently keeps the choice | gap (3.3) |
-| Chinese, Japanese, Thai words | `NLTokenizer(.word)` | per-character for Han/kana; Thai hidden | gap (3.4) |
+| Automatic detection | `NLLanguageRecognizer` on the script | letter counts per script plus marker letters (`speech_languages.dart`), port of the Android reference | done (3.1) |
+| Detected tag to supported locale | picks a locale this device supports | picks from our list; unsupported gives "can't recognise <name>" | done (3.2) |
+| Fixed choice vs a different script | asks Use / Keep | silently keeps the choice | done (3.3) |
+| Chinese, Japanese, Thai words | whitespace split, no segmentation found | per-character for Han/kana (tracks on macOS); Thai hidden | not a gap (3.4) |
 | Accent handling | exact (no folding) | exact | match |
 | Arabic/Hebrew vowel marks | no stripping found | stripped on both sides | ours differs, harmless |
 | Error recovery | 201/301/1110/1700 rules, stop after 5 | 1110/203 quiet, dictation-off cases stop, stop after 5 | close (3.5) |
@@ -93,9 +93,11 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
    from our fixed list and a regional gap shows up as an error at listen time.
 3. **Use/Keep prompt** when a fixed language disagrees with the script. Needs a Flutter dialog fed by the same detector;
    worth it once item 1 exists, because it then also covers a user who left a stale choice.
-4. **Tokenisation of Chinese, Japanese and Thai.** `NLTokenizer(.word)` is the reference's answer and it also makes
-   Thai possible, which we hide. Our per-character split works (tested on macOS) but is not word-aware. Apple-only; Android
-   keeps what it has.
+4. **Tokenisation of Chinese, Japanese and Thai: not a gap.** The reference does not segment words (see 1.7). Our
+   per-character split for Chinese and Japanese works. Thai was tried on macOS with Apple's Thai recogniser: it reports
+   the whole sentence with **no spaces** ("วันนี้เราจะพูดถึงโครงการของเรา..."), so a script split on spaces tracks only
+   its first words. Thai stays hidden. Supporting it needs real word segmentation of both the script and each
+   hypothesis (for example `NLTokenizer(.word)` run natively on both), which the reference does not do either.
 5. **Errors and wording.** Keep our server fallback. Consider the reference's 201-twice and 1700-stop rules and its
    wording that names Dictation > Languages, which is the thing a Mac user must act on.
 6. **Picker list.** The reference shows every `supportedLocale` with localised names; we show our 43. Small: it only
@@ -111,3 +113,13 @@ Not worth copying: the reference never downloads models (ours does on OS 26+), a
 - How the reference pairs recogniser output with tokenizer words for Chinese and Japanese is unresolved.
 - A real 4.0.2 run (e.g. a French script on Automatic, a Spanish script with English fixed) would settle items 1.4,
   1.5 and 3.1 in minutes and is the cheapest way to check this document.
+
+## 5. Done so far
+
+- 3.1 Automatic detection from Apple's `NLLanguageRecognizer` (macOS, iOS, iPadOS); Android keeps its heuristic.
+- 3.2 The detected language's region is chosen from the device's own supported locales, `en-US` when it has none.
+- 3.3 "Different Language Detected" (`lib/ui/speech_language_prompt.dart`): on Start in Voice or Audio mode, when a fixed
+  language differs from the script's (needs four or more words). **Use** sets the detected language as the setting;
+  **Keep** (or closing the dialog) keeps it and does not ask again for that script until the app restarts. Apple only.
+  Verified on macOS: English fixed + French script gave the prompt, Use tracked French to 100%, Keep went on without
+  asking again; Automatic English and Spanish and Normal mode were unaffected.

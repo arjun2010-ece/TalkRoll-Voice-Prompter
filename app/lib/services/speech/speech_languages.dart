@@ -97,26 +97,56 @@ List<SpeechLanguage> supportedSpeechLanguages(Iterable<String> supported) {
 }
 
 /// The tag to recognise: [setting] when it names a language, otherwise the language of [script] (`auto`).
+/// [detected] is the platform's own reading of the script (Apple's language recogniser, see
+/// [languageFromNaturalLanguage]); without it the script is read by [detectScriptLanguage].
 /// [deviceTag] only chooses between the regional variants of a detected language (a `pt-PT` phone gets
-/// `pt-PT` for a Portuguese script).
-String resolveSpeechLanguage({required String setting, required String script, required String deviceTag}) {
+/// `pt-PT` for a Portuguese script); [supported] (the tags the device can recognise, if it says) limits the choice.
+String resolveSpeechLanguage({
+  required String setting,
+  required String script,
+  required String deviceTag,
+  String? detected,
+  Iterable<String> supported = const [],
+}) {
   if (setting != autoSpeechLanguage) return setting;
-  final detected = detectScriptLanguage(script);
-  if (detected == null) return defaultSpeechLanguage;
-  return _variantOf(detected, deviceTag);
+  final found = detected != null ? languageFromNaturalLanguage(detected) : detectScriptLanguage(script);
+  if (found == null) return defaultSpeechLanguage;
+  return _variantOf(found, deviceTag, supported);
 }
 
-/// Reference `rg3.g0`: among the listed variants of [detected]'s language, the one equal to the device's tag,
-/// else `en-US`, else the detected one itself, else the first.
-String _variantOf(String detected, String deviceTag) {
+/// The list tag for a language code from Apple's language recogniser (`fr`, `zh-Hans`, `yue`, `no`); null when
+/// we don't list that language.
+String? languageFromNaturalLanguage(String code) {
+  switch (code) {
+    case 'zh-Hans':
+      return 'zh-CN';
+    case 'zh-Hant':
+      return 'zh-TW';
+    case 'yue':
+      return 'yue-Hant-HK';
+    case 'no':
+      return 'nb-NO';
+  }
+  final language = code.split('-').first;
+  for (final l in speechLanguages) {
+    if (l.code == language) return l.tag;
+  }
+  return null;
+}
+
+/// Reference `rg3.g0`: among the listed variants of [detected]'s language, the one equal to the device's tag (not for
+/// English), else `en-US`, else the detected one itself, else the first.
+String _variantOf(String detected, String deviceTag, Iterable<String> supported) {
   final code = detected.split('-').first;
-  final variants = [for (final l in speechLanguages) if (l.code == code) l.tag];
-  for (final want in [deviceTag, defaultSpeechLanguage, detected]) {
+  final keys = {for (final s in supported) _key(s)};
+  final variants = [for (final l in speechLanguages) if (l.code == code && (keys.isEmpty || keys.contains(_key(l.tag)))) l.tag];
+  // English stays en-US whatever the device region (an en-IN phone reading English is not asking for en-IN).
+  for (final want in [if (code != 'en') deviceTag, defaultSpeechLanguage, detected]) {
     for (final v in variants) {
       if (sameSpeechTag(v, want)) return v;
     }
   }
-  return variants.isEmpty ? defaultSpeechLanguage : variants.first;
+  return variants.isEmpty ? detected : variants.first;
 }
 
 /// Reference `rg3.e0`: the language of [script] from its writing system, or from letters only some Latin-script

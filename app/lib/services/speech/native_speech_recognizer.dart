@@ -24,6 +24,16 @@ class NativeSpeechRecognizer {
     }
   }
 
+  /// Apple: the language of [text] as Apple's language recogniser reads it (`fr`, `zh-Hans`, ...); null when it
+  /// can't tell, and on Android, which has no such recogniser.
+  Future<String?> detectLanguage(String text) async {
+    try {
+      return await _method.invokeMethod<String>('detectLanguage', text);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Words the recogniser should favour; read when each listening session starts.
   Future<void> setBias(List<String> words) => _method.invokeMethod<void>('setBias', words);
 

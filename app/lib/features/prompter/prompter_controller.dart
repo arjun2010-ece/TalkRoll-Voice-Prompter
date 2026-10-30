@@ -229,10 +229,14 @@ class PrompterController extends Notifier<PrompterState> {
     await _sendBias(native);
     state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false);
     // The Record screen records the microphone, so the recogniser may not open it itself (reference: Video mode).
+    final setting = ref.read(settingsProvider).speechLanguage;
+    final auto = setting == autoSpeechLanguage;
     final language = resolveSpeechLanguage(
-      setting: ref.read(settingsProvider).speechLanguage,
+      setting: setting,
       script: _script,
       deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
+      detected: auto ? await native.detectLanguage(_script) : null,
+      supported: auto ? await native.supportedLanguages() : const [],
     );
     _voiceSub = native.hypotheses(micFallback: _externalSamples == null, headsetMic: _mode != PromptControlMode.recordedAudio, language: language).listen(_onHypothesis, onError: (Object e) {
       final sub = _voiceSub;

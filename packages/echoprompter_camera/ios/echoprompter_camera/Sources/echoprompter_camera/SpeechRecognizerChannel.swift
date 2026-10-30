@@ -25,6 +25,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
     private var running = false
     private var failures = 0 // consecutive service failures; five give up
     private var onDeviceFailed = false // on-device recognition failed for this language; use Apple's servers instead
+    private var dictationErrors = 0 // consecutive Dictation-off errors (201); the second gives up
     private var lastError = ""
     private var restartTimes: [TimeInterval] = []
     private var idleTimer: Timer?
@@ -119,6 +120,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
         if !recognizer.supportsOnDeviceRecognition { Self.requestModel(for: recognizer.locale) }
         running = true
         failures = 0
+        dictationErrors = 0
         onDeviceFailed = false
         restartTimes = []
         camera?.setSpeechActive(true)
@@ -179,6 +181,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
         guard id == generation, running else { return }
         if let result = result {
             failures = 0
+            dictationErrors = 0
             let text = result.bestTranscription.formattedString
             if !text.trimmingCharacters(in: .whitespaces).isEmpty {
                 emit(text, final: result.isFinal)
@@ -193,19 +196,26 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
             return
         }
         guard let error = error as NSError? else { return }
-        // "No speech detected" (1110) and "retry" (203) just mean a quiet stretch.
-        let quiet = error.domain == "kAFAssistantErrorDomain" && (error.code == 1110 || error.code == 203)
+        // "No speech detected" (1110), "retry" (203) and a cancelled request (301) just mean a quiet stretch.
+        let quiet = (error.domain == "kAFAssistantErrorDomain" && (error.code == 1110 || error.code == 203))
+            || (error.domain == "kLSRErrorDomain" && error.code == 301)
         // Apple's recogniser refuses to work while Dictation is turned off; retrying can't help.
         let dictationOff = error.localizedDescription.localizedCaseInsensitiveContains("dictation")
-            || (error.domain == "kLSRErrorDomain" && error.code == 201)
             || (error.domain == "kAFAssistantErrorDomain" && error.code == 1101)
-        // Error 1700 means the language can't be recognised at all (the reference stops on it at once).
+        // Error 1700: the system rejected the request although the permissions are allowed; the reference stops at once.
         if error.domain == "kAFAssistantErrorDomain" && error.code == 1700 {
-            let tag = recognizer?.locale.identifier.replacingOccurrences(of: "_", with: "-") ?? "this language"
-            let name = Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
-            fail("language", "This device can't recognise \(name). Check your internet connection and that Dictation is on in Settings > General > Keyboard.")
+            fail("unavailable", "Microphone and Speech Recognition access are allowed, but iOS rejected the recognition request. Quit and reopen EchoPrompter, then try again. If this continues, check EchoPrompter's Speech Recognition access in Settings > Privacy & Security.")
             stop()
             return
+        }
+        // Error 201 (Dictation or Siri off): the reference retries once and stops on the second in a row.
+        if error.domain == "kLSRErrorDomain" && error.code == 201 {
+            dictationErrors += 1
+            if dictationErrors >= 2 {
+                fail("unavailable", Self.dictationMessage)
+                stop()
+                return
+            }
         }
         if dictationOff {
             fail("unavailable", Self.dictationMessage)

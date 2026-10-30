@@ -29,21 +29,35 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
    `recognitionLanguage` and "is kept across scripts and app launches" (help text `10024dd50`).
 4. **Automatic detection** [read]: `NLLanguageRecognizer.dominantLanguage` over the whole script (`FUN_100074460`;
    a blank script is skipped, `FUN_100072c60`). The result is mapped onto a locale this Mac supports
-   (`FUN_10018a2f0`): candidates are the supported identifiers with the same language, and script when both have one
-   (`FUN_10018bd40`, so `zh-Hans` and `zh-Hant` stay apart), sorted by identifier; the first candidate equal to, in
-   order, the current choice, the system locale, `en-US`, or the detected code wins, else the first candidate
-   [inferred order]. Nothing detected gives `en-US`. Detection runs on every script change.
-5. **Mismatch prompt** [read]: when the user has fixed a language (not Automatic) and a script is detected as a
-   different one, an `NSAlert` titled "Different Language Detected" asks "Which language would you like to use? Your
-   choice will be kept for future scripts." with **Use <detected>** / **Keep <chosen>** (`FUN_100074720`). Conditions
-   on two stored flags are [inferred].
-6. **Errors** [read, `FUN_1001d6e20`, domains decoded from the packed strings]. `kLSRErrorDomain` 201, 301 and
-   `kAFAssistantErrorDomain` 1110, 1700 get special treatment; any other error adds to a consecutive-failure count that
-   stops listening after the fifth. 301 and 1110 restart quietly; 201 stops on the second occurrence; 1700 stops at
-   once. The count resets when a result contains speech. Four messages exist: language unavailable, failed repeatedly,
-   Siri/Dictation disabled, permissions allowed but request rejected (`100103bc0`, strings `10024cfd0` to `10024d310`).
-   Which code maps to which message is [inferred]. There is **no switch to the servers after an on-device error**; it
-   relies on `supportsOnDeviceRecognition` alone.
+   (`FUN_10018a2f0`). Candidates are the supported identifiers whose language (and script, `FUN_10018bd40`: it calls
+   `languageCode`, `script` and `==`; its body did not decompile, so exactly how a missing script compares is
+   [inferred]) equals the detected one, sorted by identifier. The preference list is **four strings, read from the
+   call: the user's current choice (`recognitionLanguage`, which is "auto" in Automatic and so matches nothing), the
+   system locale identifier, `"en-US"`, then the detected code**. Each is compared to each candidate as a whole tag
+   (`_` as `-`, lowercased); the first equal candidate wins, otherwise the first candidate by sort order. Nothing
+   detected gives `en-US` (`FUN_100072c60`). Consequences: on an `en_IN` Mac an English script gets `en-IN`; Spanish,
+   French and Portuguese fall to the first sorted tag the Mac lists (`es-419`, `fr-BE`, `pt-BR`).
+5. **Mismatch prompt** [read, `FUN_100072c60`, run when a script is set or changed, not on Start]: an `NSAlert`
+   titled "Different Language Detected" (`FUN_100074720`): "<script language>. Your recognition language is set to
+   <choice>. Which language would you like to use? Your choice will be kept for future scripts." with **Use <detected>**
+   and **Keep <choice>**. Conditions, all required: the script is not blank; `isEditing` is false (the state reset in
+   `FUN_100073b40` sets it with `editingReadingPosition`; the property name is [inferred] from its `didSet`,
+   `FUN_100067bb0`); the scrolling mode is the first of three (`voiceTracking`, `voiceActivated`, `constantSpeed`, the
+   persisted raw values in `FUN_10006a140`); a language was detected; the choice is not "auto"; and the detected
+   language differs from the choice (`FUN_10018a2e0`, the same comparison as above).
+6. **Errors** [read, classifier `FUN_1001d6e20`, messages `FUN_100103bc0` area, start `FUN_100105560`]. Domains and
+   codes decoded from the packed strings. A stop carries one of four reasons, each with its own message:
+   - reason 0, Siri or Dictation disabled: `kLSRErrorDomain` **201 on the second consecutive time**; the first time it
+     is retried like any other error.
+   - reason 1, failed repeatedly: the **fifth** consecutive other error.
+   - reason 2, "unavailable for the selected language": the recogniser could not be made or `isAvailable` is false when
+     listening starts (`FUN_100105560`, `0x8002`).
+   - reason 3, "permissions are allowed, but macOS rejected the recognition request": `kAFAssistantErrorDomain`
+     **1700**, at once.
+   - Quiet restarts: `kLSRErrorDomain` 301 (cancelled) and `kAFAssistantErrorDomain` 1110 (no speech).
+   The count resets when a result has speech. There is **no switch to the servers after an on-device error**; it
+   relies on `supportsOnDeviceRecognition` alone. (An earlier version of this document, and a change made from it,
+   read 1700 as "language unavailable"; that was wrong and is corrected.)
 7. **Script text** [read]: the script is split on newlines (`FUN_1001d6280`) and words on whitespace, for every
    language. Word matching normalises with `lowercased()` and a split on non-alphanumerics (`FUN_1001d4600`); **no
    diacritic folding** exists in the binary [not found]. Text in `[square brackets]` is ignored. The `NLTokenizer` in
@@ -51,6 +65,12 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
    they hold at least 20 letters or digits: it serves **sentence navigation**, not word splitting (an earlier version
    of this document read it as a word tokenizer, which was wrong). I found no Chinese, Japanese or Thai word
    segmentation anywhere in the matcher.
+   **Chinese** [read]: the matcher (`FUN_1001d3570`) is the same algorithm as the Android `ju3`: it compares whole
+   tokens, where the script's words are whitespace-split and normalised, and the recogniser's text is lowercased and
+   split on non-alphanumerics (`FUN_1001d4600`; CJK ideographs count as alphanumeric, so a run of Chinese is one
+   token). It has no segmentation and no fuzzy or prefix comparison (`FUN_1001d4390` only compares strings). So the
+   reference can only match Chinese at the granularity the script and the recogniser happen to share, in practice a
+   whole unspaced line or clause; our per-character matching tracks it more finely. Not run in the real app.
 8. **Voice commands** [read]: a 37-language enum (`goStart goNext goBack goFinish nextSentence previousSentence
    toggleMirroring toggleFollowMouse startRecording stopRecording`, plus special `hi-Latn`, `yue-Hans`, `zh-Hant`
    variants), phrases follow the recognition language and are user-editable. We dropped voice commands, so this is out of
@@ -109,11 +129,13 @@ Not worth copying: the reference never downloads models (ours does on OS 26+), a
 ## 4. Limits of this analysis
 
 - Only macOS was decompiled; iOS and iPadOS behaviour is assumed to match.
-- The exact preference order in 1.4, the alert conditions in 1.5 and the code-to-message mapping in 1.6 come from
-  partly garbled decompilation; confirm by testing the real app before copying them exactly.
-- How the reference pairs recogniser output with tokenizer words for Chinese and Japanese is unresolved.
-- A real 4.0.2 run (e.g. a French script on Automatic, a Spanish script with English fixed) would settle items 1.4,
-  1.5 and 3.1 in minutes and is the cheapest way to check this document.
+- Read from the code now: the locale preference order (1.4), the prompt conditions (1.5) and the error-to-message mapping
+  (1.6). Still inferred: how a missing script subtag compares in `FUN_10018bd40` (its body did not decompile) and the
+  name of the `isEditing` flag.
+- Not run in the real reference app (it cannot be run here), so none of this was observed live.
+- Where we differ on purpose: English stays `en-US` and Spanish, French and Portuguese default to Spain, France and
+  Brazil (the reference would give `en-IN`, `es-419`, `fr-BE` on this Mac); the prompt is asked on Start, not when the
+  script changes; Thai and per-character Chinese tracking go beyond the reference.
 
 ## 5. Done so far
 
@@ -128,3 +150,7 @@ Not worth copying: the reference never downloads models (ours does on OS 26+), a
   and a spoken script: 100% on a clean transcript. A poor transcript (the synthetic voice at a low volume was
   recognised as other Thai words) cannot be tracked by any matcher. The Spanish transcript replayed through the changed
   tracker gives the same cursors as before; English and Chinese scripts take the old path.
+- 3.5 Errors (macOS, iOS, iPadOS): 301 is a quiet restart; 201 stops on the second in a row; 1700 stops at once with the
+  "rejected the recognition request" message; the fifth failure uses the "failed repeatedly" message naming the
+  Dictation languages path. Built for macOS and the iOS simulator; the macOS language message was seen in the app before
+  this re-read, the error-code rules were not exercised (they need real recogniser errors).

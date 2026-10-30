@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreAudio
 import FlutterMacOS
+import NaturalLanguage
 import Speech
 
 /// Voice and Audio mode's recogniser on macOS: Apple's `SFSpeechRecognizer`, on-device where the Mac
@@ -84,6 +85,10 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
         case "supportedLanguages":
             result(SFSpeechRecognizer.supportedLocales().map { $0.identifier.replacingOccurrences(of: "_", with: "-") }.sorted())
         case "readiness": result(Self.readiness())
+        case "detectLanguage":
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString((call.arguments as? String) ?? "")
+            result(recognizer.dominantLanguage?.rawValue)
         case "setBias":
             bias = Array(((call.arguments as? [String]) ?? []).prefix(Self.maxBias))
             result(nil)

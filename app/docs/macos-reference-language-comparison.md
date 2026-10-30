@@ -1,6 +1,6 @@
 # Multi-language: macOS reference app vs our implementation
 
-Status: **analysis; gaps 1 to 3 are now done in code (see §5), gap 4 was a misreading (see §3.4).** Source: the decompiled macOS reference app
+Status: **analysis; gaps 1 to 4 are done in code (see §5; gap 4 differs from the reference, see §3.4).** Source: the decompiled macOS reference app
 (`~/Downloads/mac-vp/decompiled`, VoicePrompter 4.0.2, arm64, Ghidra; method names are stripped, so functions are
 `FUN_<address>`). Compared with our code on branch `mobile-redesign` (commits `9555cb6` to `e8fcf45`).
 
@@ -71,7 +71,7 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
 | Automatic detection | `NLLanguageRecognizer` on the script | letter counts per script plus marker letters (`speech_languages.dart`), port of the Android reference | done (3.1) |
 | Detected tag to supported locale | picks a locale this device supports | picks from our list; unsupported gives "can't recognise <name>" | done (3.2) |
 | Fixed choice vs a different script | asks Use / Keep | silently keeps the choice | done (3.3) |
-| Chinese, Japanese, Thai words | whitespace split, no segmentation found | per-character for Han/kana (tracks on macOS); Thai hidden | not a gap (3.4) |
+| Chinese, Japanese, Thai words | whitespace split, no segmentation found; Thai not followable | per-character for Han/kana; Thai followed by letters (Apple only) | ours goes further (3.4) |
 | Accent handling | exact (no folding) | exact | match |
 | Arabic/Hebrew vowel marks | no stripping found | stripped on both sides | ours differs, harmless |
 | Error recovery | 201/301/1110/1700 rules, stop after 5 | 1110/203 quiet, dictation-off cases stop, stop after 5 | close (3.5) |
@@ -93,11 +93,12 @@ Confidence: **[read]** seen in decompiled code or strings, **[inferred]** reason
    from our fixed list and a regional gap shows up as an error at listen time.
 3. **Use/Keep prompt** when a fixed language disagrees with the script. Needs a Flutter dialog fed by the same detector;
    worth it once item 1 exists, because it then also covers a user who left a stale choice.
-4. **Tokenisation of Chinese, Japanese and Thai: not a gap.** The reference does not segment words (see 1.7). Our
-   per-character split for Chinese and Japanese works. Thai was tried on macOS with Apple's Thai recogniser: it reports
-   the whole sentence with **no spaces** ("วันนี้เราจะพูดถึงโครงการของเรา..."), so a script split on spaces tracks only
-   its first words. Thai stays hidden. Supporting it needs real word segmentation of both the script and each
-   hypothesis (for example `NLTokenizer(.word)` run natively on both), which the reference does not do either.
+4. **Chinese, Japanese and Thai.** The reference does not segment words (see 1.7), so it follows Thai no better
+   than we did: Apple's Thai recogniser reports a sentence with **no spaces**, and a script split on spaces tracked
+   only its first words. We went beyond the reference: when most of a script's letters are Thai, `ScriptTracker`
+   follows it by letters (the last letters of the hypothesis are looked up in the script's letters ahead of the cursor,
+   nearest first, longest run first, at least three letters). Thai is listed on Apple only. Chinese and Japanese keep
+   the per-character split, which already worked.
 5. **Errors and wording.** Keep our server fallback. Consider the reference's 201-twice and 1700-stop rules and its
    wording that names Dictation > Languages, which is the thing a Mac user must act on.
 6. **Picker list.** The reference shows every `supportedLocale` with localised names; we show our 43. Small: it only
@@ -123,3 +124,7 @@ Not worth copying: the reference never downloads models (ours does on OS 26+), a
   **Keep** (or closing the dialog) keeps it and does not ask again for that script until the app restarts. Apple only.
   Verified on macOS: English fixed + French script gave the prompt, Use tracked French to 100%, Keep went on without
   asking again; Automatic English and Spanish and Normal mode were unaffected.
+- 3.4 Thai (`lib/core/matching/script_tracker.dart`, `_updateUnspaced`): verified on macOS with Apple's Thai recogniser
+  and a spoken script: 100% on a clean transcript. A poor transcript (the synthetic voice at a low volume was
+  recognised as other Thai words) cannot be tracked by any matcher. The Spanish transcript replayed through the changed
+  tracker gives the same cursors as before; English and Chinese scripts take the old path.

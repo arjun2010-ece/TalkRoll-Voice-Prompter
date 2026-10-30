@@ -1,5 +1,6 @@
 import AVFoundation
 import Flutter
+import NaturalLanguage
 import Speech
 
 /// Voice and Audio mode's recogniser on iOS and iPadOS: Apple's `SFSpeechRecognizer`, on-device where the
@@ -78,6 +79,10 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
         case "isAvailable": available(result)
         case "supportedLanguages":
             result(SFSpeechRecognizer.supportedLocales().map { $0.identifier.replacingOccurrences(of: "_", with: "-") }.sorted())
+        case "detectLanguage":
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString((call.arguments as? String) ?? "")
+            result(recognizer.dominantLanguage?.rawValue)
         case "setBias":
             bias = Array(((call.arguments as? [String]) ?? []).prefix(Self.maxBias))
             result(nil)

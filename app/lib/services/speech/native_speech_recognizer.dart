@@ -15,6 +15,15 @@ class NativeSpeechRecognizer {
   Future<Map<String, String>> readiness() async =>
       (await _method.invokeMapMethod<String, String>('readiness')) ?? const {};
 
+  /// The language tags this device's recogniser can listen to (`pt-BR`, ...); empty when it can't tell.
+  Future<List<String>> supportedLanguages() async {
+    try {
+      return (await _method.invokeListMethod<String>('supportedLanguages')) ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Words the recogniser should favour; read when each listening session starts.
   Future<void> setBias(List<String> words) => _method.invokeMethod<void>('setBias', words);
 
@@ -24,8 +33,10 @@ class NativeSpeechRecognizer {
   /// [headsetMic]: macOS opens the microphone itself and, when set, prefers a connected USB or Bluetooth headset
   /// over the built-in one (Audio mode must hear the speaker, so it clears this). Android and iOS choose the
   /// microphone in the camera plugin and ignore it.
-  Stream<SpeechHypothesis> hypotheses({bool micFallback = true, bool headsetMic = true}) =>
-      _events.receiveBroadcastStream({'micFallback': micFallback, 'headset': headsetMic}).map((e) {
+  ///
+  /// [language]: the tag to recognise (`en-US`, `pt-BR`, ...).
+  Stream<SpeechHypothesis> hypotheses({bool micFallback = true, bool headsetMic = true, String language = 'en-US'}) =>
+      _events.receiveBroadcastStream({'micFallback': micFallback, 'headset': headsetMic, 'language': language}).map((e) {
     final m = e as Map;
     return SpeechHypothesis(m['text'] as String, isFinal: m['final'] as bool);
   }).handleError((Object e) {
@@ -37,7 +48,7 @@ class NativeSpeechRecognizer {
   });
 }
 
-/// The phone has no recogniser Voice mode can use for English; the reader is told so.
+/// The phone has no recogniser Voice mode can use for the chosen language; the reader is told so.
 class NativeRecognizerUnavailable extends SpeechUnavailable {
   NativeRecognizerUnavailable(super.message);
 }

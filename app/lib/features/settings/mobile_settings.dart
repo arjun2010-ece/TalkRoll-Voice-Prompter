@@ -10,6 +10,7 @@ import '../../main.dart' show crashReportingKey;
 import '../../services/external_links.dart';
 import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
+import '../../ui/speech_language_row.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/purchase_actions.dart';
@@ -234,6 +235,7 @@ class _GeneralContentState extends ConsumerState<_GeneralContent> {
           onChanged: (v) => set((c) => c.copyWith(rotated: v)),
         ),
       ]),
+      const _Group(title: 'Voice', children: [SpeechLanguageRow()]),
       _Group(title: 'Diagnostics', children: [
         _SwitchRow(
           title: 'Send crash reports',

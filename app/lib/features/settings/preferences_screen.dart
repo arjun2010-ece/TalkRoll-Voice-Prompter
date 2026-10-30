@@ -15,6 +15,7 @@ import '../../core/shortcuts/shortcut_binding.dart';
 import '../../main.dart' show crashReportingKey;
 import '../../services/external_links.dart';
 import '../../services/providers.dart';
+import '../../ui/speech_language_row.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/purchase_actions.dart';
@@ -231,6 +232,7 @@ class _GeneralTab extends ConsumerWidget {
           onChanged: (v) => set((c) => c.copyWith(hideFromCapture: !v)),
         ),
       ]),
+      const _Group(title: 'Voice', children: [SpeechLanguageRow()]),
       const _CaptureSupportNote(),
       _Group(title: 'Diagnostics', children: [_CrashReportsSwitch(prefs: prefs)]),
     ]);

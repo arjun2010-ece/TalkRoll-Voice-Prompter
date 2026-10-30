@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,7 +11,9 @@ import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
 import '../../services/audio/reference_clock.dart';
+import '../../services/providers.dart';
 import '../../services/speech/native_speech_recognizer.dart';
+import '../../services/speech/speech_languages.dart';
 
 /// Voice and Audio mode's recogniser: the platform's own (Android, iOS, macOS, Windows); null elsewhere.
 /// A device without one is told so.
@@ -90,6 +93,7 @@ class PrompterController extends Notifier<PrompterState> {
   int _session = -1;
   PromptControlMode _mode = PromptControlMode.normal;
   ScriptTracker? _tracker;
+  String _script = '';
   StreamSubscription<Object?>? _voiceSub;
   bool _nativeVoice = false;
   final _trackerClock = Stopwatch()..start();
@@ -123,6 +127,7 @@ class PrompterController extends Notifier<PrompterState> {
     await _teardown();
     _session = sessionId;
     _mode = mode;
+    _script = script;
     _wordCount = scriptWords(script).length;
     _tracker = ScriptTracker(scriptWords(script));
     state = PrompterState(resetToken: state.resetToken + 1);
@@ -224,14 +229,19 @@ class PrompterController extends Notifier<PrompterState> {
     await _sendBias(native);
     state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false);
     // The Record screen records the microphone, so the recogniser may not open it itself (reference: Video mode).
-    _voiceSub = native.hypotheses(micFallback: _externalSamples == null, headsetMic: _mode != PromptControlMode.recordedAudio).listen(_onHypothesis, onError: (Object e) {
+    final language = resolveSpeechLanguage(
+      setting: ref.read(settingsProvider).speechLanguage,
+      script: _script,
+      deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
+    );
+    _voiceSub = native.hypotheses(micFallback: _externalSamples == null, headsetMic: _mode != PromptControlMode.recordedAudio, language: language).listen(_onHypothesis, onError: (Object e) {
       final sub = _voiceSub;
       _nativeVoice = false;
       _voiceSub = null;
       unawaited(sub?.cancel());
       if (_mode == PromptControlMode.recordedAudio) unawaited(_clock?.pause());
       if (e is NativeRecognizerUnavailable) {
-        // `isAvailable` can be true while the English pack is still missing.
+        // `isAvailable` can be true while the language's pack is still missing.
         _voiceUnsupported(e.message);
         return;
       }

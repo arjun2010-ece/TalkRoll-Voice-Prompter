@@ -67,6 +67,7 @@ class PromptSettings {
     this.showSections = true,
     this.margins = PromptMargins.medium,
     this.font = PromptFont.system,
+    this.speechLanguage = 'auto',
     this.notchSize = const Size(560, 150),
     this.cornerSize = const Size(420, 240),
   });
@@ -97,6 +98,9 @@ class PromptSettings {
   final bool showSections;
   final PromptMargins margins;
   final PromptFont font;
+
+  /// Voice and Audio mode's language: a tag such as `pt-BR`, or `auto` to take it from the script.
+  final String speechLanguage;
 
   /// Whether every option under "Text" is at its default, so Reset has nothing to do.
   bool get isTextDefault {
@@ -132,6 +136,7 @@ class PromptSettings {
     bool? showSections,
     PromptMargins? margins,
     PromptFont? font,
+    String? speechLanguage,
     Size? notchSize,
     Size? cornerSize,
   }) => PromptSettings(
@@ -151,6 +156,7 @@ class PromptSettings {
     showSections: showSections ?? this.showSections,
     margins: margins ?? this.margins,
     font: font ?? this.font,
+    speechLanguage: speechLanguage ?? this.speechLanguage,
     notchSize: notchSize ?? this.notchSize,
     cornerSize: cornerSize ?? this.cornerSize,
   );
@@ -172,6 +178,7 @@ class PromptSettings {
     'showSections': showSections,
     'margins': margins.name,
     'font': font.name,
+    'speechLanguage': speechLanguage,
     'notchW': notchSize.width,
     'notchH': notchSize.height,
     'cornerW': cornerSize.width,
@@ -199,6 +206,7 @@ class PromptSettings {
       showSections: j['showSections'] as bool? ?? d.showSections,
       margins: e(PromptMargins.values, j['margins'], d.margins),
       font: e(PromptFont.values, j['font'], d.font),
+      speechLanguage: j['speechLanguage'] as String? ?? d.speechLanguage,
       notchSize: Size(
         (j['notchW'] as num?)?.toDouble() ?? d.notchSize.width,
         (j['notchH'] as num?)?.toDouble() ?? d.notchSize.height,

@@ -107,11 +107,11 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
         let tag = (arguments as? [String: Any])?["language"] as? String ?? "en-US"
         let name = Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: tag)) else {
-            fail("language", "This device can't recognise \(name)")
+            fail("language", "This device can't recognise \(name). Check your internet connection and that Dictation is on in Settings > General > Keyboard.")
             return nil
         }
         guard recognizer.isAvailable else {
-            fail("language", "Speech recognition can't recognise \(name) right now")
+            fail("language", "Speech recognition can't recognise \(name) right now. Check your internet connection and that Dictation is on in Settings > General > Keyboard.")
             return nil
         }
         self.recognizer = recognizer
@@ -199,6 +199,14 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
         let dictationOff = error.localizedDescription.localizedCaseInsensitiveContains("dictation")
             || (error.domain == "kLSRErrorDomain" && error.code == 201)
             || (error.domain == "kAFAssistantErrorDomain" && error.code == 1101)
+        // Error 1700 means the language can't be recognised at all (the reference stops on it at once).
+        if error.domain == "kAFAssistantErrorDomain" && error.code == 1700 {
+            let tag = recognizer?.locale.identifier.replacingOccurrences(of: "_", with: "-") ?? "this language"
+            let name = Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
+            fail("language", "This device can't recognise \(name). Check your internet connection and that Dictation is on in Settings > General > Keyboard.")
+            stop()
+            return
+        }
         if dictationOff {
             fail("unavailable", Self.dictationMessage)
             stop()

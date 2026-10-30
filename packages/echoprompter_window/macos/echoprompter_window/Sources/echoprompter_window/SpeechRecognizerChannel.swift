@@ -4,7 +4,7 @@ import FlutterMacOS
 import Speech
 
 /// Voice and Audio mode's recogniser on macOS: Apple's `SFSpeechRecognizer`, on-device where the Mac
-/// supports it for English (otherwise Apple's servers), streaming partial hypotheses to Dart while the event
+/// supports the chosen language (otherwise Apple's servers), streaming partial hypotheses to Dart while the event
 /// stream is listened to. It is the counterpart of the iOS and Android recognisers, so Dart treats all of
 /// them the same: every hypothesis goes to the script tracker, and an empty final marks the start of a
 /// session and each segment's end.
@@ -14,7 +14,7 @@ import Speech
 /// microphone. Audio that arrives while a session restarts is kept for about half a second and handed to
 /// the next one. Everything but the capture callback runs on the main thread.
 final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAudioDataOutputSampleBufferDelegate {
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var recognizer: SFSpeechRecognizer? // for the language of the current listen; set in `onListen`
     private var sink: FlutterEventSink?
 
     private var bias: [String] = []
@@ -23,6 +23,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
     private var generation = 0 // bumped whenever a session ends; callbacks of older ones are ignored
     private var running = false
     private var failures = 0 // consecutive service failures; five give up
+    private var onDeviceFailed = false // on-device recognition failed for this language; use Apple's servers instead
     private var lastError = ""
     private var restartTimes: [TimeInterval] = []
     private var idleTimer: Timer?
@@ -58,11 +59,30 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
             .setStreamHandler(c)
     }
 
+    // MARK: Offline model
+
+    private static var modelRequests = Set<String>() // languages already asked for; main thread only
+
+    /// Asks the system to download the offline model for [locale] (reference `ud.x` -> `triggerModelDownload`). Only
+    /// macOS 26 and later have a call for it; earlier versions keep using Apple's servers until the reader turns the
+    /// language on under Dictation in Settings. A language already requested is not asked for again.
+    private static func requestModel(for locale: Locale) {
+        guard #available(macOS 26, *), modelRequests.insert(locale.identifier).inserted else { return }
+        Task.detached {
+            let module = DictationTranscriber(locale: locale, preset: .progressiveShortDictation)
+            guard await AssetInventory.status(forModules: [module]) != .installed,
+                  let request = try? await AssetInventory.assetInstallationRequest(supporting: [module]) else { return }
+            try? await request.downloadAndInstall()
+        }
+    }
+
     // MARK: Channel
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "isAvailable": available(result)
+        case "supportedLanguages":
+            result(SFSpeechRecognizer.supportedLocales().map { $0.identifier.replacingOccurrences(of: "_", with: "-") }.sorted())
         case "readiness": result(Self.readiness())
         case "setBias":
             bias = Array(((call.arguments as? [String]) ?? []).prefix(Self.maxBias))
@@ -97,16 +117,17 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
         return ["speech": name(SFSpeechRecognizer.authorizationStatus()), "mic": mic, "dictation": dictation]
     }
 
-    /// True once the reader has allowed speech recognition and English is supported; asks the first time.
+    /// True once the reader has allowed speech recognition; asks the first time. Whether the chosen language works is
+    /// found out when listening starts.
     private func available(_ result: @escaping FlutterResult) {
-        guard let recognizer = recognizer, Self.hasUsageDescriptions else { return result(false) }
+        guard Self.hasUsageDescriptions else { return result(false) }
         if SFSpeechRecognizer.authorizationStatus() == .notDetermined && Self.launchedFromTerminal {
             NSLog("EchoPrompter: speech permission can't be asked for when the app is started by a terminal or IDE (flutter run): "
                 + "macOS checks that program's Info.plist instead of ours and ends the app. Start it with `open EchoPrompter.app` once to grant it.")
             return result(false)
         }
         SFSpeechRecognizer.requestAuthorization { status in
-            DispatchQueue.main.async { result(status == .authorized && recognizer.isAvailable) }
+            DispatchQueue.main.async { result(status == .authorized) }
         }
     }
 
@@ -127,16 +148,26 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
             return nil
         }
         headsetMic = (arguments as? [String: Any])?["headset"] as? Bool ?? true
-        guard let recognizer = recognizer, SFSpeechRecognizer.authorizationStatus() == .authorized else {
+        guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
             fail("unavailable", "Speech recognition is unavailable on this Mac")
             return nil
         }
-        guard recognizer.isAvailable else {
-            fail("language", "Speech recognition can't recognise English right now")
+        let tag = (arguments as? [String: Any])?["language"] as? String ?? "en-US"
+        let name = Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: tag)) else {
+            fail("language", "This Mac can't recognise \(name)")
             return nil
         }
+        guard recognizer.isAvailable else {
+            fail("language", "Speech recognition can't recognise \(name) right now")
+            return nil
+        }
+        self.recognizer = recognizer
+        // No offline model for this language yet: use the servers now and ask the system to fetch the model for later.
+        if !recognizer.supportsOnDeviceRecognition { Self.requestModel(for: recognizer.locale) }
         running = true
         failures = 0
+        onDeviceFailed = false
         restartTimes = []
         captureAttempts = 0
         AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -309,7 +340,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
         req.shouldReportPartialResults = true
         req.taskHint = .dictation
         if #available(macOS 13, *) { req.addsPunctuation = false }
-        if recognizer.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+        if recognizer.supportsOnDeviceRecognition && !onDeviceFailed { req.requiresOnDeviceRecognition = true }
         if !bias.isEmpty { req.contextualStrings = bias }
         request = req
         let id = generation
@@ -373,6 +404,8 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
             return
         }
         if !quiet {
+            // The offline model can be missing or broken even when it is reported as supported: try the servers.
+            if let r = recognizer, r.supportsOnDeviceRecognition { onDeviceFailed = true; Self.requestModel(for: r.locale) }
             failures += 1
             lastError = "\(error.domain) \(error.code)"
             if failures >= 5 {

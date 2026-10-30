@@ -13,6 +13,8 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.speech.ModelDownloadListener
 import android.speech.RecognitionListener
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
@@ -21,6 +23,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.Locale
 
 /**
  * Voice mode's recogniser on Android: the on-device [SpeechRecognizer] where the phone has one
@@ -41,6 +44,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
     private var recognizer: SpeechRecognizer? = null
     private var bias = arrayListOf<String>()
     private var listener: SessionListener? = null
+    private var language = DEFAULT_LANGUAGE // the tag to recognise, set by each listen
 
     private var running = false // engine started and not stopped
     private var sessionLive = false // the current session may still deliver callbacks
@@ -104,6 +108,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "isAvailable" -> result.success(available())
+            "supportedLanguages" -> supportedLanguages(result)
             "setBias" -> {
                 bias = ArrayList(call.arguments<List<String>>() ?: emptyList())
                 result.success(null)
@@ -115,6 +120,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         sink = events
         micFallback = (arguments as? Map<*, *>)?.get("micFallback") as? Boolean ?: true
+        language = (arguments as? Map<*, *>)?.get("language") as? String ?: DEFAULT_LANGUAGE
         selectSharedAudio()
         begin()
     }
@@ -130,16 +136,46 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         onCancel(null)
     }
 
+    private fun languageMessage() =
+        "The speech service can't recognize ${Locale.forLanguageTag(language).getDisplayName(Locale.ENGLISH)} on this phone"
+
     private fun onDeviceAvailable() =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
     private fun available() = SpeechRecognizer.isRecognitionAvailable(context) || onDeviceAvailable()
 
+    /**
+     * The languages this phone's recogniser reports (online and on-device), or an empty list when it can't tell
+     * (below Android 13), in which case every language is offered.
+     */
+    private fun supportedLanguages(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !onDeviceAvailable()) return result.success(emptyList<String>())
+        val checker = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        try {
+            checker.checkRecognitionSupport(intent, context.mainExecutor, object : RecognitionSupportCallback {
+                override fun onSupportResult(support: RecognitionSupport) {
+                    checker.destroy()
+                    result.success((support.supportedOnDeviceLanguages + support.onlineLanguages + support.installedOnDeviceLanguages).distinct())
+                }
+
+                override fun onError(error: Int) {
+                    checker.destroy()
+                    result.success(emptyList<String>())
+                }
+            })
+        } catch (e: Exception) {
+            checker.destroy()
+            result.success(emptyList<String>())
+        }
+    }
+
     private fun createRecognizer(): SpeechRecognizer {
         onDevice = onDeviceAllowed && onDeviceAvailable()
         Log.i(
             TAG,
-            "created recognizer: ${if (onDevice) "on-device" else "system"} · $LANGUAGE · " +
+            "created recognizer: ${if (onDevice) "on-device" else "system"} · $language · " +
                 if (sharedAudio != null) "shared audio" else "system microphone",
         )
         return if (onDevice) SpeechRecognizer.createOnDeviceSpeechRecognizer(context) else SpeechRecognizer.createSpeechRecognizer(context)
@@ -272,7 +308,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
 
     private fun buildIntent(withShared: Boolean = true): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, LANGUAGE)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             putExtra(RecognizerIntent.EXTRA_REQUEST_WORD_TIMING, true)
@@ -343,7 +379,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
      * what's missing, then use the system recogniser, which may send audio to the network.
      */
     private fun switchToSystem(reason: String, downloadPack: Boolean) {
-        Log.w(TAG, "on-device recognizer can't handle $LANGUAGE ($reason) → falling back to system recognizer")
+        Log.w(TAG, "on-device recognizer can't handle $language ($reason) → falling back to system recognizer")
         if (downloadPack) downloadModel()
         onDeviceAllowed = false
         resetActivity()
@@ -404,10 +440,10 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 r.triggerModelDownload(intent, context.mainExecutor, object : ModelDownloadListener {
-                    override fun onProgress(completedPercent: Int) { Log.d(TAG, "model download for $LANGUAGE: $completedPercent%") }
-                    override fun onSuccess() { Log.i(TAG, "model download completed for $LANGUAGE") }
-                    override fun onScheduled() { Log.i(TAG, "model download scheduled for $LANGUAGE") }
-                    override fun onError(error: Int) { Log.w(TAG, "model download failed for $LANGUAGE: error $error") }
+                    override fun onProgress(completedPercent: Int) { Log.d(TAG, "model download for $language: $completedPercent%") }
+                    override fun onSuccess() { Log.i(TAG, "model download completed for $language") }
+                    override fun onScheduled() { Log.i(TAG, "model download scheduled for $language") }
+                    override fun onError(error: Int) { Log.w(TAG, "model download failed for $language: error $error") }
                 })
             }
         } catch (e: Exception) {
@@ -629,9 +665,9 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> restartIn(400)
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> Log.e(TAG, "Missing RECORD_AUDIO permission")
             ERROR_LANGUAGE_NOT_SUPPORTED ->
-                if (onDevice) switchToSystem("language not supported", false) else giveUp("language", LANGUAGE_MESSAGE)
+                if (onDevice) switchToSystem("language not supported", false) else giveUp("language", languageMessage())
             ERROR_LANGUAGE_UNAVAILABLE ->
-                if (onDevice) switchToSystem("language model unavailable", true) else giveUp("language", LANGUAGE_MESSAGE)
+                if (onDevice) switchToSystem("language model unavailable", true) else giveUp("language", languageMessage())
             else -> {
                 Log.w(TAG, "Recognition error $error → full restart")
                 discard()
@@ -642,8 +678,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
 
     private companion object {
         const val TAG = "SpeechEngine"
-        const val LANGUAGE = "en-US"
-        const val LANGUAGE_MESSAGE = "The speech service can't recognize English on this phone"
+        const val DEFAULT_LANGUAGE = "en-US"
         const val SILENCE_MS = 2000
         const val LOUD_LEVEL = 0.008f
         const val ERROR_LANGUAGE_NOT_SUPPORTED = 12

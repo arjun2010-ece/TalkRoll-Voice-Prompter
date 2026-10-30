@@ -239,8 +239,41 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         queue.async { self.speechActive = active; self.updateAudioInput() }
     }
 
+    // The microphone alone, for Voice mode on the reading screen, where there is no camera preview (so no `session`).
+    private var micSession: AVCaptureSession?
+
+    /// Opens or closes a microphone-only capture. Without a camera session nothing else delivers audio, and the
+    /// recogniser (like Android's own audio source and the Mac's own capture) would listen to silence.
+    private func updateMicOnlyCapture(need: Bool) {
+        if !need {
+            if let s = micSession {
+                s.stopRunning()
+                micSession = nil
+                if audioOut != nil { audioOut = nil }
+            }
+            return
+        }
+        guard micSession == nil else { return }
+        configureAudioSession()
+        let s = AVCaptureSession()
+        guard let mic = AVCaptureDevice.default(for: .audio), let input = try? AVCaptureDeviceInput(device: mic), s.canAddInput(input) else { return }
+        s.addInput(input)
+        let o = AVCaptureAudioDataOutput()
+        o.setSampleBufferDelegate(self, queue: queue)
+        guard s.canAddOutput(o) else { return }
+        s.addOutput(o)
+        audioOut = o
+        micSession = s
+        s.startRunning()
+    }
+
     private func updateAudioInput() {
-        guard let s = session else { return }
+        guard let s = session else {
+            updateMicOnlyCapture(need: audioListening || speechActive)
+            return
+        }
+        // A camera session now carries the audio; drop the microphone-only capture.
+        if micSession != nil { updateMicOnlyCapture(need: false) }
         let need = audioListening || speechActive || writer != nil
         if need && audioOut == nil {
             configureAudioSession()

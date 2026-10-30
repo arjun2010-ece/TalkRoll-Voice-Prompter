@@ -101,6 +101,9 @@ List<SpeechLanguage> supportedSpeechLanguages(Iterable<String> supported) {
 /// [languageFromNaturalLanguage]); without it the script is read by [detectScriptLanguage].
 /// [deviceTag] only chooses between the regional variants of a detected language (a `pt-PT` phone gets
 /// `pt-PT` for a Portuguese script); [supported] (the tags the device can recognise, if it says) limits the choice.
+///
+/// With [detected] (Apple) the tag is one the device itself lists, as in the macOS reference: any region of the
+/// language, whether or not it is in [speechLanguages], and `en-US` when the device has none.
 String resolveSpeechLanguage({
   required String setting,
   required String script,
@@ -111,7 +114,27 @@ String resolveSpeechLanguage({
   if (setting != autoSpeechLanguage) return setting;
   final found = detected != null ? languageFromNaturalLanguage(detected) : detectScriptLanguage(script);
   if (found == null) return defaultSpeechLanguage;
+  if (detected != null && supported.isNotEmpty) return _deviceVariantOf(found, deviceTag, supported);
   return _variantOf(found, deviceTag, supported);
+}
+
+/// The macOS reference's choice (`FUN_10018a2f0`): among the [supported] tags of [found]'s language, the one equal to
+/// the device's tag (not for English, Chinese or Cantonese, whose regions are not a preference), else `en-US`, else
+/// [found], else the first by name; `en-US` when the device lists none.
+String _deviceVariantOf(String found, String deviceTag, Iterable<String> supported) {
+  final code = found.split('-').first;
+  final variants = [
+    for (final s in supported)
+      if (s.replaceAll('_', '-').split('-').first == code) s.replaceAll('_', '-'),
+  ]..sort();
+  final plain = code != 'en' && code != 'zh' && code != 'yue';
+  // Traditional Chinese: Taiwan, then Hong Kong.
+  for (final want in [if (plain) deviceTag, defaultSpeechLanguage, found, if (found == 'zh-TW') 'zh-HK']) {
+    for (final v in variants) {
+      if (sameSpeechTag(v, want)) return v;
+    }
+  }
+  return variants.isEmpty ? defaultSpeechLanguage : variants.first;
 }
 
 /// The list tag for a language code from Apple's language recogniser (`fr`, `zh-Hans`, `yue`, `no`); null when
@@ -128,6 +151,9 @@ String? languageFromNaturalLanguage(String code) {
       return 'nb-NO';
   }
   final language = code.split('-').first;
+  // The region a bare language code stands for, where the list's first entry by name is another one.
+  final main = {'es': 'es-ES', 'fr': 'fr-FR', 'pt': 'pt-BR'}[language];
+  if (main != null) return main;
   for (final l in speechLanguages) {
     if (l.code == language) return l.tag;
   }

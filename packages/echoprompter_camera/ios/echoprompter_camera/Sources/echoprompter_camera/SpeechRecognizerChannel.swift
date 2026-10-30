@@ -36,7 +36,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
     private var pending: [AVAudioPCMBuffer] = []
     private var pendingFrames: AVAudioFrameCount = 0
 
-    private static let segmentSilence: TimeInterval = 1.5 // no new words for this long ends a segment
+    private static let segmentSilence: TimeInterval = 10 // no new words for this long ends a segment (shorter cuts restart the offline model, which loses speech)
     private static let maxSession: TimeInterval = 50 // Apple stops a task after about a minute
     private static let keepFrames: AVAudioFrameCount = 8000 // 0.5 s at 16 kHz
     private static let maxBias = 100

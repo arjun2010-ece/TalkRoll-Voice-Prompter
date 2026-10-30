@@ -5,6 +5,8 @@
 /// some languages use. A script it can't place is English, as in the reference.
 library;
 
+import 'dart:io' show Platform;
+
 /// A language tag the platform recognisers take (`en-US`, `pt-BR`, ...) and the name shown for it.
 class SpeechLanguage {
   const SpeechLanguage(this.tag, this.name);
@@ -20,10 +22,9 @@ const autoSpeechLanguage = 'auto';
 
 const defaultSpeechLanguage = 'en-US';
 
-/// English first, then the rest by name, as the reference lists them. Thai is left out until its text can be split
-/// into words (it has no spaces, and only Chinese and Japanese are split per character).
+/// English first, then the rest by name, as the reference lists them. Thai is listed on Apple only.
 final List<SpeechLanguage> speechLanguages = (() {
-  const all = [
+  final all = [
     SpeechLanguage('en-US', 'English (United States)'),
     SpeechLanguage('en-GB', 'English (United Kingdom)'),
     SpeechLanguage('en-AU', 'English (Australia)'),
@@ -60,6 +61,8 @@ final List<SpeechLanguage> speechLanguages = (() {
     SpeechLanguage('sk-SK', 'Slovak'),
     SpeechLanguage('sl-SI', 'Slovenian'),
     SpeechLanguage('sv-SE', 'Swedish'),
+    // Apple only: a Thai script is followed letter by letter (ScriptTracker), which Android's recogniser path doesn't use.
+    if (Platform.isMacOS || Platform.isIOS) SpeechLanguage('th-TH', 'Thai'),
     SpeechLanguage('tr-TR', 'Turkish'),
     SpeechLanguage('uk-UA', 'Ukrainian'),
     SpeechLanguage('vi-VN', 'Vietnamese'),

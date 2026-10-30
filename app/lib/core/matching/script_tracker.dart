@@ -13,7 +13,9 @@ final _apostrophes = RegExp("['’]");
 class ScriptTracker {
   ScriptTracker(List<String> words, {int lookahead = 150, this.allowBackward = false})
     : _clean = _cleanWords(words),
-      _lookahead = lookahead.clamp(5, 150);
+      _lookahead = lookahead.clamp(5, 150) {
+    _prepareUnspaced();
+  }
 
   /// The matchable form of every script word; empty for the ones that are skipped.
   final List<String> _clean;
@@ -56,6 +58,37 @@ class ScriptTracker {
         c == 8205,
   );
 
+  // Thai has no spaces between words, and the recogniser reports a sentence as one run of letters, so a Thai script
+  // is followed by letters instead of words: the script's letters in one string, and for each letter the word it is in.
+  // The reference app splits both sides on spaces and so cannot follow Thai; this is ours alone.
+  bool _unspaced = false;
+  String _letters = '';
+  final List<int> _wordOfLetter = [];
+  final List<int> _endOfWord = [];
+  static final _thai = RegExp(r'[\u0E00-\u0E7F]');
+  static const _maxNeedle = 12;
+  static const _minNeedle = 3;
+  static const _letterWindow = 80;
+
+  void _prepareUnspaced() {
+    var thai = 0, all = 0;
+    for (final w in _clean) {
+      all += w.length;
+      thai += _thai.allMatches(w).length;
+    }
+    if (all == 0 || thai * 2 <= all) return;
+    _unspaced = true;
+    final b = StringBuffer();
+    for (var i = 0; i < _clean.length; i++) {
+      b.write(_clean[i]);
+      for (var k = 0; k < _clean[i].length; k++) {
+        _wordOfLetter.add(i);
+      }
+      _endOfWord.add(b.length);
+    }
+    _letters = b.toString();
+  }
+
   /// Index of the next word expected.
   int _d = 0;
 
@@ -97,6 +130,7 @@ class ScriptTracker {
   /// Consumes the recogniser's current [text]; returns the new cursor, or null if it did
   /// not move. [nowMs] is any monotonic clock in milliseconds.
   int? update(String text, int nowMs) {
+    if (_unspaced) return _updateUnspaced(text);
     final n = _clean.length;
     if (_d > n) _d = n;
     final spoken = spokenWords(text.replaceAll(_apostrophes, ''));
@@ -147,6 +181,35 @@ class ScriptTracker {
       i++;
     }
     return _d = i;
+  }
+
+  /// [update] for a script without spaces: the last letters of the hypothesis are looked up in the script's letters
+  /// ahead of the cursor, nearest first, from the longest run down to three. The cursor moves to just after the last
+  /// word the match completes, so it follows a phrase behind rather than ahead.
+  int? _updateUnspaced(String text) {
+    final spoken = spokenWords(text.replaceAll(_apostrophes, '')).join();
+    if (spoken.length < _minNeedle) return null;
+    final from = _d >= _clean.length ? _letters.length : (_d == 0 ? 0 : _endOfWord[_d - 1]);
+    final to = (from + _letterWindow).clamp(0, _letters.length);
+    for (var k = spoken.length < _maxNeedle ? spoken.length : _maxNeedle; k >= _minNeedle; k--) {
+      final needle = spoken.substring(spoken.length - k);
+      final at = _letters.indexOf(needle, from);
+      if (at < 0 || at + k > to) continue;
+      // A short run far from the cursor is too likely to be chance.
+      if (at - from > 20 && k < 5) continue;
+      // Words completed by the match: those ending at or before its last letter.
+      final end = at + k;
+      var word = _wordOfLetter[end - 1];
+      if (_endOfWord[word] > end) word--;
+      if (word < _d) continue;
+      _lastMatched = word;
+      var i = word + 1;
+      while (i < _clean.length && _clean[i].isEmpty) {
+        i++;
+      }
+      return _d = i;
+    }
+    return null;
   }
 
   /// Up to three eligible words before the cursor, oldest first.

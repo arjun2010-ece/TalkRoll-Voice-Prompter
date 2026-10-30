@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/painting.dart';
 
 import '../../core/script/sections.dart';
+import '../../core/script/text.dart';
 
 /// Character ranges of each whitespace-separated word, and their vertical
 /// positions once laid out. Highlighting only changes colour/decoration, so
@@ -12,7 +13,7 @@ import '../../core/script/sections.dart';
 /// word indices match the script without markers. [script] is the text as shown (dividers in place
 /// of the markers), and every offset here refers to it.
 class WordLayout {
-  WordLayout(String raw, TextStyle base, double width, {TextAlign align = TextAlign.left, bool showSections = true}) {
+  WordLayout(String raw, TextStyle base, double width, {TextAlign align = TextAlign.left, bool showSections = true, TextDirection textDirection = TextDirection.ltr}) {
     markers = sectionMarkers(raw);
     dividerStyle = base.copyWith(
       fontSize: math.max(11.0, (base.fontSize ?? 24) * 0.38),
@@ -33,12 +34,12 @@ class WordLayout {
     }
     shown.write(raw.substring(cursor));
     script = shown.toString();
-    for (final m in RegExp(r'\S+').allMatches(script)) {
+    for (final m in scriptWordPattern.allMatches(script)) {
       if (!_inDivider(m.start)) ranges.add(TextRange(start: m.start, end: m.end));
     }
     painter = TextPainter(
       text: TextSpan(style: base, children: gapSpans(0, script.length)),
-      textDirection: TextDirection.ltr,
+      textDirection: textDirection,
       textAlign: align,
     )..layout(maxWidth: width);
   }

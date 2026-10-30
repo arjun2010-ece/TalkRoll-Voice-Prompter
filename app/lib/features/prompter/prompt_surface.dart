@@ -246,7 +246,7 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
             ? old.nearestWord(Offset(old.painter.width / 2, _offset + anchorY - topPad))
             : null;
         _layoutKey = key;
-        _layout = WordLayout(script, base, width, align: TextAlign.center, showSections: settings.showSections);
+        _layout = WordLayout(script, base, width, align: TextAlign.center, showSections: settings.showSections, textDirection: scriptTextDirection(script));
         if (!preview) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _publishRemaining() : null);
         if (held != null && held < _layout!.ranges.length) {
           _offset = math.max(0.0, topPad + _layout!.midY(held) - anchorY);
@@ -293,6 +293,7 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       Widget text = Text.rich(
         _spans(layout.script, layout, base, pr.progress, textColor),
         textAlign: TextAlign.center,
+        textDirection: layout.painter.textDirection,
         textWidthBasis: TextWidthBasis.parent,
         // Measured by WordLayout without the system text size; the font size is an in-app setting.
         textScaler: TextScaler.noScaling,

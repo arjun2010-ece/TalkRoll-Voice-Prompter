@@ -1,3 +1,5 @@
+import 'text.dart' show scriptWordPattern;
+
 /// Section markers: a line holding only a name in square brackets, like `[Intro]`. A section runs
 /// until the next marker. Markers are shown on the prompter as dividers but are never read, counted
 /// or highlighted, so every word index stays the same as in the script without them.
@@ -9,7 +11,7 @@ const bool sectionMarkersOn = true;
 const maxSectionNameLength = 40;
 
 final _markerLine = RegExp(r'^[ \t]*\[([^\[\]\r\n]{1,40})\][ \t\r]*$', multiLine: true);
-final _word = RegExp(r'\S+');
+final _word = scriptWordPattern;
 
 /// True if [line] (one line, no line break) is a section marker.
 bool isSectionMarkerLine(String line) {

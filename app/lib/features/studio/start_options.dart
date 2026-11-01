@@ -277,7 +277,7 @@ class FollowOptions extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: note(
-            'This device reports no speech recognition for English, so Voice and Audio may not work here. You can still choose them. Normal mode always works.',
+            'This device reports no speech recognition for English, so Voice and Narration may not work here. You can still choose them. Auto-scroll always works.',
             color: scheme.secondary,
           ),
         ),
@@ -314,7 +314,7 @@ class FollowOptions extends ConsumerWidget {
           ),
         ),
       ] else
-        note('The camera works with Voice and Audio. Normal mode never uses the camera or microphone.'),
+        note('The camera works with Voice and Narration. Auto-scroll never uses the camera or microphone.'),
     ]);
   }
 }

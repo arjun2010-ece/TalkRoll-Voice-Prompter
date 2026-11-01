@@ -121,7 +121,7 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
                 const SizedBox(width: 8),
                 if (!last) FilledButton(onPressed: () => setState(() => _step++), child: const Text('Continue')),
                 if (last && !_testing && !_micOff) FilledButton(onPressed: _askMicrophone, child: const Text('Turn on microphone')),
-                if (last && _micOff) FilledButton(onPressed: _finish, child: const Text('Continue in Normal mode')),
+                if (last && _micOff) FilledButton(onPressed: _finish, child: const Text('Continue in Auto-scroll mode')),
                 if (last && _testing) FilledButton(onPressed: _finish, child: const Text('Finish')),
               ],
             ),
@@ -143,8 +143,8 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
         if (_micOff)
           Text(
             isMacOS
-                ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in System Settings → Privacy & Security → Microphone, or carry on in Normal mode.'
-                : 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings → Privacy → Microphone, or carry on in Normal mode.',
+                ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in System Settings → Privacy & Security → Microphone, or carry on in Auto-scroll mode.'
+                : 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings → Privacy → Microphone, or carry on in Auto-scroll mode.',
             textAlign: TextAlign.center,
             style: muted,
           )

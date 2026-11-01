@@ -11,8 +11,8 @@ Future<void> showMicrophoneDenied(BuildContext context) => showAdaptiveDialog<vo
     title: const Text('Microphone access is off'),
     content: Text(
       isApple
-          ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings, or use Normal mode.'
-          : 'Voice mode needs the microphone. Turn it on in the app settings, or use Normal mode.',
+          ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings, or use Auto-scroll mode.'
+          : 'Voice mode needs the microphone. Turn it on in the app settings, or use Auto-scroll mode.',
     ),
     actions: [
       TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Not now')),

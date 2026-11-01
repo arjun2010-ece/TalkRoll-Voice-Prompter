@@ -601,7 +601,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       case PromptControlMode.recordedAudio:
         return (
           title: pr.preparing ? 'Preparing' : (pr.playing ? 'Pause' : 'Play'),
-          detail: pr.preparing ? 'syncing words' : 'recorded audio',
+          detail: pr.preparing ? 'syncing words' : 'narration',
           icon: pr.playing ? Icons.pause : Icons.play_arrow,
           tint: null,
         );
@@ -640,7 +640,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
 
   String _headerState(PromptSettings s, PrompterState pr) => switch (s.mode) {
     PromptControlMode.voice => pr.playing ? 'LISTENING' : 'MICROPHONE OFF',
-    PromptControlMode.recordedAudio => (pr.status.isEmpty ? 'NO AUDIO' : pr.status).toUpperCase(),
+    PromptControlMode.recordedAudio => (pr.status.isEmpty ? 'NO RECORDING' : pr.status).toUpperCase(),
     PromptControlMode.normal => pr.playing ? 'SCROLLING' : 'PAUSED',
   };
 
@@ -688,7 +688,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     final pr = ref.watch(prompterProvider);
     final info = _primaryInfo(s, pr);
     final normal = s.mode == PromptControlMode.normal;
-    final paced = s.mode == PromptControlMode.voice ? 'voice paced' : 'audio paced';
+    final paced = s.mode == PromptControlMode.voice ? 'voice paced' : 'narration paced';
     final attention = _needsAttention(s, pr);
     return Container(
       decoration: BoxDecoration(

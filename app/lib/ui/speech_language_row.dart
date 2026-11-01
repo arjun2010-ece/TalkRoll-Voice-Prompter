@@ -5,7 +5,7 @@ import '../features/prompter/prompter_controller.dart';
 import '../services/providers.dart';
 import '../services/speech/speech_languages.dart';
 
-/// The Settings row that shows the language Voice and Audio mode listens for and opens the list to change it.
+/// The Settings row that shows the language Voice and Narration mode listens for and opens the list to change it.
 class SpeechLanguageRow extends ConsumerWidget {
   const SpeechLanguageRow({super.key});
 
@@ -18,7 +18,7 @@ class SpeechLanguageRow extends ConsumerWidget {
       subtitle: Text(
         current == autoSpeechLanguage
             ? 'Automatic: taken from your script (English if it can\'t tell).'
-            : 'Voice and Audio mode listen for ${speechLanguageName(current)}.',
+            : 'Voice and Narration mode listen for ${speechLanguageName(current)}.',
         style: muted,
       ),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [

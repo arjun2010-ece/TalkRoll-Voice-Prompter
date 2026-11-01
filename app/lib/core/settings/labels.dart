@@ -25,25 +25,31 @@ extension PromptFontLabel on PromptFont {
   };
 }
 
+/// The only place the user-facing mode names are written. The enum values
+/// (`normal`, `recordedAudio`) are stored in settings, so they never change.
+const String autoScrollModeName = 'Auto-scroll';
+const String voiceModeName = 'Voice';
+const String narrationModeName = 'Narration';
+
 extension PromptControlModeLabel on PromptControlMode {
   String get label => switch (this) {
-    PromptControlMode.normal => 'Normal',
-    PromptControlMode.voice => 'Voice',
-    PromptControlMode.recordedAudio => 'Audio',
+    PromptControlMode.normal => autoScrollModeName,
+    PromptControlMode.voice => voiceModeName,
+    PromptControlMode.recordedAudio => narrationModeName,
   };
 
   /// One line under the mode picker.
   String get explanation => switch (this) {
     PromptControlMode.normal => 'Scrolls smoothly at a steady pace. Never uses the microphone.',
     PromptControlMode.voice => 'Follows your voice, word by word. Listens only while the prompter is open.',
-    PromptControlMode.recordedAudio => 'Follows a recording you choose, word by word.',
+    PromptControlMode.recordedAudio => 'Plays your recorded narration and keeps the script in step. You don\'t speak.',
   };
 
   /// Upper-case name in the prompter header.
   String get headerName => switch (this) {
-    PromptControlMode.normal => 'NORMAL SCROLLING',
+    PromptControlMode.normal => 'AUTO-SCROLL',
     PromptControlMode.voice => 'VOICE CONTROL',
-    PromptControlMode.recordedAudio => 'RECORDED AUDIO',
+    PromptControlMode.recordedAudio => 'NARRATION',
   };
 }
 

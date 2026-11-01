@@ -10,7 +10,7 @@ Future<void> showVoiceUnsupportedDialog(BuildContext context, {VoidCallback? onU
     content: const Text(
       'It needs the device\'s speech recognition, and this device doesn\'t offer it for English yet. '
       'If it should, the device may still be downloading the English speech files, or speech recognition may be turned off for EchoPrompter in Settings: try again in a few minutes.\n\n'
-      'Normal mode still scrolls at the pace you set.',
+      'Auto-scroll mode still scrolls at the pace you set.',
     ),
     actions: [
       TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Got it')),
@@ -20,7 +20,7 @@ Future<void> showVoiceUnsupportedDialog(BuildContext context, {VoidCallback? onU
             Navigator.of(context).pop();
             onUseNormal();
           },
-          child: const Text('Use Normal mode'),
+          child: const Text('Use Auto-scroll mode'),
         ),
     ],
   ),

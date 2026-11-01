@@ -838,7 +838,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
                 : (apple ? 'Turn on Camera for EchoPrompter in Settings to record video.' : 'Camera permission was denied. Turn it on in the app settings to record video.'),
         primaryLabel: apple ? 'Open Settings' : 'Open app settings',
         onPrimary: openAppSettings,
-        secondaryLabel: micOnly ? 'Use Normal mode' : 'Continue with voice only',
+        secondaryLabel: micOnly ? 'Use Auto-scroll mode' : 'Continue with voice only',
         onSecondary: micOnly ? _useNormal : _leaveForVoiceOnly,
       );
     } else {

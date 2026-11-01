@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/permissions/permissions.dart';
 import '../../services/providers.dart';
@@ -14,7 +15,7 @@ enum _Step { welcome, mode, voice, test, camera }
 
 /// First run on iPhone, iPad and Android. Welcome, then how the reader wants to read; Voice and Audio go on to the
 /// microphone and a live test and then the optional camera, Normal goes straight to the Studio. Every permission ask
-/// has a way past it, and nothing here is needed to use Normal mode.
+/// has a way past it, and nothing here is needed to use Auto-scroll mode.
 class MobileOnboarding extends ConsumerStatefulWidget {
   const MobileOnboarding({super.key});
 
@@ -162,7 +163,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         const SizedBox(height: 10),
         _ModeCard(
           icon: Icons.south,
-          title: 'Normal',
+          title: autoScrollModeName,
           subtitle: 'Scrolls at a steady speed',
           selected: _mode == PromptControlMode.normal,
           onTap: () => setState(() => _mode = PromptControlMode.normal),
@@ -170,7 +171,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         const SizedBox(height: 10),
         _ModeCard(
           icon: Icons.graphic_eq,
-          title: 'Audio',
+          title: narrationModeName,
           subtitle: voiceOk ? 'Follows a recording you choose' : 'Not available on this device',
           selected: _mode == PromptControlMode.recordedAudio,
           enabled: voiceOk,
@@ -205,7 +206,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         const SizedBox(height: 10),
         Text(
           audio
-              ? 'Audio mode listens to your recording as it plays so it can keep your place in the script.'
+              ? 'Narration mode listens to your recording as it plays so it can keep your place in the script.'
               : 'Voice mode listens while you read so it can keep your place in the script.',
           textAlign: TextAlign.center,
           style: text.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -232,8 +233,8 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         const SizedBox(height: 10),
         Text(
           isApple
-              ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings, or use Normal mode, which needs nothing.'
-              : 'Voice mode needs the microphone. Turn it on in the app settings, or use Normal mode, which needs nothing.',
+              ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings, or use Auto-scroll mode, which needs nothing.'
+              : 'Voice mode needs the microphone. Turn it on in the app settings, or use Auto-scroll mode, which needs nothing.',
           textAlign: TextAlign.center,
           style: text.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
@@ -241,7 +242,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
       ],
       actions: [
         FilledButton(onPressed: openAppSettings, child: const Text('Open Settings')),
-        OutlinedButton(onPressed: () => _finish(PromptControlMode.normal), child: const Text('Use Normal mode')),
+        OutlinedButton(onPressed: () => _finish(PromptControlMode.normal), child: const Text('Use Auto-scroll mode')),
       ],
     );
   }

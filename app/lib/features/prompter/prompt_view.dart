@@ -126,9 +126,9 @@ class PromptControlBar extends ConsumerWidget {
           initialValue: s.mode,
           onSelected: (m) => set((v) => v.copyWith(mode: m)),
           itemBuilder: (_) => const [
-            PopupMenuItem(value: PromptControlMode.normal, child: Text('Normal scrolling')),
+            PopupMenuItem(value: PromptControlMode.normal, child: Text('Auto-scroll')),
             PopupMenuItem(value: PromptControlMode.voice, child: Text('Voice control')),
-            PopupMenuItem(value: PromptControlMode.recordedAudio, child: Text('Recorded audio')),
+            PopupMenuItem(value: PromptControlMode.recordedAudio, child: Text('Narration')),
           ],
         ),
         ...trailing,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 import '../../core/narration/alignment.dart';
@@ -104,6 +105,13 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
       if (!await transcriber.isSupported()) {
         throw TranscribeException(TranscribeFailure.unavailable, _unsupportedMessage);
       }
+      // Android's recogniser needs the microphone permission even when it reads a file; the microphone itself is not used.
+      if (Platform.isAndroid && !await Permission.microphone.isGranted && !await Permission.microphone.request().isGranted) {
+        throw TranscribeException(
+          TranscribeFailure.denied,
+          'Android needs microphone access for its speech recogniser, even to read a file. Nothing is recorded.',
+        );
+      }
       final words = await transcriber.transcribe(path, language, onProgress: (f) {
         if (run == _run) state = state.copyWith(progress: f);
       });
@@ -152,7 +160,7 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
 }
 
 String get _unsupportedMessage => Platform.isAndroid
-    ? "Narration needs on-device transcription, which this device doesn't have yet."
+    ? "This phone has no on-device speech recognition (Android 13 or newer with Google's speech services), so Narration can't transcribe a recording here."
     : "This device can't transcribe a recording without the internet, so Narration isn't available here.";
 
 final narrationPrepProvider = NotifierProvider<NarrationPrep, NarrationPrepState>(NarrationPrep.new);

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const modes = [
   {
     number: "01",
-    name: "Normal",
+    name: "Auto-scroll",
     eyebrow: "Set the rhythm",
     text: "Choose a comfortable reading pace, then let the script move smoothly while you focus on the delivery.",
     detail: "Live text size and line spacing controls",
@@ -20,7 +20,7 @@ const modes = [
   },
   {
     number: "03",
-    name: "Recorded audio",
+    name: "Narration",
     eyebrow: "Rehearse in sync",
     text: "Play a local voice-over or rehearsal recording and let the prompter follow its recognized words.",
     detail: "Local audio playback with synchronized progress",
@@ -36,7 +36,7 @@ const questions = [
   {
     question: "When does it ask for microphone access?",
     answer:
-      "Only Voice mode needs microphone access. Normal scrolling does not request microphone or speech recognition access. Recorded Audio mode uses speech recognition to align a chosen local file with its script.",
+      "Only Voice mode needs microphone access. Auto-scroll does not request microphone or speech recognition access. Narration mode uses speech recognition to align a chosen local file with its script.",
   },
   {
     question: "Can I keep the prompt over another app?",
@@ -61,9 +61,9 @@ const structuredData = {
       description:
         "A native macOS teleprompter with smooth scrolling, live voice following, and recorded-audio script synchronization.",
       featureList: [
-        "Smooth normal teleprompter scrolling",
+        "Smooth auto-scroll teleprompter scrolling",
         "Live voice-controlled script following",
-        "Recorded-audio synchronized script following",
+        "Narration-synchronized script following",
         "Adjustable text size and line spacing",
         "Local plain-text script storage",
         "Floating click-through prompt window",
@@ -162,7 +162,7 @@ export default function Home() {
         </div>
         <div className="workflow-steps">
           <article><span>01</span><h3>Write</h3><p>Paste a draft, refine your language, and save it locally as a readable text file.</p></article>
-          <article><span>02</span><h3>Choose</h3><p>Select a pace that suits the moment: automatic, live voice, or recorded audio.</p></article>
+          <article><span>02</span><h3>Choose</h3><p>Select a pace that suits the moment: automatic, live voice, or narration.</p></article>
           <article><span>03</span><h3>Present</h3><p>Open the floating prompt, keep it near your camera, and give your attention to the room.</p></article>
         </div>
       </section>

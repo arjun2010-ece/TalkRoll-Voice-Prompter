@@ -320,6 +320,17 @@ class _Dock extends ConsumerWidget {
             minusTip: 'Slower',
             plusTip: 'Faster',
           )
+        : s.mode == PromptControlMode.recordedAudio
+        ? _Stepper(
+            label: '5 s',
+            caption: 'Skip',
+            onMinus: () => c.skip(const Duration(seconds: -5)),
+            onPlus: () => c.skip(const Duration(seconds: 5)),
+            minusTip: 'Back 5 seconds',
+            plusTip: 'Forward 5 seconds',
+            minusIcon: Icons.replay_5,
+            plusIcon: Icons.forward_5,
+          )
         : _Stepper(
             label: '${s.fontSize.round()}',
             caption: 'Text size',
@@ -415,6 +426,8 @@ class _Stepper extends StatelessWidget {
     required this.onPlus,
     required this.minusTip,
     required this.plusTip,
+    this.minusIcon = Icons.remove,
+    this.plusIcon = Icons.add,
   });
 
   final String label;
@@ -423,11 +436,13 @@ class _Stepper extends StatelessWidget {
   final VoidCallback onPlus;
   final String minusTip;
   final String plusTip;
+  final IconData minusIcon;
+  final IconData plusIcon;
 
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      _RoundButton(icon: Icons.remove, tooltip: minusTip, onPressed: onMinus, filled: false),
+      _RoundButton(icon: minusIcon, tooltip: minusTip, onPressed: onMinus, filled: false),
       ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 44),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -435,7 +450,7 @@ class _Stepper extends StatelessWidget {
           Text(caption, style: TextStyle(color: promptText.withValues(alpha: 0.6), fontSize: 10)),
         ]),
       ),
-      _RoundButton(icon: Icons.add, tooltip: plusTip, onPressed: onPlus, filled: false),
+      _RoundButton(icon: plusIcon, tooltip: plusTip, onPressed: onPlus, filled: false),
     ]);
   }
 }

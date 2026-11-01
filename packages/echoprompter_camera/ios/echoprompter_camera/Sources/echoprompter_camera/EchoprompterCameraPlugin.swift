@@ -66,6 +66,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         FlutterEventChannel(name: "com.echoprompter/camera/events", binaryMessenger: registrar.messenger())
             .setStreamHandler(p)
         SpeechRecognizerChannel.register(with: registrar, camera: p)
+        FileTranscriberChannel.register(with: registrar)
         NotificationCenter.default.addObserver(p, selector: #selector(interrupted), name: .AVCaptureSessionWasInterrupted, object: nil)
         NotificationCenter.default.addObserver(p, selector: #selector(interrupted), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(p, selector: #selector(deviceRotated), name: UIDevice.orientationDidChangeNotification, object: nil)

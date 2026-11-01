@@ -19,7 +19,7 @@ class TrackingStatus {
 }
 
 /// Statuses the controller reports that are not problems.
-const _benignStatuses = {'', 'Listening', 'Playing', 'Finished', 'Ready — press Play'};
+const _benignStatuses = {'', 'Listening', 'Playing', 'Paused', 'Finished', 'Ready — press Play'};
 
 TrackingStatus trackingStatusFor(PromptControlMode mode, PrompterState pr, String? audioPath) {
   if (mode == PromptControlMode.normal) {

@@ -25,7 +25,8 @@ import '../pro/upgrade_card.dart';
 import '../menu/studio_commands.dart';
 import '../notes/notes_pane.dart';
 import '../notes/notes_state.dart';
-import 'audio_check.dart';
+import 'narration_card.dart';
+import 'narration_prep.dart';
 import 'prompt_preview.dart';
 import 'script_list.dart';
 import 'script_text_controller.dart';
@@ -238,7 +239,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     if (_onNotes) return; // notes are never presented
     if (_dirty.value || ref.read(studioProvider).script.trim().isEmpty) return;
     if (ref.read(settingsProvider).mode == PromptControlMode.recordedAudio &&
-        audioStartBlocker(ref.read(audioCheckProvider)) != null) {
+        narrationStartBlocker(ref.read) != null) {
       return;
     }
     // A 6th new script on the free plan opens the plans straight away: one click to buy.
@@ -796,7 +797,7 @@ class _Inspector extends ConsumerWidget {
     final startKey = isMacOS ? '⌘↩' : 'Ctrl+Enter';
     // Audio mode only starts with a recording that has been checked and can be read.
     final audioBlock = mode == PromptControlMode.recordedAudio
-        ? audioStartBlocker(ref.watch(audioCheckProvider))
+        ? narrationStartBlocker(ref.watch)
         : null;
     // A script the free plan can't present: Start shows a lock and opens the plans.
     ref.watch(studioProvider.select((s) => s.scriptRevision));
@@ -848,9 +849,7 @@ class _Inspector extends ConsumerWidget {
                   ],
                   if (mode == PromptControlMode.recordedAudio) ...[
                     const SizedBox(height: 10),
-                    const _AudioChooser(),
-                    const SizedBox(height: 8),
-                    const _SpeakerHint(),
+                    const NarrationCard(),
                   ],
                   const SizedBox(height: 22),
                   const _SectionTitle('Position'),
@@ -961,105 +960,6 @@ class _SectionTitle extends StatelessWidget {
       ],
     ),
   );
-}
-
-class _AudioChooser extends ConsumerWidget {
-  const _AudioChooser();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final path = ref.watch(audioPathProvider);
-    final check = ref.watch(audioCheckProvider);
-    final scheme = Theme.of(context).colorScheme;
-    final unreadable =
-        check.hasValue &&
-        check.requireValue.readiness == AudioReadiness.unreadable;
-    final checking = path != null && check.isLoading;
-    final seconds = check.hasValue ? check.requireValue.seconds : null;
-    final detail = path == null
-        ? 'Pick the recording to follow.'
-        : checking
-        ? 'Checking the recording…'
-        : unreadable
-        ? 'Can\'t read this recording. It may be damaged, moved, or in a format EchoPrompter can\'t play.'
-        : '${seconds == null ? '' : '${formatSeconds(seconds)} · '}Plays out loud while EchoPrompter follows it through the microphone.';
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: unreadable
-            ? scheme.errorContainer.withValues(alpha: 0.4)
-            : scheme.surfaceContainerHigh,
-        border: path == null ? Border.all(color: scheme.outlineVariant) : null,
-      ),
-      child: Row(
-        children: [
-          checking
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                )
-              : Icon(
-                  unreadable ? Icons.warning_amber_rounded : Icons.graphic_eq,
-                  color: unreadable ? scheme.error : null,
-                ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  path == null
-                      ? 'No recording selected'
-                      : path.split(RegExp(r'[\\/]')).last,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                Text(
-                  detail,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: unreadable ? scheme.error : scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: () async => ref
-                .read(audioPathProvider.notifier)
-                .set(await ScriptIO.chooseAudio() ?? path),
-            child: Text(path == null ? 'Choose…' : 'Change…'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Audio mode follows the file by listening to it, so it can't be played into a headset.
-class _SpeakerHint extends StatelessWidget {
-  const _SpeakerHint();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.info_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            'Play the audio on your speakers, not a headset, so the microphone can hear it.',
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// A one-time hint under the position picker; remembered once dismissed.

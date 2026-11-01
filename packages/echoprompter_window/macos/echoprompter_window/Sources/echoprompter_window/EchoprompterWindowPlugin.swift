@@ -37,6 +37,7 @@ public class EchoprompterWindowPlugin: NSObject, FlutterPlugin {
         let instance = EchoprompterWindowPlugin(channel: channel)
         registrar.addMethodCallDelegate(instance, channel: channel)
         SpeechRecognizerChannel.register(with: registrar)
+        FileTranscriberChannel.register(with: registrar)
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

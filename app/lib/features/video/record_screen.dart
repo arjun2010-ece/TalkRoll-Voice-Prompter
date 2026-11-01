@@ -698,7 +698,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             left: landscape ? panelWidth + 24 : 24,
             right: landscape ? 120 : 24,
             bottom: hintBottom,
-            child: const _Hint('Your audio plays on the speaker so the microphone can follow it.', icon: Icons.volume_up_outlined),
+            child: const _Hint('Your narration plays on the speaker so the video records it.', icon: Icons.volume_up_outlined),
           )
         : null;
 

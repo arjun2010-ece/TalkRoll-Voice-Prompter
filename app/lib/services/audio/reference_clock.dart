@@ -13,6 +13,9 @@ abstract class ReferenceClock {
   Future<void> play();
   Future<void> pause();
   Future<void> seekToStart();
+
+  /// Moves playback to [to]; playing continues if it was playing.
+  Future<void> seek(Duration to);
   Stream<void> get completed;
   Future<void> dispose();
 }
@@ -36,6 +39,8 @@ class AudiblePlayback implements ReferenceClock {
   Future<void> pause() => _player.pause();
   @override
   Future<void> seekToStart() => _player.seek(Duration.zero);
+  @override
+  Future<void> seek(Duration to) => _player.seek(to);
   @override
   Stream<void> get completed =>
       _player.processingStateStream.where((s) => s == ProcessingState.completed);
@@ -86,6 +91,14 @@ class SilentClock implements ReferenceClock {
   Future<void> seekToStart() async {
     await pause();
     _base = Duration.zero;
+  }
+
+  @override
+  Future<void> seek(Duration to) async {
+    final wasPlaying = isPlaying;
+    await pause();
+    _base = to;
+    if (wasPlaying) await play();
   }
 
   @override

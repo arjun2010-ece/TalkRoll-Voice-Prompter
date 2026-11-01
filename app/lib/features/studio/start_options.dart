@@ -5,14 +5,14 @@ import '../../core/entitlements/entitlements.dart';
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
-import '../../services/storage/script_io.dart';
 import '../../ui/adaptive.dart';
 import '../../ui/prompt_text_controls.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 import '../prompter/voice_availability.dart';
 import '../video/camera_state.dart';
-import 'audio_check.dart';
+import 'narration_card.dart';
+import 'narration_prep.dart';
 import 'prompt_preview.dart';
 
 /// What the sheet's main button does: begin the session (from the editor), or switch an open session to the
@@ -162,7 +162,7 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
     final savedEmpty = ref.watch(studioProvider.select((x) => x.script.trim().isEmpty));
     final empty = widget.scriptText != null ? widget.scriptText!.trim().isEmpty : savedEmpty;
     final camera = _camera && _mode != PromptControlMode.normal;
-    final blocker = _mode == PromptControlMode.recordedAudio ? audioStartBlocker(ref.watch(audioCheckProvider)) : null;
+    final blocker = _mode == PromptControlMode.recordedAudio ? narrationStartBlocker(ref.watch) : null;
     // A new script once the free ones are used: Start opens the plans.
     final locked = start && !ref.watch(proProvider.select((p) => p.canPresent(ref.read(studioProvider.notifier).currentId)));
     final caption = start && empty
@@ -287,9 +287,7 @@ class FollowOptions extends ConsumerWidget {
       ],
       if (mode == PromptControlMode.recordedAudio) ...[
         const SizedBox(height: 12),
-        const _AudioCard(),
-        const SizedBox(height: 10),
-        note('Play the audio on your speakers, not a headset, so the microphone can hear it.'),
+        const NarrationCard(),
       ],
       const SizedBox(height: 20),
       if (mode != PromptControlMode.normal) ...[
@@ -316,63 +314,5 @@ class FollowOptions extends ConsumerWidget {
       ] else
         note('The camera works with Voice and Narration. Auto-scroll never uses the camera or microphone.'),
     ]);
-  }
-}
-
-/// The chosen recording and whether it can be used, or a prompt to choose one.
-class _AudioCard extends ConsumerWidget {
-  const _AudioCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final path = ref.watch(audioPathProvider);
-    final check = ref.watch(audioCheckProvider);
-    final checking = path != null && check.isLoading;
-    final unreadable = check.hasValue && check.requireValue.readiness == AudioReadiness.unreadable;
-    final seconds = check.hasValue ? check.requireValue.seconds : null;
-    Future<void> choose() async => ref.read(audioPathProvider.notifier).set(await ScriptIO.chooseAudio() ?? path);
-
-    if (path == null) {
-      return OutlinedButton.icon(
-        onPressed: choose,
-        icon: const Icon(Icons.audio_file_outlined),
-        label: const Text('Choose a recording…'),
-      );
-    }
-    final detail = checking
-        ? 'Checking the recording…'
-        : unreadable
-            ? "Can't be read, or was moved"
-            : '${seconds == null ? '' : '${formatSeconds(seconds)} · '}ready';
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: unreadable ? scheme.secondary : scheme.outlineVariant),
-      ),
-      child: Row(children: [
-        SizedBox.square(
-          dimension: 40,
-          child: DecoratedBox(
-            decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
-            child: Center(
-              child: checking
-                  ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
-                  : Icon(unreadable ? Icons.warning_amber_rounded : Icons.audio_file_outlined, color: unreadable ? scheme.secondary : scheme.onSurfaceVariant),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(path.split(RegExp(r'[\\/]')).last, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(detail, style: TextStyle(fontSize: 13, color: unreadable ? scheme.secondary : scheme.onSurfaceVariant)),
-          ]),
-        ),
-        TextButton(onPressed: choose, child: Text(unreadable ? 'Choose another' : 'Change…')),
-      ]),
-    );
   }
 }

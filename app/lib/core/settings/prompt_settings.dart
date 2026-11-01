@@ -5,6 +5,9 @@ enum StudioAppearance { dark, light }
 
 enum PromptControlMode { normal, voice, recordedAudio }
 
+/// Largest Narration sync offset either way, in milliseconds.
+const maxNarrationOffsetMs = 500;
+
 enum PromptPlacement { notch, corner, floating }
 
 /// Space either side of the text. Medium is what the prompter always used.
@@ -68,6 +71,7 @@ class PromptSettings {
     this.margins = PromptMargins.medium,
     this.font = PromptFont.system,
     this.speechLanguage = 'auto',
+    this.narrationOffsetMs = 0,
     this.notchSize = const Size(560, 150),
     this.cornerSize = const Size(420, 240),
   });
@@ -101,6 +105,10 @@ class PromptSettings {
 
   /// Voice and Audio mode's language: a tag such as `pt-BR`, or `auto` to take it from the script.
   final String speechLanguage;
+
+  /// Narration mode: shifts the script against the audio, in milliseconds, for the delay of a Bluetooth headset.
+  /// Positive moves the script later.
+  final int narrationOffsetMs;
 
   /// Whether every option under "Text" is at its default, so Reset has nothing to do.
   bool get isTextDefault {
@@ -137,6 +145,7 @@ class PromptSettings {
     PromptMargins? margins,
     PromptFont? font,
     String? speechLanguage,
+    int? narrationOffsetMs,
     Size? notchSize,
     Size? cornerSize,
   }) => PromptSettings(
@@ -157,6 +166,7 @@ class PromptSettings {
     margins: margins ?? this.margins,
     font: font ?? this.font,
     speechLanguage: speechLanguage ?? this.speechLanguage,
+    narrationOffsetMs: (narrationOffsetMs ?? this.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
     notchSize: notchSize ?? this.notchSize,
     cornerSize: cornerSize ?? this.cornerSize,
   );
@@ -179,6 +189,7 @@ class PromptSettings {
     'margins': margins.name,
     'font': font.name,
     'speechLanguage': speechLanguage,
+    'narrationOffsetMs': narrationOffsetMs,
     'notchW': notchSize.width,
     'notchH': notchSize.height,
     'cornerW': cornerSize.width,
@@ -207,6 +218,7 @@ class PromptSettings {
       margins: e(PromptMargins.values, j['margins'], d.margins),
       font: e(PromptFont.values, j['font'], d.font),
       speechLanguage: j['speechLanguage'] as String? ?? d.speechLanguage,
+      narrationOffsetMs: ((j['narrationOffsetMs'] as num?)?.round() ?? d.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
       notchSize: Size(
         (j['notchW'] as num?)?.toDouble() ?? d.notchSize.width,
         (j['notchH'] as num?)?.toDouble() ?? d.notchSize.height,

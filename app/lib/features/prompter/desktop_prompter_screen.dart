@@ -688,7 +688,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     final pr = ref.watch(prompterProvider);
     final info = _primaryInfo(s, pr);
     final normal = s.mode == PromptControlMode.normal;
-    final paced = s.mode == PromptControlMode.voice ? 'voice paced' : 'narration paced';
+    final paced = 'voice paced';
+    final narration = s.mode == PromptControlMode.recordedAudio;
+    final skip = ref.read(prompterProvider.notifier).skip;
     final attention = _needsAttention(s, pr);
     return Container(
       decoration: BoxDecoration(
@@ -710,11 +712,11 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
                   _ControlButton(title: 'Restart', detail: 'from the top', icon: Icons.replay, onTap: _restart),
                   const SizedBox(width: 12),
                   _ControlButton(
-                    title: 'Slower',
-                    detail: normal ? '− speed' : paced,
-                    icon: Icons.keyboard_double_arrow_left,
-                    enabled: normal,
-                    onTap: () => _changeSpeed(false),
+                    title: narration ? 'Back' : 'Slower',
+                    detail: narration ? '5 seconds' : (normal ? '− speed' : paced),
+                    icon: narration ? Icons.replay_5 : Icons.keyboard_double_arrow_left,
+                    enabled: normal || (narration && !pr.preparing),
+                    onTap: narration ? () => skip(const Duration(seconds: -5)) : () => _changeSpeed(false),
                   ),
                   const SizedBox(width: 12),
                   _ControlButton(
@@ -728,11 +730,11 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
                   ),
                   const SizedBox(width: 12),
                   _ControlButton(
-                    title: 'Faster',
-                    detail: normal ? '+ speed' : paced,
-                    icon: Icons.keyboard_double_arrow_right,
-                    enabled: normal,
-                    onTap: () => _changeSpeed(true),
+                    title: narration ? 'Forward' : 'Faster',
+                    detail: narration ? '5 seconds' : (normal ? '+ speed' : paced),
+                    icon: narration ? Icons.forward_5 : Icons.keyboard_double_arrow_right,
+                    enabled: normal || (narration && !pr.preparing),
+                    onTap: narration ? () => skip(const Duration(seconds: 5)) : () => _changeSpeed(true),
                   ),
                   const SizedBox(width: 12),
                   _textMenu(

@@ -6,11 +6,13 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/matching/script_tracker.dart';
+import '../../core/narration/alignment.dart';
 import '../../core/progress/reading_progress.dart';
 import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
 import '../../services/audio/reference_clock.dart';
+import '../../services/narration/narration_store.dart';
 import '../../services/providers.dart';
 import '../../services/speech/native_speech_recognizer.dart';
 import '../../services/speech/speech_languages.dart';
@@ -100,6 +102,9 @@ class PrompterController extends Notifier<PrompterState> {
   Timer? _lostTimer;
   static const _lostAfter = Duration(seconds: 4);
   ReferenceClock? _clock;
+  StreamSubscription<void>? _completedSub;
+  AlignmentMap? _alignment;
+  Timer? _narrationTicker;
   double? _audioSeconds;
   int _wordCount = 0;
 
@@ -148,14 +153,13 @@ class PrompterController extends Notifier<PrompterState> {
       case PromptControlMode.voice:
         await _startVoice();
       case PromptControlMode.recordedAudio:
+        // Narration scrolls by the playback position alone: no microphone, no recogniser.
         final clock = _clock;
-        if (clock == null) return;
-        // Listening first, so the recogniser is up as the audio starts; if it can't, nothing plays.
-        await _startVoice();
-        if (!state.playing) return;
-        state = state.copyWith(finished: false);
+        if (clock == null || _alignment == null) return;
+        state = state.copyWith(playing: true, finished: false, status: 'Playing');
         // just_audio's play() future only completes on pause/end, so don't await it.
         unawaited(clock.play());
+        _startNarrationTicker();
     }
   }
 
@@ -166,11 +170,15 @@ class PrompterController extends Notifier<PrompterState> {
       case PromptControlMode.voice:
         await _stopVoice();
       case PromptControlMode.recordedAudio:
+        _narrationTicker?.cancel();
         await _clock?.pause();
-        await _stopVoice();
     }
     _clearLost();
-    state = state.copyWith(playing: false, lost: false);
+    state = state.copyWith(
+      playing: false,
+      lost: false,
+      status: _mode == PromptControlMode.recordedAudio && !state.finished ? 'Paused' : state.status,
+    );
   }
 
   Future<void> restart() async {
@@ -180,10 +188,14 @@ class PrompterController extends Notifier<PrompterState> {
     if (wasMode == PromptControlMode.recordedAudio) await _clock?.seekToStart();
   }
 
-  /// Jump to a tapped word (Voice/Audio: the matcher continues from there).
+  /// Jump to a tapped word (Voice: the matcher continues from there; Narration: the audio moves to that word).
   void seekTo(int index) {
     if (index < 0 || index >= _wordCount) return;
     _clearLost();
+    final map = _alignment;
+    if (_mode == PromptControlMode.recordedAudio && map != null) {
+      unawaited(_clock?.seek(_clockPositionFor(map.timeOfWord(index))));
+    }
     state = state.copyWith(
       lost: false,
       progress: PromptReadingProgress.synchronized(
@@ -305,10 +317,10 @@ class PrompterController extends Notifier<PrompterState> {
     _lostTimer = null;
   }
 
-  // --- Recorded audio --------------------------------------------------------
+  // --- Narration ---------------------------------------------------------------
 
-  /// Only loads the file to play it; following it is the recogniser's job at Play: it listens to the
-  /// file through the microphone exactly as it listens to a reader in Voice mode.
+  /// Loads the recording and lines its cached transcript up with the script. The transcript was made when the
+  /// recording was chosen (see `NarrationPrep`), so nothing is recognised here and the microphone is never used.
   Future<void> _prepareAudio() async {
     final path = _audioPath;
     if (path == null) {
@@ -318,12 +330,19 @@ class PrompterController extends Notifier<PrompterState> {
     state = state.copyWith(preparing: true, status: 'Loading audio…');
     try {
       final clock = ref.read(referenceClockFactoryProvider)(audible: true);
-      _audioSeconds = await clock.load(path);
+      final seconds = await clock.load(path);
+      final language = await _narrationLanguage();
+      final transcript = await const NarrationStore().cachedTranscript(path, language);
+      if (transcript == null) {
+        await clock.dispose();
+        state = state.copyWith(preparing: false, status: 'Choose the recording again to transcribe it');
+        return;
+      }
+      _audioSeconds = seconds;
+      _alignment = alignScript(scriptWords(_script), transcript, duration: seconds);
       _clock = clock;
-      clock.completed.listen((_) async {
-        // The recogniser is still finishing the last words.
-        await Future<void>.delayed(const Duration(milliseconds: 1500));
-        if (_clock != clock || !state.playing || clock.isPlaying) return;
+      _completedSub = clock.completed.listen((_) async {
+        if (_clock != clock) return;
         await pause();
         state = state.copyWith(finished: true, status: 'Finished');
       });
@@ -333,11 +352,63 @@ class PrompterController extends Notifier<PrompterState> {
     }
   }
 
+  Future<String> _narrationLanguage() async {
+    final native = ref.read(nativeSpeechProvider);
+    final setting = ref.read(settingsProvider).speechLanguage;
+    final auto = setting == autoSpeechLanguage;
+    return resolveSpeechLanguage(
+      setting: setting,
+      script: _script,
+      deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
+      detected: auto && native != null ? await native.detectLanguage(_script) : null,
+      supported: auto && native != null ? await native.supportedLanguages() : const [],
+    );
+  }
+
+  /// The audio position that shows the script word spoken at [seconds], allowing for the sync offset.
+  Duration _clockPositionFor(double seconds) {
+    final offset = ref.read(settingsProvider).narrationOffsetMs;
+    final ms = (seconds * 1000).round() - offset;
+    return Duration(milliseconds: ms < 0 ? 0 : ms);
+  }
+
+  void _startNarrationTicker() {
+    _narrationTicker?.cancel();
+    _narrationTicker = Timer.periodic(const Duration(milliseconds: 40), (_) => _followPlayback());
+  }
+
+  /// Moves the highlight to the word being spoken at the playback position.
+  void _followPlayback() {
+    final map = _alignment, clock = _clock;
+    if (map == null || clock == null || map.wordCount == 0) return;
+    final offset = ref.read(settingsProvider).narrationOffsetMs;
+    final seconds = (clock.position.inMilliseconds + offset) / 1000.0;
+    final word = map.wordIndexAt(seconds).clamp(0, map.wordCount - 1);
+    if (word == state.progress.confirmedWordIndex) return;
+    state = state.copyWith(
+      progress: PromptReadingProgress.synchronized(confirmed: word, predicted: word + 1 < _wordCount ? word + 1 : null),
+    );
+  }
+
+  /// Narration: moves the audio by [delta] (negative goes back), and the script with it.
+  Future<void> skip(Duration delta) async {
+    final clock = _clock;
+    if (_mode != PromptControlMode.recordedAudio || clock == null) return;
+    final target = clock.position + delta;
+    await clock.seek(target < Duration.zero ? Duration.zero : target);
+    _followPlayback();
+  }
+
   Future<void> _teardown() async {
     _clearLost();
+    _narrationTicker?.cancel();
+    _narrationTicker = null;
+    await _completedSub?.cancel();
+    _completedSub = null;
     await _stopVoice();
     await _clock?.dispose();
     _clock = null;
+    _alignment = null;
   }
 }
 

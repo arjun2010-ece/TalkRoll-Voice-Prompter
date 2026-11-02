@@ -19,7 +19,7 @@ class WordLayout {
       fontSize: math.max(11.0, (base.fontSize ?? 24) * 0.38),
       fontWeight: FontWeight.w700,
       letterSpacing: 2.2,
-      color: const Color(0xFF9A9AA0),
+      color: const Color(0xFF6CB2FF),
     );
     final shown = StringBuffer();
     var cursor = 0;

@@ -14,7 +14,7 @@ Short map of the Flutter app (`app/`) for the signature-features work. The Swift
 
 - `enum PromptControlMode { normal, voice, recordedAudio }` in `lib/core/settings/prompt_settings.dart`. These values are persisted, so they never change.
 - User-facing names live in one place: `lib/core/settings/labels.dart` (`autoScrollModeName`, `voiceModeName`, `narrationModeName`, plus `label`, `explanation`, `headerName`). Normal → **Auto-scroll**, Audio/Recorded audio → **Narration** (done in 0.1).
-- `PrompterController` owns how each mode tracks position: Auto-scroll is timer-based; Voice listens through the native recognizer and matches words with `ScriptTracker`; Narration plays the chosen file through `ReferenceClock` and recognizes it to map words.
+- `PrompterController` owns how each mode tracks position: Auto-scroll is timer-based; Voice listens through the native recognizer and matches words with `ScriptTracker`; Narration plays the chosen file through `ReferenceClock`. Apple (macOS/iOS/iPadOS) transcribes it on device to time each word; Android finds where the speaker pauses (no recogniser, no microphone permission) and times the script between those pauses (`alignScript` in `core/narration/alignment.dart`).
 
 ## Sections
 

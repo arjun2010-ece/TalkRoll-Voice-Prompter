@@ -137,12 +137,11 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
     }
   }
 
-  /// Voice and Audio listen through the microphone, so the first Play asks for it. Without the camera the
-  /// recogniser opens the microphone itself.
+  /// Voice listens through the microphone, so its first Play asks for it. Auto-scroll and Narration never use it.
   Future<void> _togglePlay() async {
     HapticFeedback.selectionClick();
     final prompter = ref.read(prompterProvider.notifier);
-    if (ref.read(settingsProvider).mode != PromptControlMode.normal && !ref.read(prompterProvider).playing) {
+    if (ref.read(settingsProvider).mode == PromptControlMode.voice && !ref.read(prompterProvider).playing) {
       final granted = await requestPermission(Permission.microphone, 'mic', ref.read(analyticsProvider));
       if (!granted) {
         if (mounted) showMicrophoneDenied(context);

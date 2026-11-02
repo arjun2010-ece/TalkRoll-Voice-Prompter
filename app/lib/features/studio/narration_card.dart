@@ -66,13 +66,14 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     } else if (unreadable) {
       detail = "Can't be read, or was moved";
     } else if (transcribing) {
-      detail = 'Transcribing on this device… ${(prep.progress * 100).round()}%';
+      detail = 'Preparing on this device… ${(prep.progress * 100).round()}%';
     } else if (failed) {
       detail = prep.message;
     } else if (lowMatch) {
       detail = "This recording doesn't seem to match this script.";
     } else if (map != null) {
-      detail = '${seconds == null ? '' : '${formatSeconds(seconds)} · '}${(map.matchedFraction * 100).round()}% matches your script';
+      final length = seconds == null ? '' : '${formatSeconds(seconds)} · ';
+      detail = map.byPauses ? "${length}Timed by the recording's pauses" : '$length${(map.matchedFraction * 100).round()}% matches your script';
     } else {
       detail = 'Getting ready…';
     }

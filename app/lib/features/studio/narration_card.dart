@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/narration/alignment.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
+import '../../services/speech/speech_languages.dart';
 import '../../services/storage/script_io.dart';
 import 'audio_check.dart';
 import 'narration_prep.dart';
@@ -22,7 +23,10 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _restore();
+      if (mounted) {
+        _restore();
+        ref.read(narrationPrepProvider.notifier).prefetchLanguage();
+      }
     });
   }
 
@@ -38,16 +42,26 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     final scheme = Theme.of(context).colorScheme;
     // Another script was opened: show the recording linked to it.
     ref.listen(studioProvider.select((s) => s.scriptRevision), (_, _) => _restore());
+    // A different reading language needs its own pack: fetch it now, not when a recording is chosen.
+    ref.listen(settingsProvider.select((s) => s.speechLanguage), (_, _) => ref.read(narrationPrepProvider.notifier).prefetchLanguage());
     final path = ref.watch(audioPathProvider);
+    final packNote = ref.watch(languagePackProvider).note;
     if (path == null) {
-      return SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: _choose,
-          icon: const Icon(Icons.audio_file_outlined),
-          label: const Text('Choose a recording…'),
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _choose,
+            icon: const Icon(Icons.audio_file_outlined),
+            label: const Text('Choose a recording…'),
+          ),
         ),
-      );
+        if (packNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(packNote, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+          ),
+      ]);
     }
     final check = ref.watch(audioCheckProvider);
     final prep = ref.watch(narrationPrepProvider);
@@ -66,11 +80,13 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     } else if (unreadable) {
       detail = "Can't be read, or was moved";
     } else if (transcribing) {
-      detail = 'Preparing on this device… ${(prep.progress * 100).round()}%';
+      detail = packNote ?? 'Preparing on this device… ${(prep.progress * 100).round()}%';
     } else if (failed) {
       detail = prep.message;
     } else if (lowMatch) {
-      detail = "This recording doesn't seem to match this script.";
+      detail = prep.language.isEmpty
+          ? "This recording doesn't seem to match this script."
+          : "This recording doesn't seem to match this script. It was read as ${speechLanguageName(prep.language)}; if it is in another language, change the reading language.";
     } else if (map != null) {
       final length = seconds == null ? '' : '${formatSeconds(seconds)} · ';
       detail = map.byPauses ? "${length}Timed by the recording's pauses" : '$length${(map.matchedFraction * 100).round()}% matches your script';

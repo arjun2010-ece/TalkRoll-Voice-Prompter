@@ -43,7 +43,8 @@ class NarrationStore {
 
   Future<File> _transcriptFile(String audioPath, String language) async {
     final hash = await hashOf(audioPath);
-    return File(p.join((await _dir()).path, '$hash.${language.toLowerCase()}.json'));
+    // v2: transcripts made by the older Apple recogniser were cut short or missing words, so they are not reused.
+    return File(p.join((await _dir()).path, '$hash.${language.toLowerCase()}.v2.json'));
   }
 
   Future<List<TimedWord>?> cachedTranscript(String audioPath, String language) async {

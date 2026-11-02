@@ -7,13 +7,15 @@ import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import '../../core/narration/alignment.dart';
 import '../../core/script/text.dart';
 import '../../services/narration/file_transcriber.dart';
+import '../../services/narration/language_pack.dart';
 import '../../services/narration/narration_store.dart';
 import '../../services/providers.dart';
 import '../../services/speech/speech_languages.dart';
 import '../prompter/prompter_controller.dart';
 import 'audio_check.dart';
 
-final fileTranscriberProvider = Provider<FileTranscriber>((_) => FileTranscriber());
+export '../../services/narration/language_pack.dart' show fileTranscriberProvider, languagePackProvider;
+
 final narrationStoreProvider = Provider<NarrationStore>((_) => const NarrationStore());
 
 enum NarrationPhase { idle, transcribing, ready, failed }
@@ -27,6 +29,7 @@ class NarrationPrepState {
     this.failure,
     this.message = '',
     this.lowMatchAccepted = false,
+    this.language = '',
   });
 
   final NarrationPhase phase;
@@ -43,6 +46,9 @@ class NarrationPrepState {
   /// The reader chose "Continue anyway" for a recording that does not match the script.
   final bool lowMatchAccepted;
 
+  /// The language the recording was read as (`pt-BR`, ...), so a mismatch can say so.
+  final String language;
+
   NarrationPrepState copyWith({NarrationPhase? phase, double? progress, bool? lowMatchAccepted}) => NarrationPrepState(
     phase: phase ?? this.phase,
     path: path,
@@ -51,6 +57,7 @@ class NarrationPrepState {
     failure: failure,
     message: message,
     lowMatchAccepted: lowMatchAccepted ?? this.lowMatchAccepted,
+    language: language,
   );
 }
 
@@ -85,33 +92,52 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
     await prepare(path);
   }
 
-  /// Makes sure [path] has a transcript: from the cache, or by transcribing it.
+  /// Makes sure [path] has a transcript: from the cache, or by transcribing it. A language pack that is not on this
+  /// device yet is downloaded first.
   Future<void> prepare(String path) async {
     final run = ++_run;
     final script = ref.read(studioProvider).script;
     state = NarrationPrepState(phase: NarrationPhase.transcribing, path: path);
     final store = ref.read(narrationStoreProvider);
     final transcriber = ref.read(fileTranscriberProvider);
+    var language = '';
+    TranscribeException? packError;
     try {
-      final language = await this.language(script);
+      language = await this.language(script);
       final cached = await store.cachedTranscript(path, language);
       if (run != _run) return;
       if (cached != null) {
-        state = NarrationPrepState(phase: NarrationPhase.ready, path: path, progress: 1, transcript: cached);
+        state = NarrationPrepState(phase: NarrationPhase.ready, path: path, progress: 1, transcript: cached, language: language);
         return;
       }
+      state = NarrationPrepState(phase: NarrationPhase.transcribing, path: path, language: language);
       if (!await transcriber.isSupported()) {
         throw TranscribeException(TranscribeFailure.unavailable, _unsupportedMessage);
+      }
+      try {
+        final pack = await ref.read(languagePackProvider.notifier).ensure(language);
+        if (run != _run) return;
+        if (pack == LanguagePackState.unsupported) {
+          throw TranscribeException(
+            TranscribeFailure.unavailable,
+            "Narration isn't available for ${speechLanguageName(language)} on this device yet.",
+          );
+        }
+      } on TranscribeException catch (e) {
+        // No connection for the download: the older recogniser may still manage, so carry on and report this if not.
+        if (e.failure != TranscribeFailure.download) rethrow;
+        packError = e;
       }
       final words = await transcriber.transcribe(path, language, onProgress: (f) {
         if (run == _run) state = state.copyWith(progress: f);
       });
       if (run != _run) return;
       await store.saveTranscript(path, language, words);
-      state = NarrationPrepState(phase: NarrationPhase.ready, path: path, progress: 1, transcript: words);
+      state = NarrationPrepState(phase: NarrationPhase.ready, path: path, progress: 1, transcript: words, language: language);
     } on TranscribeException catch (e) {
       if (run != _run || e.failure == TranscribeFailure.cancelled) return;
-      state = NarrationPrepState(phase: NarrationPhase.failed, path: path, failure: e.failure, message: e.message);
+      final message = packError != null ? ref.read(languagePackProvider).note ?? e.message : e.message;
+      state = NarrationPrepState(phase: NarrationPhase.failed, path: path, failure: e.failure, message: message, language: language);
     } catch (_) {
       if (run != _run) return;
       state = NarrationPrepState(
@@ -119,7 +145,18 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
         path: path,
         failure: TranscribeFailure.failed,
         message: "Couldn't transcribe this recording. Choose another one.",
+        language: language,
       );
+    }
+  }
+
+  /// Fetches the language pack for the current script's language ahead of time, so choosing a recording is quick.
+  Future<void> prefetchLanguage() async {
+    try {
+      final language = await this.language(ref.read(studioProvider).script);
+      await ref.read(languagePackProvider.notifier).ensure(language);
+    } catch (_) {
+      // The pack's own status says what went wrong; choosing a recording tries again.
     }
   }
 

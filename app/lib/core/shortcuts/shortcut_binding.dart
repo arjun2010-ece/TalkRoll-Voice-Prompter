@@ -7,6 +7,10 @@ enum ShortcutAction {
   faster,
   restart,
   backToStudio,
+  nextSection,
+  retakeSection,
+  openSections,
+  back5,
 }
 
 enum ShortcutMod { ctrl, alt, shift, meta }
@@ -18,7 +22,15 @@ extension ShortcutActionLabel on ShortcutAction {
     ShortcutAction.faster => 'Faster',
     ShortcutAction.restart => 'Restart from the beginning',
     ShortcutAction.backToStudio => 'Back to Script Studio',
+    ShortcutAction.nextSection => 'Next section',
+    ShortcutAction.retakeSection => 'Retake section',
+    ShortcutAction.openSections => 'Open sections',
+    ShortcutAction.back5 => 'Back 5 seconds (Narration)',
   };
+
+  /// Only meaningful when the script is run section by section.
+  bool get isSectionAction =>
+      this == ShortcutAction.nextSection || this == ShortcutAction.retakeSection || this == ShortcutAction.openSections;
 }
 
 /// Keys a global shortcut may use. Names are shared with the native plugins.
@@ -110,6 +122,10 @@ Map<ShortcutAction, ShortcutBinding> defaultShortcuts({required bool mac}) {
     ShortcutAction.backToStudio: mac
         ? const ShortcutBinding('e', {ShortcutMod.meta, ShortcutMod.shift})
         : const ShortcutBinding('e', {ShortcutMod.ctrl, ShortcutMod.shift}),
+    ShortcutAction.nextSection: const ShortcutBinding('right', ca),
+    ShortcutAction.retakeSection: const ShortcutBinding('left', ca),
+    ShortcutAction.openSections: const ShortcutBinding('s', ca),
+    ShortcutAction.back5: const ShortcutBinding('b', ca),
   };
 }
 

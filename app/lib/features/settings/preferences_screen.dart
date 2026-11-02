@@ -250,7 +250,14 @@ class _ShortcutsTab extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
         child: Text('These work while the prompter is open, even when another app is in front.', style: muted),
       ),
-      _Group(title: 'Prompter', children: [for (final a in ShortcutAction.values) _ShortcutRow(action: a)]),
+      _Group(title: 'Prompter', children: [
+        for (final a in ShortcutAction.values)
+          if (!a.isSectionAction) _ShortcutRow(action: a),
+      ]),
+      _Group(title: 'Sections', children: [
+        for (final a in ShortcutAction.values)
+          if (a.isSectionAction) _ShortcutRow(action: a),
+      ]),
       Align(
         alignment: Alignment.centerRight,
         child: OutlinedButton(onPressed: ref.read(shortcutsProvider.notifier).reset, child: const Text('Reset to Defaults')),

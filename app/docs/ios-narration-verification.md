@@ -5,13 +5,13 @@ Status: reviewed by reading the code and compiling (`flutter build ios --no-code
 ## What was reviewed
 
 - `packages/echoprompter_camera/ios/echoprompter_camera/Sources/echoprompter_camera/FileTranscriberChannel.swift` (identical to the macOS copy). Channel `com.echoprompter/transcribe`; methods `isSupported`, `transcribe`, `cancel`; progress goes back as `progress`.
-- It uses `SFSpeechRecognizer` with `requiresOnDeviceRecognition = true`. If the language has no offline model it refuses with `unavailable` and a message pointing at Settings > General > Keyboard > Dictation. The recording is never sent to a server.
+- On iOS 26 and later it uses `SpeechAnalyzer` (`SpeechTranscriber`, else `DictationTranscriber`; the system installs the language pack on first use and every locale is released after use). Otherwise, or if that fails, it uses `SFSpeechRecognizer` with `requiresOnDeviceRecognition = true`. If the language has no offline model it refuses with `unavailable` and a message pointing at Settings > General > Keyboard > Dictation. The recording is never sent to a server.
 - Only the **Speech Recognition** permission is asked for (`NSSpeechRecognitionUsageDescription`, updated to mention narration). Narration never asks for the microphone on iOS: the Dart code requests microphone only on Android, and `Info.plist` strings are the only prompts.
 - Playback is `just_audio` (`AudiblePlayback`), position-driven; no `AVAudioEngine` input is touched.
 
 ## Things to watch (not yet proven)
 
-1. Long recordings: server recognition stops at about one minute; on-device URL requests are believed to have no such limit. Test a 3 to 5 minute file.
+1. Long recordings: the older recogniser works in stretches of about a minute and the results are merged; the newer analyzer reads the whole file. A 3:59 file tested on iOS 26 (787 of 790 words).
 2. Silent switch: `just_audio` uses the playback category, so audio should play with the switch on silent.
 3. Narration + camera (Record screen): the recording must contain the narration from the speaker, and the camera's audio session must not mute or duck it.
 4. Offline: turn on Airplane mode and transcribe a file that is not cached; it must still work.

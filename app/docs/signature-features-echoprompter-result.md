@@ -27,7 +27,7 @@ Commits: `8786957` (Apple and shared code), `ede5077` (first Android attempt), `
 ### Differences from the spec (revisit if needed)
 
 - **Android timing:** the spec asks for word-level transcription (whisper.cpp). A 75 MB model was rejected, so Android times the script from the recording's pauses. It does not meet "within about 1 word" inside long sentences. It held at the checkpoints measured.
-- **Apple recogniser:** only `SFSpeechRecognizer` in on-device mode is used, not `SpeechAnalyzer` / `SpeechTranscriber`. No chunking for very long files.
+- **Apple recogniser:** on iOS 26 and macOS 26 and later it uses `SpeechAnalyzer` with `SpeechTranscriber` (10 languages) or `DictationTranscriber` (about 30 more), with the older `SFSpeechRecognizer` on-device path as the fallback and for older systems (see "Apple engine research" below). The first use of a language downloads its pack from Apple once; the recording is never sent.
 - **Cache key:** (file hash, language), not (file hash, script id).
 - **Sync offset:** one global setting, not remembered per output device.
 - **Speed control:** Narration has no speed control. Slower/Faster are replaced by Back/Forward 5 s. Check whether the spec means something else by "existing speed control".
@@ -94,19 +94,58 @@ Driven by a small script that sends touches through the Dart VM service, with sc
 - **§2 Run styles, Auto-scroll:** stops at the end of each section, Next, the Sections sheet (with the done/current/next marks), jump to a section, and the last-section card with no Next button.
 - **§2 Run styles, Voice:** the iPhone microphone heard speech played from the Mac, followed it word by word, stopped at the end of section 1 and then section 2, and Next carried on.
 - **§2 Run styles, Narration:** plays only the section's part of the audio and stops; Forward 5 s stays inside the section; Back 5 s, Retake and Next work.
+- **Whole script (regression):** Auto-scroll ran straight through to "End of script" with no section stop, and Voice followed all four sections word by word to "End of script" with no section stop. The footer still shows the marker-based "Wrap-up · 4 of 4" as before.
 - **§2 on the camera screen:** Narration with the camera records while the audio plays one section at a time. The section-done card sits over the camera and the recording keeps going.
 
 ### Bug found and fixed (iOS only)
 
 - On iOS, "Use Narration + camera" (and any change from the reader that depends on what was applied) did nothing: the sheet's future finished before the choices were applied, so the reader saw "nothing applied" and stayed on the reader. Fixed in `features/studio/start_options.dart` by waiting for the apply step on iOS only (`isApple`). Android and macOS take the same path as before. Re-tested on the iPhone: it now opens the camera screen.
 
+### Second iPhone run (2026-11-02, same phone, debug build over USB, same touch driver)
+
+Passed:
+
+- **Whole-script Narration:** 21 s file, 95% match, "Following audio" highlights in step, ends on "End of script" with the play icon (the header did not stay on "Following audio").
+- **Chinese and Thai Narration:** transcribed on the phone (Chinese 78% match, Thai 100%), highlight follows the audio to the end.
+- **Voice with the camera, section by section:** the section-done card shows over the camera while REC keeps running; Retake and Next work and Voice resumes; the Sections sheet opens over the camera and jumps; both takes saved to the gallery (02:39 and 04:17, 1080p).
+- **Light theme** (Studio and sheets; the reader stays black) and **landscape** (compact card with Retake / Next / Sections…, Sections sheet scrolls).
+
+Found, not fixed:
+
+- **Older Apple recogniser (`SFSpeechRecognizer`), kept as the fallback:** it recognises a long file in stretches of about a minute and returned only the last one; fixed by merging the timed results (iOS and macOS).
+- **Portuguese (pt-BR) failed in that older recogniser's models themselves** (22% of the letters, also with Apple's servers). Fixed by the newer engine, see below.
+- **After "Sections…" the prompter waits paused** (by design, `goToSection` without play). On the camera screen nothing says so, and the round button at the bottom right pauses the recording, not the prompter. Tapping the prompter text starts it. Voice did follow the speech after that tap.
+- **Voice, last section:** with one section's audio played alone, Wrap-up stopped at 99% with "year." not confirmed (and no last-section card), even when the ending was spoken again. Likely the conservative matcher on the final word with synthetic speech. Not reproduced with a human voice.
+
+### Apple engine research and fix (2026-11-02, iPhone 15 Pro Max, iOS 26.6.2)
+
+Why: Portuguese Narration showed "doesn't seem to match". Compared on the phone, same 20 recordings made with macOS text-to-speech, scored as the share of the script's letters found in order:
+
+- **Portuguese:** `SpeechTranscriber` 100%; `DictationTranscriber`, the older on-device recogniser and Apple's servers all 22%. So the server fallback would not have helped, and nothing needs to leave the device.
+- **Other languages (`SpeechTranscriber` / `DictationTranscriber`):** es 98/95, fr 91/83, de 100/100, it 100/100, ja 98/92, ko 96/87, zh 89/80. Dictation only: hi 93, ru 99, tr 98, nl 100, pl 92, vi 95, id 99, sv 97, he 98, uk 100, cs 100, hu 99, el 97, ro 96, th 96.
+- **Speed:** about 0.4 s for a 40 s file; 3:59 of English in a few seconds. Every word has a time.
+- **Built:** on iOS 26 and macOS 26 and later (`FileTranscriberChannel.swift`, both copies) the newer model is used where it supports the language, else the dictation model, else the older path. Through the app: all 25 recordings transcribe (English 300 of 300 and 787 of 790 words, Portuguese 91 words and 98% match), and the Portuguese Narration highlight follows the audio.
+- **Things learned:** the system allows 5 reserved languages per app and a reservation outlives the app, so each one is released after use; the language packs are installed by the system on first use (needs a connection once per language); asking `SpeechTranscriber.supportedLocale(equivalentTo:)` about a language it lacks makes the dictation pack for that language report as unsupported, so the lists are matched directly; the older recogniser's on-device availability followed what the system had installed (zh-CN stopped working once its reservation was released).
+- **Cache:** transcripts are stored under a new name (`.v2`) so ones made by the older recogniser are not reused.
+- **Not done at that point:** the language-pack download copy, Voice mode and the language list (done below), macOS at run time.
+
+### Languages, language packs and Voice mode (2026-11-02, follow-up)
+
+The 33 languages, with the engine and measured score for each, are in `docs/apple-speech-languages.md` (for the App Review notes). Changes made:
+
+- **Language packs are downloaded by the app, once** (iOS 26 and macOS 26 and later), through one shared helper (`LanguagePacks.swift`, both platforms; `language_pack.dart`). Narration starts the download as soon as the language is known (opening the card, or changing the reading language), with "Downloading the Finnish language pack (one time)…" on the card, and again before a transcription if needed. Voice mode downloads it before it listens, with the same text as the status. After that the language works offline. If a download fails (no connection) Narration says "Connect to the internet once, then try again" unless the older recogniser can still do the job, and Voice starts the older recogniser. Apple reports no byte progress for the packs, so the text shows a percentage only when there is one.
+- **Reading language Automatic:** unchanged logic (detect the script's language with Apple's language recogniser, match the device's regional variants). With a German script and no German pack, Narration now downloads the German pack (about a minute, once) instead of failing; Voice does the same. A script in a language Apple lacks (Bulgarian, Slovenian) is read as English, and the "doesn't seem to match" message now says which language the recording was read as.
+- **Voice mode in Portuguese:** the older recogniser dropped most of the speech (22%) and, on the iPhone, produced almost nothing after the first pause. Portuguese now listens through Apple's newer engine (`LiveAnalyzer.swift`, both platforms). Checked on the iPhone with a 90-word script: all 89 words were followed to "End of script". Other languages: the newer engine is also used when the older recogniser has no on-device model (checked: Russian 52 of 52 words, German 56 of 57); languages where the older one has an on-device model keep it (English, Chinese and Thai measured better there, Chinese 174 of 175 against 147 of 175).
+- **Found while testing:** the older recogniser said Danish had no on-device model right after the pack was installed, and had one after the app was restarted. The choice of engine is therefore made each time Voice starts, from what the recogniser reports then.
+- **Bug in my own cleanup, fixed:** while removing debug code I deleted the line that starts the newer engine, so Voice silently used the older one. Found by logging the engine choice and re-verified after the fix.
+- **Cantonese:** the model writes Simplified characters and scripts are Traditional, so the transcript is converted to Traditional before alignment.
+- **Not verified:** macOS at run time (compiles), iPad, iOS 15 to 25, real human speech, airplane mode (fresh install of a pack with no connection), and a stale-pack case where the system drops a pack after reporting it installed (seen once for Thai before the list lookup was fixed).
+
 ### Not covered on the iPhone yet
 
-- **Whole-script regression (all three modes)** and **Run styles on Whole script**.
-- **Light theme, landscape, iPad.**
-- **Voice with the camera**, Retake and Next on the camera screen, and the Sections sheet over the camera.
-- **Chinese, Thai and Portuguese Narration** (the Apple letter-by-letter alignment).
-- **A Narration file over about 3 minutes**, airplane mode, and Speech Recognition permission denied.
+- **iPad** (the iPad was unavailable).
+- **Airplane mode and Speech Recognition permission denied** need Settings changes on the phone and could not be driven from here.
+- Narration without the camera in light theme or landscape was not run; only Auto-scroll sections were.
 
 ### Notes
 

@@ -91,6 +91,17 @@ public class EchoprompterWindowPlugin: NSObject, FlutterPlugin {
 
     private func enter() {
         guard let w = window else { return }
+        // A window in native full screen cannot change its style mask (AppKit raises). Leave full screen first and
+        // come back here once the transition has finished.
+        if w.styleMask.contains(.fullScreen) {
+            var token: NSObjectProtocol?
+            token = NotificationCenter.default.addObserver(forName: NSWindow.didExitFullScreenNotification, object: w, queue: .main) { [weak self] _ in
+                if let t = token { NotificationCenter.default.removeObserver(t) }
+                self?.enter()
+            }
+            w.toggleFullScreen(nil)
+            return
+        }
         if !inPrompter {
             studioFrame = w.frame
             studioStyle = w.styleMask

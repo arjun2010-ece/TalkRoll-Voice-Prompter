@@ -196,8 +196,12 @@ class PrompterController extends Notifier<PrompterState> {
     if (_mode == PromptControlMode.recordedAudio && map != null) {
       unawaited(_clock?.seek(_clockPositionFor(map.timeOfWord(index))));
     }
+    // Narration only: moving the audio back from the end reopens the script. Other modes keep their state as before.
+    final reopen = _mode == PromptControlMode.recordedAudio && state.finished;
     state = state.copyWith(
       lost: false,
+      finished: reopen ? false : null,
+      status: reopen ? 'Paused' : null,
       progress: PromptReadingProgress.synchronized(
         confirmed: index,
         predicted: index + 1 < _wordCount ? index + 1 : null,
@@ -396,6 +400,7 @@ class PrompterController extends Notifier<PrompterState> {
     if (_mode != PromptControlMode.recordedAudio || clock == null) return;
     final target = clock.position + delta;
     await clock.seek(target < Duration.zero ? Duration.zero : target);
+    if (state.finished) state = state.copyWith(finished: false, status: state.playing ? 'Playing' : 'Paused');
     _followPlayback();
   }
 

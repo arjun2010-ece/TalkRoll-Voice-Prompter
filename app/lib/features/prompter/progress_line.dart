@@ -122,7 +122,8 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
         ? ref.watch(readingWordProvider)
         : math.max(pr.progress.confirmedWordIndex, 0);
 
-    final elapsed = _elapsed;
+    // Narration shows where the recording is, so Back and Forward 5 s are reflected.
+    final elapsed = s.mode == PromptControlMode.recordedAudio ? ctrl.audioPosition : _elapsed;
     if (s.mode == PromptControlMode.voice && pr.progress.confirmedWordIndex >= 0) {
       final t = elapsed.inMilliseconds / 1000;
       if (_samples.isEmpty || _samples.last.$2 != index) _samples.add((t, index));

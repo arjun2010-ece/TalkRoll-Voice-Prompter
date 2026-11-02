@@ -14,6 +14,7 @@ import '../studio/start_options.dart';
 import '../video/mode_chip.dart';
 import '../video/camera_state.dart';
 import '../prompter/progress_line.dart';
+import '../prompter/section_end.dart';
 import '../../services/providers.dart';
 import '../prompter/prompt_surface.dart';
 import '../prompter/prompter_controller.dart';
@@ -57,6 +58,7 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
       script: studio.script,
       mode: ref.read(settingsProvider).mode,
       audioPath: ref.read(audioPathProvider),
+      startSection: ref.read(startSectionProvider),
     );
   }
 
@@ -123,12 +125,15 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
     await prompter.pause();
     if (!mounted) return;
     final before = ref.read(settingsProvider).mode;
+    final beforeRun = ref.read(settingsProvider).runStyle;
     final word = before == PromptControlMode.normal
         ? ref.read(readingWordProvider)
         : math.max(ref.read(prompterProvider).progress.confirmedWordIndex, 0);
     var applied = false;
     await showStartOptions(context, apply: StartApply.use, onStart: () async => applied = true);
     if (!mounted || !applied) return;
+    // Run style changed: the section holding the reading position becomes the current one (or the whole script runs).
+    if (ref.read(settingsProvider).runStyle != beforeRun) prompter.refreshRunStyle();
     final mode = ref.read(settingsProvider).mode;
     if (ref.read(cameraOnProvider) && mode != PromptControlMode.normal) {
       _record();
@@ -195,19 +200,47 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
               ),
               Positioned(left: 0, right: 0, bottom: 0, child: _ProgressLine()),
               Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _TopBar(visible: _chrome, wide: wide, topInset: pad.top, onClose: _close, onMode: _changeMode, onSettings: () => showReadingSettings(context)),
-              ),
-              Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
                 child: _Dock(visible: _chrome, wide: wide, bottomInset: pad.bottom, onTogglePlay: _togglePlay, onEdit: _edit),
               ),
+              // Over the dock too, which the scrim dims, so the card's buttons are never hidden behind it.
+              const Positioned.fill(child: _SectionEnd()),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: _TopBar(visible: _chrome, wide: wide, topInset: pad.top, onClose: _close, onMode: _changeMode, onSettings: () => showReadingSettings(context)),
+              ),
             ]);
           }),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Section end -------------------------------------------------------------------
+
+/// Section by section: when a section ends the prompter stops under a dimmed script, with Retake, Next and Sections….
+class _SectionEnd extends ConsumerWidget {
+  const _SectionEnd();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final done = ref.watch(prompterProvider.select((p) => p.sectionDone));
+    if (!done || !ref.read(prompterProvider.notifier).sectionRun) return const SizedBox.shrink();
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.5),
+      child: SafeArea(
+        child: Align(
+          alignment: const Alignment(0, -0.15),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            // A short window (a phone in landscape) gets the compact card, laid out in one row.
+            child: SectionEndCard(compact: MediaQuery.sizeOf(context).height < 500, onSections: () => showSectionsSheet(context)),
+          ),
         ),
       ),
     );

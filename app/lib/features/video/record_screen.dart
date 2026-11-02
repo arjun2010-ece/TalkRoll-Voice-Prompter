@@ -17,6 +17,7 @@ import 'camera_cards.dart';
 import '../studio/start_options.dart';
 import 'mode_chip.dart';
 import 'camera_state.dart';
+import '../prompter/section_end.dart';
 import '../../services/providers.dart';
 import '../prompter/prompt_view.dart';
 import '../prompter/prompter_controller.dart';
@@ -235,6 +236,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       audioPath: ref.read(audioPathProvider),
       // One mic stream feeds the video file and the speech engine.
       externalSamples: EchoPrompterCamera.audioSamples,
+      startSection: ref.read(startSectionProvider),
     );
   }
 
@@ -536,8 +538,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       if (!mounted) return;
     }
     var applied = false;
+    final beforeRun = ref.read(settingsProvider).runStyle;
     await showStartOptions(context, apply: StartApply.use, onStart: () async => applied = true);
     if (!mounted || !applied) return;
+    if (ref.read(settingsProvider).runStyle != beforeRun) ref.read(prompterProvider.notifier).refreshRunStyle();
     if (!ref.read(cameraOnProvider) || ref.read(settingsProvider).mode == PromptControlMode.normal) _leaveForVoiceOnly();
   }
 
@@ -769,6 +773,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         if (_countdown != null)
           Center(child: Text('$_countdown', style: const TextStyle(color: Colors.white, fontSize: 120, fontWeight: FontWeight.bold))),
         if (!ended) controls,
+        // Section by section: the script has stopped at the end of a section and waits.
+        if (!ended && ref.watch(prompterProvider.select((p) => p.sectionDone)) && ref.read(prompterProvider.notifier).sectionRun)
+          Positioned.fill(
+            child: SafeArea(
+              child: Align(
+                alignment: const Alignment(0, -0.1),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: SectionEndCard(compact: MediaQuery.sizeOf(context).height < 500, onSections: () => showSectionsSheet(context)),
+                ),
+              ),
+            ),
+          ),
         ?pausedHint,
         ?audioHint,
         if (_saved != null)

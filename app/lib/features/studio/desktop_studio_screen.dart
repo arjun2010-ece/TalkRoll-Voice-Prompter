@@ -30,6 +30,7 @@ import 'narration_prep.dart';
 import 'prompt_preview.dart';
 import 'script_list.dart';
 import 'script_text_controller.dart';
+import 'start_options.dart' show RunOptions;
 
 const _positionTipKey = 'EchoPrompter.positionTip.dismissed.v1';
 
@@ -789,7 +790,10 @@ class _Inspector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(settingsProvider.select((s) => s.mode));
+    final runStyle = ref.watch(settingsProvider.select((s) => s.runStyle));
     final hidden = ref.watch(settingsProvider.select((s) => s.hideFromCapture));
+    // A different script has different sections, so the section to start from goes back to the first.
+    ref.listen(studioProvider.select((s) => s.scriptRevision), (_, _) => ref.read(startSectionProvider.notifier).set(0));
     final empty = ref.watch(
       studioProvider.select((s) => s.script.trim().isEmpty),
     );
@@ -851,6 +855,20 @@ class _Inspector extends ConsumerWidget {
                     const SizedBox(height: 10),
                     const NarrationCard(),
                   ],
+                  const SizedBox(height: 22),
+                  const _SectionTitle('Run'),
+                  RunOptions(
+                    heading: false,
+                    mode: mode,
+                    run: runStyle,
+                    onRun: (r) {
+                      ref.read(settingsProvider.notifier).update((c) => c.copyWith(runStyle: r));
+                      ref.read(startSectionProvider.notifier).set(0);
+                    },
+                    script: ref.watch(studioProvider.select((s) => s.script)),
+                    startSection: ref.watch(startSectionProvider),
+                    onStartSection: ref.read(startSectionProvider.notifier).set,
+                  ),
                   const SizedBox(height: 22),
                   const _SectionTitle('Position'),
                   const PositionPicker(),

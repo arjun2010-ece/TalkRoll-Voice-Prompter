@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
+import '../../core/script/run_sections.dart';
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
@@ -146,10 +147,13 @@ class StartOptions extends ConsumerStatefulWidget {
 class _StartOptionsState extends ConsumerState<StartOptions> {
   late PromptControlMode _mode = ref.read(settingsProvider).mode;
   late bool _camera = ref.read(cameraOnProvider);
+  late RunStyle _run = ref.read(settingsProvider).runStyle;
+  int _startSection = 0;
 
   /// Saves the choices, then lets the caller carry on.
   void _apply() {
-    ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: _mode));
+    ref.read(settingsProvider.notifier).update((c) => c.copyWith(mode: _mode, runStyle: _run));
+    ref.read(startSectionProvider.notifier).set(widget.apply == StartApply.start && _run == RunStyle.sections ? _startSection : 0);
     ref.read(cameraOnProvider.notifier).set(_camera && _mode != PromptControlMode.normal);
     widget.onStart();
   }
@@ -197,6 +201,17 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
               camera: _camera,
               onMode: (m) => setState(() => _mode = m),
               onCamera: (c) => setState(() => _camera = c),
+              run: RunOptions(
+                mode: _mode,
+                run: _run,
+                onRun: (r) => setState(() {
+                  _run = r;
+                  _startSection = 0;
+                }),
+                script: widget.scriptText ?? ref.watch(studioProvider.select((x) => x.script)),
+                startSection: start ? _startSection : null,
+                onStartSection: (i) => setState(() => _startSection = i),
+              ),
             ),
           ],
         ),
@@ -236,8 +251,10 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
 /// The mode, what it needs (scroll speed, or the recording), and the Voice only / Voice + camera choice. The caller
 /// owns the values, so the screen behind a sheet can stay as it is until the choices are confirmed.
 class FollowOptions extends ConsumerWidget {
-  const FollowOptions({super.key, required this.mode, required this.camera, required this.onMode, required this.onCamera});
+  const FollowOptions({super.key, required this.mode, required this.camera, required this.onMode, required this.onCamera, this.run});
 
+  /// The Run choice, shown between the mode and the camera.
+  final Widget? run;
   final PromptControlMode mode;
   final bool camera;
   final ValueChanged<PromptControlMode> onMode;
@@ -290,6 +307,7 @@ class FollowOptions extends ConsumerWidget {
         const NarrationCard(),
       ],
       const SizedBox(height: 20),
+      if (run != null) ...[run!, const SizedBox(height: 20)],
       if (mode != PromptControlMode.normal) ...[
         heading('CAMERA'),
         SizedBox(
@@ -315,4 +333,84 @@ class FollowOptions extends ConsumerWidget {
         note('The camera works with Voice and Narration. Auto-scroll never uses the camera or microphone.'),
     ]);
   }
+}
+
+/// Run: the whole script, or one section at a time (the prompter stops at the end of each). With sections, and when
+/// a session is being started, the section to begin with can be chosen too. The caller owns the values.
+class RunOptions extends StatelessWidget {
+  const RunOptions({
+    super.key,
+    required this.mode,
+    required this.run,
+    required this.onRun,
+    required this.script,
+    this.startSection,
+    this.onStartSection,
+    this.heading = true,
+  });
+
+  final PromptControlMode mode;
+  final RunStyle run;
+  final ValueChanged<RunStyle> onRun;
+  final String script;
+
+  /// The section to begin with; null hides the picker (applying choices to a session that is already running).
+  final int? startSection;
+  final ValueChanged<int>? onStartSection;
+  final bool heading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final muted = theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant);
+    final sections = run == RunStyle.sections ? runSections(script) : const <RunSection>[];
+    final pick = startSection != null && onStartSection != null && sections.length > 1;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (heading)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('RUN', style: theme.textTheme.labelMedium?.copyWith(letterSpacing: 0.8, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+        ),
+      SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<RunStyle>(
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(value: RunStyle.whole, icon: const Icon(Icons.article_outlined, size: 18), label: _RunLabel(RunStyle.whole.label)),
+            ButtonSegment(value: RunStyle.sections, icon: const Icon(Icons.format_list_bulleted, size: 18), label: _RunLabel(RunStyle.sections.label)),
+          ],
+          selected: {run},
+          onSelectionChanged: (v) => onRun(v.first),
+        ),
+      ),
+      Padding(padding: const EdgeInsets.only(top: 10), child: Text(run.explanation(mode), style: muted)),
+      if (pick)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Row(children: [
+            Expanded(child: Text('Start from', style: theme.textTheme.bodyMedium)),
+            DropdownButton<int>(
+              value: startSection!.clamp(0, sections.length - 1),
+              underline: const SizedBox.shrink(),
+              items: [
+                for (final s in sections)
+                  DropdownMenuItem(value: s.index, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 220), child: Text('${s.index + 1} · ${s.label}', overflow: TextOverflow.ellipsis))),
+              ],
+              onChanged: (v) => v == null ? null : onStartSection!(v),
+            ),
+          ]),
+        ),
+    ]);
+  }
+}
+
+/// A Run choice's name on one line, shrinking a little in a narrow panel instead of wrapping.
+class _RunLabel extends StatelessWidget {
+  const _RunLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1, softWrap: false));
 }

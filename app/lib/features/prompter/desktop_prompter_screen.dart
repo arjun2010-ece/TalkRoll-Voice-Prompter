@@ -20,6 +20,7 @@ import 'notch_clipper.dart';
 import 'progress_line.dart';
 import 'prompt_surface.dart';
 import 'prompter_controller.dart';
+import 'section_end.dart';
 
 const _accent = Color(0xFF0A84FF);
 const _baseSpeed = 24.0;
@@ -51,6 +52,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
   bool _hoverBar = false;
   int _hoverToken = 0;
   int _openMenus = 0;
+
+  /// Section by section: the list of sections is open over the prompter.
+  bool _sectionsOpen = false;
 
   String? _lastTray;
 
@@ -117,7 +121,13 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       script: studio.script,
       mode: mode,
       audioPath: ref.read(audioPathProvider),
+      startSection: ref.read(startSectionProvider),
     );
+    // The sections are known now: the section keys are taken (or not) accordingly.
+    if (mounted) {
+      _registerHotkeys();
+      _syncTray();
+    }
     // Like the Swift app, Voice mode starts listening as soon as it opens.
     if (mode == PromptControlMode.voice && mounted) await c.play();
   }
@@ -193,6 +203,23 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     if (wasVoice) await c.play(); // a Voice restart is a fresh read
   }
 
+  /// Opens or closes the list of sections. Opening pauses, so choosing one starts from a standstill.
+  void _toggleSections() {
+    final c = ref.read(prompterProvider.notifier);
+    if (!c.sectionRun) return;
+    if (!_sectionsOpen) c.pause();
+    setState(() => _sectionsOpen = !_sectionsOpen);
+  }
+
+  /// Esc closes the list of sections first; otherwise it goes back to Script Studio.
+  void _escape() {
+    if (_sectionsOpen) {
+      setState(() => _sectionsOpen = false);
+      return;
+    }
+    _backToStudio();
+  }
+
   void _changeSpeed(bool forward) {
     if (_mode != PromptControlMode.normal) return;
     final set = ref.read(settingsProvider.notifier).update;
@@ -263,6 +290,14 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
         _changeSpeed(true);
       case 'restart':
         _restart();
+      case 'nextSection':
+        if (ref.read(prompterProvider.notifier).sectionRun) ref.read(prompterProvider.notifier).nextSection();
+      case 'retakeSection':
+        if (ref.read(prompterProvider.notifier).sectionRun) ref.read(prompterProvider.notifier).retakeSection();
+      case 'openSections':
+        _toggleSections();
+      case 'back5':
+        if (_mode == PromptControlMode.recordedAudio) ref.read(prompterProvider.notifier).skip(const Duration(seconds: -5));
       case 'backToStudio':
         _backToStudio(atReadingPosition: true);
       case 'quit':
@@ -280,9 +315,13 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
 
   Future<void> _registerHotkeys() async {
     final bindings = ref.read(shortcutsProvider);
+    final run = ref.read(prompterProvider.notifier).sectionRun;
+    final narration = _mode == PromptControlMode.recordedAudio;
     await EchoPrompterWindow.registerHotkeys([
       for (final e in bindings.entries)
-        HotkeyBinding(e.key.name, e.value.key, {for (final m in e.value.mods) m.name}),
+        // The section keys, and Back 5 seconds, are only taken from other apps while they do something.
+        if ((!e.key.isSectionAction || run) && (e.key != ShortcutAction.back5 || narration))
+          HotkeyBinding(e.key.name, e.value.key, {for (final m in e.value.mods) m.name}),
     ]);
   }
 
@@ -296,6 +335,12 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       TrayItem('slower', 'Slower', enabled: normal),
       TrayItem('faster', 'Faster', enabled: normal),
       const TrayItem('restart', 'Restart from the beginning'),
+      if (ref.read(prompterProvider.notifier).sectionRun) ...[
+        const TrayItem.separator(),
+        const TrayItem('retakeSection', 'Retake section'),
+        TrayItem('nextSection', 'Next section', enabled: pr.sectionIndex < ref.read(prompterProvider.notifier).sections.length - 1),
+        const TrayItem('openSections', 'Sections…'),
+      ],
       const TrayItem.separator(),
       TrayItem('place:notch', 'Position: ${PromptPlacement.notch.label(hasNotch: _hasNotch)}', checked: s.placement == PromptPlacement.notch),
       TrayItem('place:corner', 'Position: Corner', checked: s.placement == PromptPlacement.corner),
@@ -329,9 +374,14 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
         _window.update(next);
       }
       if (prev.mode != next.mode) _begin();
+      if (prev.runStyle != next.runStyle) {
+        ref.read(prompterProvider.notifier).refreshRunStyle();
+        _sectionsOpen = false;
+        _registerHotkeys();
+      }
       _syncTray();
     });
-    ref.listen(prompterProvider.select((p) => (p.playing, p.preparing)), (_, _) => _syncTray());
+    ref.listen(prompterProvider.select((p) => (p.playing, p.preparing, p.sectionIndex, p.sectionDone)), (_, _) => _syncTray());
     ref.listen(shortcutsProvider, (_, _) => _registerHotkeys());
     final s = ref.watch(settingsProvider);
     final mod = _mac ? (meta: true, control: false) : (meta: false, control: true);
@@ -341,7 +391,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       type: MaterialType.transparency,
       child: CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): _backToStudio,
+          const SingleActivator(LogicalKeyboardKey.escape): _escape,
           SingleActivator(LogicalKeyboardKey.keyW, meta: mod.meta, control: mod.control): _backToStudio,
           const SingleActivator(LogicalKeyboardKey.space): _primary,
           const SingleActivator(LogicalKeyboardKey.arrowUp): () => _changeSpeed(true),
@@ -366,6 +416,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
                       PromptLayoutStyle.notch => _notchLayout(s),
                     },
                     if (s.placement != PromptPlacement.notch) ..._resizeHandles(),
+                    _sectionOverlay(style),
                     _statusBadges(s, style),
                   ],
                 ),
@@ -374,6 +425,41 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // --- section by section ----------------------------------------------------
+
+  /// Over the prompter: the end-of-section state (Retake, Next, Sections…), or the list of sections to jump to.
+  Widget _sectionOverlay(PromptLayoutStyle style) {
+    return Positioned.fill(
+      child: Consumer(builder: (context, ref, _) {
+        final controller = ref.read(prompterProvider.notifier);
+        final done = ref.watch(prompterProvider.select((p) => p.sectionDone));
+        ref.watch(settingsProvider.select((s) => s.runStyle));
+        if (!controller.sectionRun || (!done && !_sectionsOpen)) return const SizedBox.shrink();
+        final compact = style != PromptLayoutStyle.full;
+        String key(ShortcutAction a) => ref.read(shortcutsProvider)[a]!.label(mac: _mac);
+        final inner = _sectionsOpen
+            ? _SectionsPanel(compact: compact, onClose: () => setState(() => _sectionsOpen = false))
+            : SectionEndCard(
+                compact: compact,
+                onSections: _toggleSections,
+                hints: {
+                  'retake': key(ShortcutAction.retakeSection),
+                  'next': key(ShortcutAction.nextSection),
+                  'sections': key(ShortcutAction.openSections),
+                },
+              );
+        // Only the card takes clicks: the dimmed text around it must not block the header (Close, Position, Edit).
+        return Stack(children: [
+          Positioned.fill(child: IgnorePointer(child: ColoredBox(color: Colors.black.withValues(alpha: 0.55)))),
+          Padding(
+            padding: EdgeInsets.fromLTRB(12, style == PromptLayoutStyle.full ? 56 : 36, 12, 12),
+            child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: compact ? 480 : 420, child: inner))),
+          ),
+        ]);
+      }),
     );
   }
 
@@ -635,13 +721,13 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
   String _compactStatus(PromptSettings s, PrompterState pr) => switch (s.mode) {
     PromptControlMode.voice => _footer(s, pr).split('  •  ').first,
     PromptControlMode.recordedAudio => pr.status,
-    PromptControlMode.normal => '${pr.playing ? 'Scrolling' : 'Paused'}  •  ${_rateLabel(s)}',
+    PromptControlMode.normal => '${pr.sectionDone ? 'Section done' : (pr.playing ? 'Scrolling' : 'Paused')}  •  ${_rateLabel(s)}',
   };
 
   String _headerState(PromptSettings s, PrompterState pr) => switch (s.mode) {
     PromptControlMode.voice => pr.playing ? 'LISTENING' : 'MICROPHONE OFF',
     PromptControlMode.recordedAudio => (pr.status.isEmpty ? 'NO RECORDING' : pr.status).toUpperCase(),
-    PromptControlMode.normal => pr.playing ? 'SCROLLING' : 'PAUSED',
+    PromptControlMode.normal => pr.sectionDone ? 'SECTION DONE' : (pr.playing ? 'SCROLLING' : 'PAUSED'),
   };
 
   // --- full layout pieces ----------------------------------------------------
@@ -1097,4 +1183,44 @@ class _ControlButton extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The sections of the script as a compact list over the prompter; choosing one starts from its first word.
+class _SectionsPanel extends StatelessWidget {
+  const _SectionsPanel({required this.compact, required this.onClose});
+
+  final bool compact;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 280),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E).withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF48484A)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(10, 4, 0, 4),
+              child: Text(
+                'JUMP TO A SECTION',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.6, color: Color(0xFF8E8E93)),
+              ),
+            ),
+          ),
+          InkWell(
+            onTap: onClose,
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close, size: 16, color: Colors.white70)),
+          ),
+        ]),
+        Flexible(child: SectionsList(compact: true, onPicked: onClose)),
+      ]),
+    );
+  }
 }

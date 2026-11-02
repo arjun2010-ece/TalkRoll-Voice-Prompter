@@ -30,13 +30,23 @@ Future<void> showStartOptions(
   String? scriptText,
   StartApply apply = StartApply.start,
 }) {
+  // iOS: the sheet's own future ends the moment it is popped, before the choices are applied, so a caller that checks
+  // what was applied (the reader and the camera screen do) would see nothing. Waiting for the apply step fixes that.
+  Future<void>? applying;
+  Future<void> shown(Future<void> sheet) => isApple ? sheet.then((_) => applying) : sheet;
+
   Future<void> start(BuildContext sheet) async {
     final route = ModalRoute.of(sheet)!;
     if (apply == StartApply.use) {
       Navigator.of(sheet).pop();
       // The next screen only starts once the sheet has finished leaving, or it shows through the fade.
-      await route.completed;
-      await onStart();
+      Future<void> applyChoices() async {
+        await route.completed;
+        await onStart();
+      }
+
+      applying = applyChoices();
+      await applying;
       return;
     }
     // Starting keeps the sheet frozen while the prompter fades in over it, so the script behind never shows on its
@@ -57,7 +67,7 @@ Future<void> showStartOptions(
   }
 
   if (!isTabletWidth(context)) {
-    return showModalBottomSheet<void>(
+    return shown(showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -75,9 +85,9 @@ Future<void> showStartOptions(
           onClose: () => Navigator.of(sheet).pop(),
         ),
       ),
-    );
+    ));
   }
-  return showGeneralDialog<void>(
+  return shown(showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Close',
@@ -110,7 +120,7 @@ Future<void> showStartOptions(
         ),
       ),
     ),
-  );
+  ));
 }
 
 /// "How to read": the mode, what that mode needs (speed, or the recording), and whether video is recorded. It is the

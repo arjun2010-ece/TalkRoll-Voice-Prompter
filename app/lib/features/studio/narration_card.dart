@@ -23,10 +23,7 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _restore();
-        ref.read(narrationPrepProvider.notifier).prefetchLanguage();
-      }
+      if (mounted) _restore();
     });
   }
 
@@ -42,26 +39,18 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     final scheme = Theme.of(context).colorScheme;
     // Another script was opened: show the recording linked to it.
     ref.listen(studioProvider.select((s) => s.scriptRevision), (_, _) => _restore());
-    // A different reading language needs its own pack: fetch it now, not when a recording is chosen.
-    ref.listen(settingsProvider.select((s) => s.speechLanguage), (_, _) => ref.read(narrationPrepProvider.notifier).prefetchLanguage());
+    ref.listen(settingsProvider.select((s) => s.speechLanguage), (_, _) => _restore());
     final path = ref.watch(audioPathProvider);
     final packNote = ref.watch(languagePackProvider).note;
     if (path == null) {
-      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _choose,
-            icon: const Icon(Icons.audio_file_outlined),
-            label: const Text('Choose a recording…'),
-          ),
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _choose,
+          icon: const Icon(Icons.audio_file_outlined),
+          label: const Text('Choose a recording…'),
         ),
-        if (packNote != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(packNote, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
-          ),
-      ]);
+      );
     }
     final check = ref.watch(audioCheckProvider);
     final prep = ref.watch(narrationPrepProvider);
@@ -70,6 +59,7 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     final unreadable = check.hasValue && check.requireValue.readiness == AudioReadiness.unreadable;
     final seconds = check.hasValue ? check.requireValue.seconds : null;
     final transcribing = !checking && !unreadable && prep.phase == NarrationPhase.transcribing;
+    final needsPack = !checking && !unreadable && prep.phase == NarrationPhase.needsPack;
     final failed = prep.phase == NarrationPhase.failed;
     final lowMatch = map != null && map.matchedFraction < narrationLowMatchBelow;
     final problem = unreadable || failed || (lowMatch && !prep.lowMatchAccepted);
@@ -79,6 +69,8 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
       detail = 'Checking the recording…';
     } else if (unreadable) {
       detail = "Can't be read, or was moved";
+    } else if (needsPack) {
+      detail = 'Needs the ${speechLanguageName(prep.language)} language pack: a one-time download from Apple, then it works offline.';
     } else if (transcribing) {
       detail = packNote ?? 'Preparing on this device… ${(prep.progress * 100).round()}%';
     } else if (failed) {
@@ -129,9 +121,20 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
             ),
             if (transcribing)
               TextButton(onPressed: () => ref.read(narrationPrepProvider.notifier).cancel(), child: const Text('Cancel'))
-            else if (!lowMatch || prep.lowMatchAccepted)
+            else if (!needsPack && (!lowMatch || prep.lowMatchAccepted))
               TextButton(onPressed: _choose, child: Text(unreadable || failed ? 'Choose another' : 'Change…')),
           ]),
+          if (needsPack)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
+              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                TextButton(onPressed: () => ref.read(narrationPrepProvider.notifier).cancel(), child: const Text('Not now')),
+                FilledButton.tonal(
+                  onPressed: () => ref.read(narrationPrepProvider.notifier).downloadPackAndContinue(),
+                  child: const Text('Download'),
+                ),
+              ]),
+            ),
           if (lowMatch && !prep.lowMatchAccepted)
             Padding(
               padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),

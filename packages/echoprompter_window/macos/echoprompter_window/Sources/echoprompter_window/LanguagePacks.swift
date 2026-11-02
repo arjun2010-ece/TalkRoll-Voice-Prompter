@@ -54,8 +54,26 @@ enum LanguagePack {
         await AssetInventory.status(forModules: [module]) == .installed
     }
 
-    /// Installs the pack for [module] if it is missing (the system downloads it once, and the recording or speech is
-    /// never sent). One download per pack at a time: a second caller waits for the first.
+    /// Keeps [pack] reserved for this app, which is what keeps it on the device: the system removes a pack as soon as
+    /// its reservation is released (measured: a Finnish pack released after use had to be downloaded again, 10 s). It
+    /// allows five reservations at a time (`AssetInventory.maximumReservedLocales`), and they outlive the app. When a
+    /// sixth language needs room, the one used least recently is released, and that language asks before it downloads
+    /// again. That is the only time a pack is let go.
+    static func reserve(_ pack: LanguagePack) async {
+        let defaults = UserDefaults.standard
+        func usedKey(_ l: Locale) -> String { "EchoPrompter.packUsed.\(l.identifier)" }
+        let reserved = await AssetInventory.reservedLocales
+        if !reserved.contains(where: { $0.identifier == pack.locale.identifier }), reserved.count >= AssetInventory.maximumReservedLocales,
+           let oldest = reserved.min(by: { defaults.double(forKey: usedKey($0)) < defaults.double(forKey: usedKey($1)) }) {
+            await AssetInventory.release(reservedLocale: oldest)
+        }
+        _ = try? await AssetInventory.reserve(locale: pack.locale)
+        defaults.set(Date().timeIntervalSince1970, forKey: usedKey(pack.locale))
+    }
+
+    /// Downloads the pack for [module] (from Apple, once; the recording or speech is never sent). This is the only place
+    /// a pack is downloaded, and Dart calls it only after the reader has agreed. One download per pack at a time: a
+    /// second caller waits for the first.
     static func install(_ module: any SpeechModule, language: String, key: String) async throws {
         try await PackInstaller.shared.ensure(key: key) {
             guard let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) else { return }

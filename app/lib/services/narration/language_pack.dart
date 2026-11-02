@@ -29,24 +29,37 @@ class LanguagePackStatus {
   }
 }
 
-/// Makes sure the speech pack for a language is on this device, downloading it once when it is not. Narration and
-/// Voice mode both ask before they listen, so a new language is fetched when it is first wanted and works offline
-/// afterwards.
+/// Finds out whether the speech pack for a language is on this device and, once the reader has agreed, downloads it
+/// (from Apple, once; after that the language works offline). Narration and Voice mode share the packs: a language
+/// downloaded in one is ready in the other. Nothing here downloads on its own: [ensure] does so only for a language
+/// the reader approved with [approve] (the Download button on the Narration card, the download question when Voice
+/// starts).
 class LanguagePackNotifier extends Notifier<LanguagePackStatus> {
   final Map<String, Future<LanguagePackState>> _running = {};
+  final Set<String> _approved = {};
 
   @override
   LanguagePackStatus build() => const LanguagePackStatus();
 
-  /// The state of the pack for [language] once it is ready or known to be unavailable. Throws a
-  /// [TranscribeException] with [TranscribeFailure.download] when the download fails.
-  Future<LanguagePackState> ensure(String language) => _running[language] ??= _ensure(language).whenComplete(() {
-    _running.remove(language); // a block, so the removed future is not returned and waited on by itself
-  });
+  /// The reader agreed to download the pack for [language].
+  void approve(String language) => _approved.add(language);
 
-  Future<LanguagePackState> _ensure(String language) async {
+  /// Where the pack for [language] is, without downloading anything.
+  Future<LanguagePackState> check(String language, {bool voice = false}) =>
+      ref.read(fileTranscriberProvider).languagePack(language, voice: voice);
+
+  /// The state of the pack for [language]: [LanguagePackState.ready] once it is here (downloaded first if the reader
+  /// approved it), [LanguagePackState.needsDownload] when it is missing and was not approved (nothing is downloaded),
+  /// or [LanguagePackState.unsupported]. Throws a [TranscribeException] with [TranscribeFailure.download] when an
+  /// approved download fails.
+  Future<LanguagePackState> ensure(String language, {bool voice = false}) =>
+      _running['$voice$language'] ??= _ensure(language, voice).whenComplete(() {
+        _running.remove('$voice$language'); // a block, so the removed future is not returned and waited on by itself
+      });
+
+  Future<LanguagePackState> _ensure(String language, bool voice) async {
     final transcriber = ref.read(fileTranscriberProvider);
-    var pack = await transcriber.languagePack(language);
+    var pack = await transcriber.languagePack(language, voice: voice);
     if (pack == LanguagePackState.unsupported) {
       state = LanguagePackStatus(language: language, phase: LanguagePackPhase.unsupported);
       return pack;
@@ -55,12 +68,13 @@ class LanguagePackNotifier extends Notifier<LanguagePackStatus> {
       if (state.language == language) state = const LanguagePackStatus();
       return pack;
     }
+    if (!_approved.contains(language)) return pack;
     state = LanguagePackStatus(language: language, phase: LanguagePackPhase.downloading);
     transcriber.onPackProgress = (l, f) {
       if (l == language) state = LanguagePackStatus(language: language, phase: LanguagePackPhase.downloading, progress: f);
     };
     try {
-      pack = await transcriber.languagePack(language, download: true);
+      pack = await transcriber.languagePack(language, download: true, voice: voice);
       state = const LanguagePackStatus();
       return pack;
     } on TranscribeException {

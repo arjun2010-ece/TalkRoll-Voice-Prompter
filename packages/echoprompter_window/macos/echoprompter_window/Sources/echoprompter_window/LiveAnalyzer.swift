@@ -49,8 +49,11 @@ final class LiveAnalyzer {
 
     /// Installs the language pack if needed, then starts listening. Throws when it cannot.
     func start() async throws {
-        // A reservation outlives the app, and the system keeps at most five: let go of any left behind.
-        for stale in await AssetInventory.reservedLocales where stale != pack.locale { await AssetInventory.release(reservedLocale: stale) }
+        // A pack is never downloaded here: Dart downloads a missing one first, after the reader has agreed.
+        guard await LanguagePack.isInstalled(pack.module) else {
+            throw NSError(domain: "EchoPrompter", code: 2, userInfo: [NSLocalizedDescriptionKey: "The language pack is not on this device."])
+        }
+        await LanguagePack.reserve(pack)
         switch pack {
         case .speech(let locale):
             let module = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults, .fastResults], attributeOptions: [])
@@ -62,7 +65,6 @@ final class LiveAnalyzer {
     }
 
     private func run<M: SpeechModule, S: AsyncSequence>(_ module: M, results: S, text: @escaping (S.Element) -> (String, Bool)) async throws {
-        try await LanguagePack.install(module, language: language, key: pack.key)
         guard let target = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module]) else {
             throw NSError(domain: "EchoPrompter", code: 1, userInfo: [NSLocalizedDescriptionKey: "No audio format for the speech analyzer."])
         }
@@ -109,6 +111,5 @@ final class LiveAnalyzer {
         resultsTask = nil
         await analyzer?.cancelAndFinishNow()
         analyzer = nil
-        await AssetInventory.release(reservedLocale: pack.locale)
     }
 }

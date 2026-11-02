@@ -18,7 +18,15 @@ export '../../services/narration/language_pack.dart' show fileTranscriberProvide
 
 final narrationStoreProvider = Provider<NarrationStore>((_) => const NarrationStore());
 
-enum NarrationPhase { idle, transcribing, ready, failed }
+enum NarrationPhase {
+  idle,
+
+  /// The recording's language pack is not on this device: the reader is asked before it is downloaded.
+  needsPack,
+  transcribing,
+  ready,
+  failed,
+}
 
 class NarrationPrepState {
   const NarrationPrepState({
@@ -117,6 +125,11 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
       try {
         final pack = await ref.read(languagePackProvider.notifier).ensure(language);
         if (run != _run) return;
+        if (pack == LanguagePackState.needsDownload) {
+          // Nothing is downloaded until the reader agrees (the Download button on the card).
+          state = NarrationPrepState(phase: NarrationPhase.needsPack, path: path, language: language);
+          return;
+        }
         if (pack == LanguagePackState.unsupported) {
           throw TranscribeException(
             TranscribeFailure.unavailable,
@@ -150,14 +163,12 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
     }
   }
 
-  /// Fetches the language pack for the current script's language ahead of time, so choosing a recording is quick.
-  Future<void> prefetchLanguage() async {
-    try {
-      final language = await this.language(ref.read(studioProvider).script);
-      await ref.read(languagePackProvider.notifier).ensure(language);
-    } catch (_) {
-      // The pack's own status says what went wrong; choosing a recording tries again.
-    }
+  /// The reader agreed to download the language pack the recording needs: downloads it, then transcribes.
+  Future<void> downloadPackAndContinue() async {
+    final path = state.path;
+    if (path == null || state.phase != NarrationPhase.needsPack) return;
+    ref.read(languagePackProvider.notifier).approve(state.language);
+    await prepare(path);
   }
 
   /// Stops a transcription in progress and forgets the recording.
@@ -183,6 +194,11 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
       state = const NarrationPrepState();
     } else if (state.path != linked) {
       await prepare(linked);
+    } else if (state.phase != NarrationPhase.transcribing && state.language.isNotEmpty) {
+      // The same recording, but the script (or the reading language) may now be in another language: its pack and its
+      // transcript are for the language it was read as, so read it again if that changed.
+      final language = await this.language(ref.read(studioProvider).script);
+      if (language != state.language) await prepare(linked);
     }
   }
 }
@@ -219,6 +235,7 @@ String? narrationStartBlocker(Reader read) {
   if (check.isLoading) return 'Start is available once the recording is checked.';
   if (check.hasError || check.requireValue.readiness != AudioReadiness.ready) return 'Choose another recording to start.';
   return switch (prep.phase) {
+    NarrationPhase.needsPack => 'Download the language pack to start.',
     NarrationPhase.idle || NarrationPhase.transcribing => 'Start is available once the recording is transcribed.',
     NarrationPhase.failed => 'Choose another recording to start.',
     NarrationPhase.ready => narrationNeedsDecision(read) ? 'Continue anyway or choose another recording to start.' : null,

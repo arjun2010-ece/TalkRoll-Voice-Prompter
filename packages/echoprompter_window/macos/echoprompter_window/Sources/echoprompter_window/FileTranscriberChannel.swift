@@ -51,7 +51,7 @@ final class FileTranscriberChannel: NSObject {
             let args = call.arguments as? [String: Any] ?? [:]
             let language = args["language"] as? String ?? "en-US"
             if #available(iOS 26, macOS 26, *) {
-                languagePack(language: language, download: args["download"] as? Bool ?? false, result: result)
+                languagePack(language: language, download: args["download"] as? Bool ?? false, voice: args["voice"] as? Bool ?? false, result: result)
             } else {
                 result("legacy") // the older recogniser has no packs of its own to manage
             }
@@ -129,31 +129,28 @@ final class FileTranscriberChannel: NSObject {
     private func analyze(path: String, language: String, run: Int) async throws -> [[String: Any]] {
         let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
         let duration = Double(file.length) / file.processingFormat.sampleRate
-        // The system keeps at most five language packs reserved for an app, and a reservation outlives a run: let go of
-        // any left behind before taking one.
-        for stale in await AssetInventory.reservedLocales { await AssetInventory.release(reservedLocale: stale) }
+        // A pack is never downloaded here: without it the file goes to the older recogniser. Dart downloads a missing
+        // pack first, after the reader has agreed.
+        guard let pack = await LanguagePack.resolve(language), await LanguagePack.isInstalled(pack.module) else { return [] }
+        await LanguagePack.reserve(pack)
         // The newer model first (about ten languages); the dictation model covers the rest (about thirty).
-        switch await LanguagePack.resolve(language) {
+        switch pack {
         case .speech(let locale):
             let module = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [], attributeOptions: [.audioTimeRange])
-            return try await drive(module, locale: locale, language: language, results: module.results, file: file, duration: duration, run: run) { ($0.text, $0.range) }
+            return try await drive(module, language: language, results: module.results, file: file, duration: duration, run: run) { ($0.text, $0.range) }
         case .dictation(let locale):
             let module = DictationTranscriber(locale: locale, preset: .timeIndexedLongDictation)
-            return try await drive(module, locale: locale, language: language, results: module.results, file: file, duration: duration, run: run) { ($0.text, $0.range) }
-        case nil:
-            return []
+            return try await drive(module, language: language, results: module.results, file: file, duration: duration, run: run) { ($0.text, $0.range) }
         }
     }
 
-    /// Installs the language pack if it is missing (the system downloads it once; the recording is never sent), reads
-    /// the file through [module], and returns every word with its time. The locale is released afterwards.
+    /// Reads the file through [module] (its language pack is installed) and returns every word with its time. The pack
+    /// stays reserved afterwards.
     @available(iOS 26, macOS 26, *)
     private func drive<M: SpeechModule, S: AsyncSequence>(
-        _ module: M, locale: Locale, language: String, results: S, file: AVAudioFile, duration: Double, run: Int,
+        _ module: M, language: String, results: S, file: AVAudioFile, duration: Double, run: Int,
         text: @escaping (S.Element) -> (AttributedString, CMTimeRange)
     ) async throws -> [[String: Any]] {
-        // A request for a pack that is already there finishes at once, so always ask.
-        try await LanguagePack.install(module, language: language, key: "\(module is SpeechTranscriber ? "s" : "d"):\(locale.identifier)")
         let analyzer = SpeechAnalyzer(modules: [module])
         await MainActor.run { if run == self.generation { self.activeAnalyzer = analyzer } }
         let cantonese = Locale(identifier: language.replacingOccurrences(of: "_", with: "-")).language.languageCode?.identifier == "yue"
@@ -177,32 +174,36 @@ final class FileTranscriberChannel: NSObject {
         }
         do {
             try await analyzer.start(inputAudioFile: file, finishAfterFile: true)
-            let words = try await collector.value
-            await AssetInventory.release(reservedLocale: locale)
-            return words
+            return try await collector.value
         } catch {
             collector.cancel()
             await analyzer.cancelAndFinishNow()
-            await AssetInventory.release(reservedLocale: locale)
             throw error
         }
     }
 
     /// Whether the language pack for [language] is on this device: "ready", "needsDownload", or "unsupported" (neither
-    /// engine has the language). With [download] it installs a missing pack first, reporting `packProgress` to Dart,
-    /// and fails with `download` when it cannot (no connection, for one).
+    /// engine has the language). With [download] it downloads a missing pack first, reporting `packProgress` to Dart,
+    /// and fails with `download` when it cannot (no connection, for one). With [voice], a language Voice mode listens to
+    /// with the older recogniser needs no pack and is "ready". Nothing else downloads a pack.
     @available(iOS 26, macOS 26, *)
-    private func languagePack(language: String, download: Bool, result: @escaping FlutterResult) {
+    private func languagePack(language: String, download: Bool, voice: Bool, result: @escaping FlutterResult) {
         Task {
             var answer: Any = "unsupported"
             if let pack = await LanguagePack.resolve(language) {
                 let module = pack.module
-                if await LanguagePack.isInstalled(module) {
+                if voice && !LiveAnalyzer.handles(language) {
+                    // Voice mode listens to this language with the older recogniser, on the device: no pack is needed.
+                    answer = "ready"
+                } else if await LanguagePack.isInstalled(module) {
+                    await LanguagePack.reserve(pack)
                     answer = "ready"
                 } else if !download {
                     answer = "needsDownload"
                 } else {
                     do {
+                        // Room first: the system refuses a download while five languages are reserved.
+                        await LanguagePack.reserve(pack)
                         try await LanguagePack.install(module, language: language, key: pack.key)
                         answer = "ready"
                     } catch {

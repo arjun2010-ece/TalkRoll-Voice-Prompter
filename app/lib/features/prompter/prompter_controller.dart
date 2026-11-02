@@ -14,6 +14,7 @@ import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
 import '../../services/audio/reference_clock.dart';
+import '../../services/narration/file_transcriber.dart' show LanguagePackState;
 import '../../services/narration/language_pack.dart';
 import '../../services/narration/narration_store.dart';
 import '../../services/providers.dart';
@@ -50,6 +51,7 @@ class PrompterState {
     this.finished = false,
     this.lost = false,
     this.voiceUnsupported = false,
+    this.voiceNeedsPack = false,
     this.resetToken = 0,
     this.sectionIndex = 0,
     this.sectionDone = false,
@@ -70,6 +72,10 @@ class PrompterState {
   /// Mobile Voice mode: this device has no on-device speech recognition to follow the reader
   /// with. The Read and Record screens tell the reader once each time this turns on.
   final bool voiceUnsupported;
+
+  /// Voice mode needs a language pack that is not on this device. The reader and camera screens then ask the reader
+  /// whether to download it, and start Voice again once it is here.
+  final bool voiceNeedsPack;
 
   /// Bumped by [PrompterController.begin] and restart; the text surface resets
   /// its scroll position when it changes.
@@ -94,6 +100,7 @@ class PrompterState {
     bool? finished,
     bool? lost,
     bool? voiceUnsupported,
+    bool? voiceNeedsPack,
     int? resetToken,
     int? sectionIndex,
     bool? sectionDone,
@@ -108,6 +115,7 @@ class PrompterState {
     finished: finished ?? this.finished,
     lost: lost ?? this.lost,
     voiceUnsupported: voiceUnsupported ?? this.voiceUnsupported,
+    voiceNeedsPack: voiceNeedsPack ?? this.voiceNeedsPack,
     resetToken: resetToken ?? this.resetToken,
     sectionIndex: sectionIndex ?? this.sectionIndex,
     sectionDone: sectionDone ?? this.sectionDone,
@@ -384,24 +392,32 @@ class PrompterController extends Notifier<PrompterState> {
       detected: auto ? await native.detectLanguage(_script) : null,
       supported: auto ? await native.supportedLanguages() : const [],
     );
-    state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false);
-    // Apple's speech models for the language are fetched once, here, with their progress as the status, so Voice then
-    // listens on this device (Portuguese with Apple's newer engine, the other languages with the older recogniser,
-    // which uses the same downloaded models) and works offline from then on. English ships with the system, and the
-    // other platforms have nothing to fetch. If a download fails the recogniser still starts and does what it can.
+    state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false, voiceNeedsPack: false);
+    // Apple's speech pack for the language must be on this device (English ships with the system, the other platforms
+    // have nothing to fetch, and a language the older recogniser does on the device needs none). The reader is asked
+    // before one is downloaded, when Start is pressed; changing to Voice inside the reader never downloads on its own,
+    // it says what to do. Progress shows as the status while an approved download runs.
     if (!language.toLowerCase().startsWith('en')) {
       final watch = ref.listen(languagePackProvider, (_, s) {
         final note = s.note;
         if (s.phase == LanguagePackPhase.downloading && note != null && _nativeVoice) state = state.copyWith(status: note);
       });
+      var pack = LanguagePackState.ready;
+      Object? failure;
       try {
-        await ref.read(languagePackProvider.notifier).ensure(language);
-      } catch (_) {
-        // The recogniser below reports what it cannot do.
+        pack = await ref.read(languagePackProvider.notifier).ensure(language, voice: true);
+      } catch (e) {
+        failure = e;
       } finally {
         watch.close();
       }
       if (!_nativeVoice) return; // paused or closed while the pack downloaded
+      if (failure != null || pack == LanguagePackState.needsDownload) {
+        _nativeVoice = false;
+        // The screen asks the reader whether to download it (a failed download is asked about again, with its error).
+        state = state.copyWith(playing: false, status: 'Language pack needed', voiceNeedsPack: true);
+        return;
+      }
       state = state.copyWith(status: 'Listening');
     }
     _voiceSub = native.hypotheses(micFallback: _externalSamples == null, headsetMic: _mode != PromptControlMode.recordedAudio, language: language).listen(_onHypothesis, onError: (Object e) {

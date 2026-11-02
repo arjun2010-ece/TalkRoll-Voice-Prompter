@@ -95,10 +95,11 @@ class FileTranscriber {
   }
 
   /// Whether the pack for [language] is here. With [download] a missing pack is downloaded first ([onPackProgress]
-  /// reports it) and this throws [TranscribeFailure.download] if that fails. Platforms without packs say [ready].
-  Future<LanguagePackState> languagePack(String language, {bool download = false}) async {
+  /// reports it) and this throws [TranscribeFailure.download] if that fails. Platforms without packs say [ready]. With
+  /// [voice], a language Voice mode listens to with the older recogniser on the device needs no pack and says [ready].
+  Future<LanguagePackState> languagePack(String language, {bool download = false, bool voice = false}) async {
     try {
-      return switch (await _channel.invokeMethod<String>('languagePack', {'language': language, 'download': download})) {
+      return switch (await _channel.invokeMethod<String>('languagePack', {'language': language, 'download': download, 'voice': voice})) {
         'needsDownload' => LanguagePackState.needsDownload,
         'unsupported' => LanguagePackState.unsupported,
         _ => LanguagePackState.ready,

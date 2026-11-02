@@ -16,6 +16,7 @@ import '../../services/speech/speech_requirements.dart';
 import '../../services/storage/script_io.dart';
 import '../../ui/discard_changes_dialog.dart';
 import '../../ui/position_picker.dart';
+import '../../ui/language_pack_prompt.dart';
 import '../../ui/speech_language_prompt.dart';
 import '../../ui/prompt_text_controls.dart';
 import '../settings/preferences_screen.dart';
@@ -252,6 +253,8 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     if (!await _speechSettingReady()) return;
     if (!mounted) return;
     await confirmSpeechLanguage(context, ref, ref.read(studioProvider).script);
+    if (!mounted) return;
+    if (!await confirmLanguagePack(context, ref, ref.read(studioProvider).script)) return;
     if (!mounted) return;
     studio.start();
     // The built-in demo is never saved, so it never counts toward the free scripts.

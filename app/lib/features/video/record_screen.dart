@@ -23,6 +23,7 @@ import '../prompter/prompt_view.dart';
 import '../prompter/prompter_controller.dart';
 import '../read/reading_settings.dart';
 import '../read/script_editor_sheet.dart';
+import '../../ui/language_pack_prompt.dart';
 import '../../ui/voice_unsupported_dialog.dart';
 
 /// R2: in-app camera (front/back) with the prompter overlay docked at the
@@ -561,6 +562,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       if (_recording) return;
       if (mode == PromptControlMode.recordedAudio) _route = ReferenceRoute.speaker;
       _beginPrompter();
+    });
+    ref.listen(prompterProvider.select((p) => p.voiceNeedsPack), (_, needs) async {
+      if (!needs) return;
+      final studio = ref.read(studioProvider);
+      if (await confirmLanguagePack(context, ref, studio.script) && context.mounted) {
+        await ref.read(prompterProvider.notifier).play();
+      }
     });
     ref.listen(prompterProvider.select((p) => p.voiceUnsupported), (_, unsupported) {
       if (unsupported) showVoiceUnsupportedDialog(context, onUseNormal: _useNormal);

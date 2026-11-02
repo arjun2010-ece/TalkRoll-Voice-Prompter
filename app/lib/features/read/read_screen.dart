@@ -20,6 +20,7 @@ import '../prompter/prompt_surface.dart';
 import '../prompter/prompter_controller.dart';
 import '../prompter/tracking_status.dart';
 import 'reading_settings.dart';
+import '../../ui/language_pack_prompt.dart';
 import '../../ui/voice_unsupported_dialog.dart';
 import 'script_editor_sheet.dart';
 
@@ -168,6 +169,13 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
       );
     });
     ref.listen(prompterProvider.select((p) => p.playing), (_, playing) => _syncChrome(playing));
+    ref.listen(prompterProvider.select((p) => p.voiceNeedsPack), (_, needs) async {
+      if (!needs) return;
+      final studio = ref.read(studioProvider);
+      if (await confirmLanguagePack(context, ref, studio.script) && context.mounted) {
+        await ref.read(prompterProvider.notifier).play();
+      }
+    });
     ref.listen(prompterProvider.select((p) => p.voiceUnsupported), (_, unsupported) {
       if (unsupported) {
         showVoiceUnsupportedDialog(

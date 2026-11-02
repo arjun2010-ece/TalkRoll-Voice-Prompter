@@ -134,7 +134,12 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
     final shownLeft = pr.finished ? 0 : (left / 5).round() * 5;
 
     var section = '';
-    if (s.showSections) {
+    final run = ctrl.currentSection;
+    if (run != null && s.showSections) {
+      // Section by section: the section being run, as the prompter itself counts them.
+      final name = run.label;
+      section = '${name.length > 18 ? '${name.substring(0, 17)}…' : name} · ${run.index + 1} of ${ctrl.sections.length}  ·  ';
+    } else if (s.showSections) {
       final markers = sectionMarkers(script);
       final at = sectionIndexForWord(markers, index);
       if (at >= 0) {

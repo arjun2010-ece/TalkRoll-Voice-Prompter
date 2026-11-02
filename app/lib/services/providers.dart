@@ -344,6 +344,18 @@ class ScrollRemainingNotifier extends Notifier<double> {
 
 final scrollRemainingProvider = NotifierProvider<ScrollRemainingNotifier, double>(ScrollRemainingNotifier.new);
 
+/// Section by section: the section the next Start begins with (0 is the first). Set from the start options, so it is
+/// never stale; the prompter clamps it to the script it is given.
+class StartSectionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void set(int v) {
+    if (v != state) state = v;
+  }
+}
+
+final startSectionProvider = NotifierProvider<StartSectionNotifier, int>(StartSectionNotifier.new);
+
 /// Global shortcuts, persisted and layered over the platform defaults.
 class ShortcutsNotifier extends Notifier<Map<ShortcutAction, ShortcutBinding>> {
   static const key = 'EchoPrompter.shortcuts.v1';

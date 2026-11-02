@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
 
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/matching/script_tracker.dart';
 import '../../core/narration/alignment.dart';
 import '../../core/progress/reading_progress.dart';
+import '../../core/script/run_sections.dart';
 import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
@@ -48,6 +50,11 @@ class PrompterState {
     this.lost = false,
     this.voiceUnsupported = false,
     this.resetToken = 0,
+    this.sectionIndex = 0,
+    this.sectionDone = false,
+    this.sectionSeconds = 0,
+    this.jumpWord = -1,
+    this.jumpToken = 0,
   });
   final PromptReadingProgress progress;
   final bool playing;
@@ -67,6 +74,17 @@ class PrompterState {
   /// its scroll position when it changes.
   final int resetToken;
 
+  /// Section by section: the section being run, whether it has just ended (the prompter then waits for Retake, Next
+  /// or a jump), and how long it took.
+  final int sectionIndex;
+  final bool sectionDone;
+  final double sectionSeconds;
+
+  /// A request to put this word on the reading line (a Retake, Next or jump); the text surface acts when
+  /// [jumpToken] changes. -1 until there has been one.
+  final int jumpWord;
+  final int jumpToken;
+
   PrompterState copyWith({
     PromptReadingProgress? progress,
     bool? playing,
@@ -76,6 +94,11 @@ class PrompterState {
     bool? lost,
     bool? voiceUnsupported,
     int? resetToken,
+    int? sectionIndex,
+    bool? sectionDone,
+    double? sectionSeconds,
+    int? jumpWord,
+    int? jumpToken,
   }) => PrompterState(
     progress: progress ?? this.progress,
     playing: playing ?? this.playing,
@@ -85,6 +108,11 @@ class PrompterState {
     lost: lost ?? this.lost,
     voiceUnsupported: voiceUnsupported ?? this.voiceUnsupported,
     resetToken: resetToken ?? this.resetToken,
+    sectionIndex: sectionIndex ?? this.sectionIndex,
+    sectionDone: sectionDone ?? this.sectionDone,
+    sectionSeconds: sectionSeconds ?? this.sectionSeconds,
+    jumpWord: jumpWord ?? this.jumpWord,
+    jumpToken: jumpToken ?? this.jumpToken,
   );
 }
 
@@ -107,6 +135,8 @@ class PrompterController extends Notifier<PrompterState> {
   Timer? _narrationTicker;
   double? _audioSeconds;
   int _wordCount = 0;
+  List<RunSection> _sections = const [];
+  final _sectionClock = Stopwatch();
 
   @override
   PrompterState build() {
@@ -116,6 +146,15 @@ class PrompterController extends Notifier<PrompterState> {
   }
 
   int get wordCount => _wordCount;
+
+  /// The script's sections, for Section by section.
+  List<RunSection> get sections => _sections;
+
+  /// Whether the script is being run one section at a time (Run: Section by section, and the script has words).
+  bool get sectionRun => ref.read(settingsProvider).runStyle == RunStyle.sections && _sections.isNotEmpty;
+
+  /// The section being run, or null when running the whole script.
+  RunSection? get currentSection => sectionRun ? _sections[state.sectionIndex.clamp(0, _sections.length - 1)] : null;
 
   /// Audio mode: the recording's length and how far playback has got, for the time left.
   double? get audioSeconds => _audioSeconds;
@@ -127,6 +166,7 @@ class PrompterController extends Notifier<PrompterState> {
     required PromptControlMode mode,
     String? audioPath,
     Stream<Float32List>? externalSamples,
+    int startSection = 0,
   }) async {
     if (sessionId == _session && mode == _mode) return;
     await _teardown();
@@ -135,10 +175,13 @@ class PrompterController extends Notifier<PrompterState> {
     _script = script;
     _wordCount = scriptWords(script).length;
     _tracker = ScriptTracker(scriptWords(script));
-    state = PrompterState(resetToken: state.resetToken + 1);
+    _sections = runSections(script);
+    _sectionClock.reset();
+    state = PrompterState(resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     _externalSamples = externalSamples;
     _audioPath = audioPath;
     if (mode == PromptControlMode.recordedAudio) await _prepareAudio();
+    if (startSection > 0 && sectionRun) await goToSection(startSection);
   }
 
   Stream<Float32List>? _externalSamples;
@@ -147,6 +190,11 @@ class PrompterController extends Notifier<PrompterState> {
   Future<void> togglePlay() => state.playing ? pause() : play();
 
   Future<void> play() async {
+    // Pressing play on a finished section carries on: the next section, or a retake after the last one.
+    if (sectionRun && state.sectionDone) {
+      return state.sectionIndex < _sections.length - 1 ? nextSection() : retakeSection();
+    }
+    if (sectionRun) _sectionClock.start();
     switch (_mode) {
       case PromptControlMode.normal:
         state = state.copyWith(playing: true, finished: false);
@@ -164,6 +212,7 @@ class PrompterController extends Notifier<PrompterState> {
   }
 
   Future<void> pause() async {
+    _sectionClock.stop();
     switch (_mode) {
       case PromptControlMode.normal:
         break;
@@ -184,7 +233,8 @@ class PrompterController extends Notifier<PrompterState> {
   Future<void> restart() async {
     final wasMode = _mode;
     await pause();
-    state = PrompterState(preparing: state.preparing, status: state.status, resetToken: state.resetToken + 1);
+    _sectionClock.reset();
+    state = PrompterState(preparing: state.preparing, status: state.status, resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     if (wasMode == PromptControlMode.recordedAudio) await _clock?.seekToStart();
   }
 
@@ -198,10 +248,14 @@ class PrompterController extends Notifier<PrompterState> {
     }
     // Narration only: moving the audio back from the end reopens the script. Other modes keep their state as before.
     final reopen = _mode == PromptControlMode.recordedAudio && state.finished;
+    // Section by section: a tap in another section makes it the current one, and a tap in a finished section reopens it.
+    final run = sectionRun && _mode != PromptControlMode.normal;
     state = state.copyWith(
       lost: false,
-      finished: reopen ? false : null,
-      status: reopen ? 'Paused' : null,
+      finished: reopen || (run && state.sectionDone) ? false : null,
+      status: reopen || (run && state.sectionDone) ? 'Paused' : null,
+      sectionIndex: run ? runSectionIndexForWord(_sections, index) : null,
+      sectionDone: run ? false : null,
       progress: PromptReadingProgress.synchronized(
         confirmed: index,
         predicted: index + 1 < _wordCount ? index + 1 : null,
@@ -211,6 +265,82 @@ class PrompterController extends Notifier<PrompterState> {
 
   /// Normal mode reached the end of the script.
   void markFinished() => state = state.copyWith(playing: false, finished: true);
+
+  // --- Section by section ----------------------------------------------------
+
+  /// The section ended: stop listening or playing and wait for Retake, Next or a jump. The last section's end is also
+  /// the end of the script.
+  Future<void> endSection() async {
+    final section = currentSection;
+    if (section == null || state.sectionDone) return;
+    final last = section.index >= _sections.length - 1;
+    final map = _alignment;
+    final seconds = _mode == PromptControlMode.recordedAudio && map != null
+        ? _sectionEndSeconds(section, map) - _sectionStartSeconds(section, map)
+        : _sectionClock.elapsedMilliseconds / 1000.0;
+    // Mark it first, so a result that arrives while the recogniser shuts down cannot end the section twice.
+    state = state.copyWith(sectionDone: true, sectionSeconds: seconds);
+    await pause();
+    state = state.copyWith(playing: false, finished: last, status: last ? 'Finished' : 'Section done');
+  }
+
+  /// Puts the prompter at the first word of section [index] and waits there, or starts it when [play] is true.
+  Future<void> goToSection(int index, {bool play = false}) async {
+    if (_sections.isEmpty) return;
+    final i = index.clamp(0, _sections.length - 1);
+    final section = _sections[i];
+    await pause();
+    _sectionClock.reset();
+    _clearLost();
+    final word = section.startWord;
+    final map = _alignment;
+    if (_mode == PromptControlMode.recordedAudio && map != null) {
+      await _clock?.seek(_clockPositionFor(_sectionStartSeconds(section, map)));
+    }
+    _tracker?.syncTo(word - 1);
+    state = state.copyWith(
+      sectionIndex: i,
+      sectionDone: false,
+      finished: false,
+      lost: false,
+      status: _mode == PromptControlMode.recordedAudio ? 'Paused' : '',
+      sectionSeconds: 0,
+      // Narration puts its first word on the reading line; Voice and Auto-scroll wait for the first word, with
+      // nothing highlighted or dimmed (Voice's matcher is started at the section by `_onHypothesis`).
+      progress: _mode == PromptControlMode.recordedAudio && word > 0
+          ? PromptReadingProgress.synchronized(confirmed: word, predicted: word + 1 < _wordCount ? word + 1 : null)
+          : PromptReadingProgress.inactive,
+      jumpWord: word,
+      jumpToken: state.jumpToken + 1,
+    );
+    if (play) await this.play();
+  }
+
+  /// Runs the current section again from its first word.
+  Future<void> retakeSection() => goToSection(state.sectionIndex, play: true);
+
+  /// Carries on with the next section. Does nothing after the last.
+  Future<void> nextSection() async {
+    if (state.sectionIndex >= _sections.length - 1) return;
+    await goToSection(state.sectionIndex + 1, play: true);
+  }
+
+  /// Run style or sections changed while the prompter is open: the section holding the reading position becomes the
+  /// current one, or the run goes back to the whole script.
+  void refreshRunStyle() {
+    final word = _mode == PromptControlMode.normal ? ref.read(readingWordProvider) : state.progress.confirmedWordIndex;
+    state = state.copyWith(
+      sectionIndex: sectionRun ? runSectionIndexForWord(_sections, math.max(word, 0)) : 0,
+      sectionDone: false,
+    );
+  }
+
+  /// Where section [s] starts in the recording: the start of the file for the first section, else its first word.
+  double _sectionStartSeconds(RunSection s, AlignmentMap map) => s.index == 0 ? 0 : map.timeOfWord(s.startWord);
+
+  /// Where section [s] ends in the recording: where the next section's first word starts, or the end of the file.
+  double _sectionEndSeconds(RunSection s, AlignmentMap map) =>
+      s.endWord < map.wordCount ? map.timeOfWord(s.endWord) : map.duration;
 
   // --- Voice ---------------------------------------------------------------
 
@@ -289,9 +419,12 @@ class PrompterController extends Notifier<PrompterState> {
   /// Every recogniser result goes to the tracker, as the reference does (`ud.q`); blank ones carry nothing.
   void _onHypothesis(SpeechHypothesis h) {
     final tracker = _tracker;
-    if (tracker == null) return;
+    // A finished section ignores speech until Retake, Next or a jump.
+    if (tracker == null || state.sectionDone) return;
     if (h.text.trim().isNotEmpty) {
-      tracker.syncTo(state.progress.confirmedWordIndex);
+      // A section that has not heard its first word yet starts the matcher at the section, not at the script's start.
+      final start = currentSection?.startWord ?? 0;
+      tracker.syncTo(math.max(state.progress.confirmedWordIndex, start - 1));
       final moved = tracker.update(h.text, _trackerClock.elapsedMilliseconds);
       if (moved == null) {
         // Speech that keeps not matching means the reader is out of step.
@@ -307,6 +440,8 @@ class PrompterController extends Notifier<PrompterState> {
           lost: false,
           finished: moved >= _wordCount,
         );
+        final section = currentSection;
+        if (section != null && confirmed >= section.endWord - 1) unawaited(endSection());
       }
     }
     if (h.isFinal) {
@@ -347,6 +482,7 @@ class PrompterController extends Notifier<PrompterState> {
       _clock = clock;
       _completedSub = clock.completed.listen((_) async {
         if (_clock != clock) return;
+        if (sectionRun) return endSection();
         await pause();
         state = state.copyWith(finished: true, status: 'Finished');
       });
@@ -387,7 +523,14 @@ class PrompterController extends Notifier<PrompterState> {
     if (map == null || clock == null || map.wordCount == 0) return;
     final offset = ref.read(settingsProvider).narrationOffsetMs;
     final seconds = (clock.position.inMilliseconds + offset) / 1000.0;
-    final word = map.wordIndexAt(seconds).clamp(0, map.wordCount - 1);
+    final section = currentSection;
+    if (section != null && !state.sectionDone && seconds >= _sectionEndSeconds(section, map)) {
+      // Play only this section's part of the recording, then wait.
+      unawaited(endSection());
+      return;
+    }
+    var word = map.wordIndexAt(seconds).clamp(0, map.wordCount - 1);
+    if (section != null) word = word.clamp(section.startWord, section.endWord - 1);
     if (word == state.progress.confirmedWordIndex) return;
     state = state.copyWith(
       progress: PromptReadingProgress.synchronized(confirmed: word, predicted: word + 1 < _wordCount ? word + 1 : null),
@@ -398,9 +541,19 @@ class PrompterController extends Notifier<PrompterState> {
   Future<void> skip(Duration delta) async {
     final clock = _clock;
     if (_mode != PromptControlMode.recordedAudio || clock == null) return;
-    final target = clock.position + delta;
+    var target = clock.position + delta;
+    final section = currentSection, map = _alignment;
+    if (section != null && map != null) {
+      // Inside the section: the audio does not run on into the next one or back into the last.
+      final from = _clockPositionFor(_sectionStartSeconds(section, map));
+      final to = _clockPositionFor(_sectionEndSeconds(section, map)) - const Duration(milliseconds: 100);
+      if (target < from) target = from;
+      if (target > to) target = to < from ? from : to;
+    }
     await clock.seek(target < Duration.zero ? Duration.zero : target);
-    if (state.finished) state = state.copyWith(finished: false, status: state.playing ? 'Playing' : 'Paused');
+    if (state.finished || state.sectionDone) {
+      state = state.copyWith(finished: false, sectionDone: false, status: state.playing ? 'Playing' : 'Paused');
+    }
     _followPlayback();
   }
 

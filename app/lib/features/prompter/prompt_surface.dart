@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -93,6 +94,15 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
   WordLayout? _layout;
   Object? _layoutKey;
   int _resetToken = -1;
+  int _jumpToken = 0;
+
+  /// Auto-scroll, Section by section: the offset at which the current section's last word reaches the reading
+  /// line, where scrolling stops. Infinite when the whole script is being run.
+  double _sectionLimit = double.infinity;
+  double _sectionFrom = 0;
+
+  /// Where a Retake, Next, jump or Start from section put the text; kept through the reset a new session makes.
+  double? _jumpTarget;
   bool _wakelocked = false;
   double _anchorY = 0;
   double _topPad = 0;
@@ -127,10 +137,12 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
   }
 
   void _reset() {
-    _offset = 0;
-    _followTarget = 0;
+    final keep = _jumpTarget ?? 0;
+    _offset = keep;
+    _sectionFrom = keep;
+    _followTarget = keep;
     _lastConfirmed = -1;
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    if (_scroll.hasClients) _scroll.jumpTo(keep.clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
     if (!widget.isPreview) {
       ref.read(readingWordProvider.notifier).set(0);
       _publishRemaining();
@@ -162,11 +174,20 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
     final pr = ref.read(prompterProvider);
     final max = _scroll.position.maxScrollExtent;
     if (settings.mode == PromptControlMode.normal) {
-      if (!pr.playing) return _sleep();
+      if (!pr.playing || pr.sectionDone) return _sleep();
+      // A Retake, Next or jump is waiting for the next build to move the text; until then the old section's stop
+      // point no longer applies.
+      if (pr.jumpToken != _jumpToken) return;
       _offset += settings.speed * dt;
-      if (_offset >= max) {
-        _offset = max;
-        ref.read(prompterProvider.notifier).markFinished();
+      final stop = math.min(max, _sectionLimit);
+      if (_offset >= stop) {
+        _offset = stop;
+        final controller = ref.read(prompterProvider.notifier);
+        if (_sectionLimit.isFinite) {
+          unawaited(controller.endSection());
+        } else {
+          controller.markFinished();
+        }
       }
     } else if ((_followTarget - _offset).abs() > 0.05) {
       // Frame-rate independent exponential easing toward the spoken word.
@@ -258,6 +279,35 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       }
       final layout = _layout!;
 
+      // A Retake, Next or jump: put that word on the reading line, whatever the mode.
+      if (!preview && pr.jumpToken != _jumpToken) {
+        _jumpToken = pr.jumpToken;
+        if (pr.jumpWord >= 0 && pr.jumpWord < layout.ranges.length) {
+          _offset = math.max(0.0, topPad + layout.midY(pr.jumpWord) - anchorY);
+          _followTarget = _offset;
+          _sectionFrom = _offset;
+          _jumpTarget = _offset;
+          _lastConfirmed = pr.progress.confirmedWordIndex;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _jumpTarget = null;
+            if (!mounted || !_scroll.hasClients) return;
+            _scroll.jumpTo(_offset.clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
+            // Tell the progress line where the reading line is now, without waiting for the next report.
+            _lastReport = -10;
+            _reportReadingWord(0);
+            _wake();
+          });
+        }
+      }
+      // Auto-scroll runs one section at a time: it stops where the section's last word reaches the reading line.
+      final section = !preview && settings.mode == PromptControlMode.normal ? ref.read(prompterProvider.notifier).currentSection : null;
+      if (section != null && section.endWord - 1 < layout.ranges.length) {
+        final end = math.max(0.0, topPad + layout.midY(section.endWord - 1) - anchorY);
+        _sectionLimit = math.max(end, _sectionFrom + fontSize * settings.lineSpacing);
+      } else {
+        _sectionLimit = double.infinity;
+      }
+
       if (preview && layout.ranges.isNotEmpty) {
         final word = widget.previewWordIndex!.clamp(0, layout.ranges.length - 1);
         final target = math.max(0.0, topPad + layout.midY(word) - anchorY);
@@ -281,6 +331,9 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
           final next = layout.paragraphStartWithin(idx, PromptSurface._paragraphLookWords);
           if (next != null) scrollWord = math.max(scrollWord, next);
         }
+        // Section by section: the text stays within the section being read, so it never runs ahead into the next one.
+        final run = ref.read(prompterProvider.notifier).currentSection;
+        if (run != null) scrollWord = math.min(scrollWord, run.endWord - 1);
         // Never pull the prompt backward for a short-lived predictive cue, but do follow the
         // confirmed word when it moves back (the reader repeated a passage or tapped an earlier word).
         final target = math.max(0.0, topPad + layout.midY(scrollWord) - anchorY);

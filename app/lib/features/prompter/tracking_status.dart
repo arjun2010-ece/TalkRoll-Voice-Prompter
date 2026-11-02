@@ -19,11 +19,12 @@ class TrackingStatus {
 }
 
 /// Statuses the controller reports that are not problems.
-const _benignStatuses = {'', 'Listening', 'Playing', 'Paused', 'Finished', 'Ready — press Play'};
+const _benignStatuses = {'', 'Listening', 'Playing', 'Paused', 'Finished', 'Section done', 'Ready — press Play'};
 
 TrackingStatus trackingStatusFor(PromptControlMode mode, PrompterState pr, String? audioPath) {
   if (mode == PromptControlMode.normal) {
     if (pr.finished) return const TrackingStatus(Tracking.finished, 'End of script');
+    if (pr.sectionDone) return const TrackingStatus(Tracking.finished, 'Section done');
     return pr.playing ? const TrackingStatus(Tracking.scrolling, 'Scrolling') : const TrackingStatus(Tracking.paused, 'Paused');
   }
   if (pr.preparing) return const TrackingStatus(Tracking.preparing, 'Syncing audio…');
@@ -34,6 +35,7 @@ TrackingStatus trackingStatusFor(PromptControlMode mode, PrompterState pr, Strin
     return const TrackingStatus(Tracking.unavailable, 'Unavailable', detail: 'Choose an audio file in settings');
   }
   if (pr.finished) return const TrackingStatus(Tracking.finished, 'End of script');
+  if (pr.sectionDone) return const TrackingStatus(Tracking.finished, 'Section done');
   if (pr.playing && pr.lost) {
     return const TrackingStatus(
       Tracking.lost,

@@ -83,6 +83,37 @@ Commits: see the `Run styles` commits after `31bf96c` (model and settings, contr
 - **Per-section video clips and export** belong to §4 and are not part of this section.
 - The Android emulator's microphone only hears speech played from the Mac, so Voice was tested that way, not with a real voice.
 
+## iPhone run (iPhone 15 Pro Max, iOS 26.6.2, debug build over USB)
+
+Driven by a small script that sends touches through the Dart VM service, with screenshots from `devicectl`. Live logs were read from `flutter run`.
+
+### Passed on the iPhone
+
+- **§0 (mode names):** Auto-scroll, Voice and Narration show everywhere on the reader, the sheet and the camera screen.
+- **§1 Narration:** the recording (47 s, four sections) was transcribed on the phone by Apple's on-device recogniser and matched the script at 97%. The Sync offset slider shows. "Following audio" highlights the words in step with the audio. Back/Forward 5 s, Restart and the time-left readout work. The camera result screen saved the video ("Saved to your gallery, 00:47, 1080p"), with the Camera, Microphone and Photos permission prompts shown once.
+- **§2 Run styles, Auto-scroll:** stops at the end of each section, Next, the Sections sheet (with the done/current/next marks), jump to a section, and the last-section card with no Next button.
+- **§2 Run styles, Voice:** the iPhone microphone heard speech played from the Mac, followed it word by word, stopped at the end of section 1 and then section 2, and Next carried on.
+- **§2 Run styles, Narration:** plays only the section's part of the audio and stops; Forward 5 s stays inside the section; Back 5 s, Retake and Next work.
+- **§2 on the camera screen:** Narration with the camera records while the audio plays one section at a time. The section-done card sits over the camera and the recording keeps going.
+
+### Bug found and fixed (iOS only)
+
+- On iOS, "Use Narration + camera" (and any change from the reader that depends on what was applied) did nothing: the sheet's future finished before the choices were applied, so the reader saw "nothing applied" and stayed on the reader. Fixed in `features/studio/start_options.dart` by waiting for the apply step on iOS only (`isApple`). Android and macOS take the same path as before. Re-tested on the iPhone: it now opens the camera screen.
+
+### Not covered on the iPhone yet
+
+- **Whole-script regression (all three modes)** and **Run styles on Whole script**.
+- **Light theme, landscape, iPad.**
+- **Voice with the camera**, Retake and Next on the camera screen, and the Sections sheet over the camera.
+- **Chinese, Thai and Portuguese Narration** (the Apple letter-by-letter alignment).
+- **A Narration file over about 3 minutes**, airplane mode, and Speech Recognition permission denied.
+
+### Notes
+
+- Xcode rewrote `ios/Runner.xcodeproj/project.pbxproj` (project format and team ID) and reordered `ios/Runner/Info.plist` during the iPhone build. Those are generated changes, not part of this work.
+- In Narration, the camera option still says "Voice only / Voice + camera" (copy to revisit).
+- My touch driver sometimes causes "Build scheduled during frame" asserts in the log. They come from synthetic touches arriving mid-frame, not from a user path.
+
 ## §3 onward
 
 Not started.

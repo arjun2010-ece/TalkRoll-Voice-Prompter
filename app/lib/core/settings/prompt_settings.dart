@@ -5,6 +5,9 @@ enum StudioAppearance { dark, light }
 
 enum PromptControlMode { normal, voice, recordedAudio }
 
+/// How a script is run: straight through, or one section at a time, stopping at the end of each.
+enum RunStyle { whole, sections }
+
 /// Largest Narration sync offset either way, in milliseconds.
 const maxNarrationOffsetMs = 500;
 
@@ -62,6 +65,7 @@ class PromptSettings {
     this.mirror = false,
     this.rotated = false,
     this.mode = PromptControlMode.normal,
+    this.runStyle = RunStyle.whole,
     this.placement = PromptPlacement.floating,
     this.corner = PromptCorner.topRight,
     this.hideFromCapture = true,
@@ -88,6 +92,7 @@ class PromptSettings {
   /// Rotate the text 180° (mobile glass rigs only; desktop OSes rotate displays).
   final bool rotated;
   final PromptControlMode mode;
+  final RunStyle runStyle;
   final PromptPlacement placement;
   final PromptCorner corner;
   final bool hideFromCapture;
@@ -136,6 +141,7 @@ class PromptSettings {
     bool? mirror,
     bool? rotated,
     PromptControlMode? mode,
+    RunStyle? runStyle,
     PromptPlacement? placement,
     PromptCorner? corner,
     bool? hideFromCapture,
@@ -157,6 +163,7 @@ class PromptSettings {
     mirror: mirror ?? this.mirror,
     rotated: rotated ?? this.rotated,
     mode: mode ?? this.mode,
+    runStyle: runStyle ?? this.runStyle,
     placement: placement ?? this.placement,
     corner: corner ?? this.corner,
     hideFromCapture: hideFromCapture ?? this.hideFromCapture,
@@ -180,6 +187,7 @@ class PromptSettings {
     'mirror': mirror,
     'rotated': rotated,
     'mode': mode.name,
+    'runStyle': runStyle.name,
     'placement': placement.name,
     'corner': corner.name,
     'hideFromCapture': hideFromCapture,
@@ -209,6 +217,7 @@ class PromptSettings {
       mirror: j['mirror'] as bool? ?? d.mirror,
       rotated: j['rotated'] as bool? ?? d.rotated,
       mode: e(PromptControlMode.values, j['mode'], d.mode),
+      runStyle: e(RunStyle.values, j['runStyle'], d.runStyle),
       placement: e(PromptPlacement.values, j['placement'], d.placement),
       corner: e(PromptCorner.values, j['corner'], d.corner),
       hideFromCapture: j['hideFromCapture'] as bool? ?? d.hideFromCapture,

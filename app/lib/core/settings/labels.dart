@@ -53,6 +53,21 @@ extension PromptControlModeLabel on PromptControlMode {
   };
 }
 
+extension RunStyleLabel on RunStyle {
+  String get label => switch (this) {
+    RunStyle.whole => 'Whole script',
+    RunStyle.sections => 'Section by section',
+  };
+
+  /// One line under the Run picker; Narration plays only the section's part of the recording.
+  String explanation(PromptControlMode mode) => switch (this) {
+    RunStyle.whole => 'Reads straight through, as before.',
+    RunStyle.sections =>
+      'Stops at the end of each section. Retake it, go on, or jump to any section.'
+          '${mode == PromptControlMode.recordedAudio ? ' Plays only that part of the narration.' : ''}',
+  };
+}
+
 extension PromptCornerLabel on PromptCorner {
   String get label => switch (this) {
     PromptCorner.topLeft => 'Top left',

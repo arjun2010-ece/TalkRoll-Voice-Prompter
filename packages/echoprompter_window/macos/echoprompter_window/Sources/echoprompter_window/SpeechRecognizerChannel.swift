@@ -23,6 +23,8 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
     private var task: SFSpeechRecognitionTask?
     private var generation = 0 // bumped whenever a session ends; callbacks of older ones are ignored
     private var running = false
+    private var live: Any? // the newer engine's LiveAnalyzer while it is the one listening (iOS 26, macOS 26)
+    private var listenToken = 0 // bumped when a listen ends, so a newer engine still starting knows to give up
     private var failures = 0 // consecutive service failures; five give up
     private var onDeviceFailed = false // on-device recognition failed for this language; use Apple's servers instead
     private var dictationErrors = 0 // consecutive Dictation-off errors (201); the second gives up
@@ -159,14 +161,24 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
             return nil
         }
         let tag = (arguments as? [String: Any])?["language"] as? String ?? "en-US"
+        if #available(iOS 26, macOS 26, *) {
+            listenWithAnalyzer(tag: tag)
+        } else {
+            listenLegacy(tag: tag)
+        }
+        return nil
+    }
+
+    /// Listens with the older recogniser (`SFSpeechRecognizer`).
+    private func listenLegacy(tag: String) {
         let name = Locale(identifier: "en").localizedString(forIdentifier: tag) ?? tag
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: tag)) else {
             fail("language", "This Mac can't recognise \(name). Add it in System Settings > Keyboard > Dictation > Languages, stay online, and wait for the download to finish.")
-            return nil
+            return
         }
         guard recognizer.isAvailable else {
             fail("language", "Speech recognition can't recognise \(name) right now. Add it in System Settings > Keyboard > Dictation > Languages, stay online, and wait for the download to finish.")
-            return nil
+            return
         }
         self.recognizer = recognizer
         // No offline model for this language yet: use the servers now and ask the system to fetch the model for later.
@@ -188,7 +200,65 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
                 self.startSession()
             }
         }
-        return nil
+    }
+
+    /// Voice on Apple's newer engines where they know the language (every language but English, which stays on the
+    /// older recogniser): the same models and packs as Narration, no one-minute sessions to restart, and no dependence
+    /// on which Dictation languages the system happens to have. The older recogniser is the fallback when the newer
+    /// engine does not know the language or cannot start.
+    @available(iOS 26, macOS 26, *)
+    private func listenWithAnalyzer(tag: String) {
+        listenToken += 1
+        let token = listenToken
+        Task { [weak self] in
+            let engine = await LiveAnalyzer.make(language: tag)
+            var started = false
+            if let engine {
+                engine.onHypothesis = { text, final in
+                    DispatchQueue.main.async { if let self, token == self.listenToken { self.emit(text, final: final) } }
+                }
+                engine.onFailure = { _ in
+                    DispatchQueue.main.async { if let self, token == self.listenToken { self.analyzerFailed(tag: tag) } }
+                }
+                do { try await engine.start(); started = true } catch {}
+            }
+            await MainActor.run {
+                guard let self, token == self.listenToken, self.sink != nil else {
+                    if started, let engine { Task { await engine.stop() } }
+                    return
+                }
+                if started, let engine {
+                    self.live = engine
+                    self.beginAnalyzerCapture()
+                } else {
+                    self.listenLegacy(tag: tag)
+                }
+            }
+        }
+    }
+
+    /// The newer engine stopped working while listening: carry on with the older recogniser.
+    @available(iOS 26, macOS 26, *)
+    private func analyzerFailed(tag: String) {
+        stop()
+        listenLegacy(tag: tag)
+    }
+
+    /// Starts the microphone for the newer engine.
+    private func beginAnalyzerCapture() {
+        running = true
+        captureAttempts = 0
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            DispatchQueue.main.async {
+                guard self.running else { return }
+                guard granted, self.startCapture() else {
+                    self.stop()
+                    self.fail("unavailable", "Microphone access is needed for Voice control")
+                    return
+                }
+                self.emit("", final: true) // an empty final at the start, so the tracker re-anchors
+            }
+        }
     }
 
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
@@ -454,6 +524,9 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
 
     private func stop() {
         running = false
+        listenToken += 1
+        if #available(iOS 26, macOS 26, *), let engine = live as? LiveAnalyzer { Task { await engine.stop() } }
+        live = nil
         restartTimer?.invalidate(); restartTimer = nil
         endSession()
         stopCapture()
@@ -469,6 +542,10 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler, AVCaptureAu
             guard self.running else { return }
             self.buffersSeen += 1
             self.captureAttempts = 0
+            if #available(iOS 26, macOS 26, *), let engine = self.live as? LiveAnalyzer {
+                engine.feed(buffer)
+                return
+            }
             if let req = self.request {
                 req.append(buffer)
                 return

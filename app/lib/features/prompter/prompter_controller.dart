@@ -14,6 +14,7 @@ import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
 import '../../services/audio/reference_clock.dart';
+import '../../services/narration/language_pack.dart';
 import '../../services/narration/narration_store.dart';
 import '../../services/providers.dart';
 import '../../services/speech/native_speech_recognizer.dart';
@@ -373,7 +374,6 @@ class PrompterController extends Notifier<PrompterState> {
     _nativeVoice = true;
     _tracker?.syncTo(state.progress.confirmedWordIndex);
     await _sendBias(native);
-    state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false);
     // The Record screen records the microphone, so the recogniser may not open it itself (reference: Video mode).
     final setting = ref.read(settingsProvider).speechLanguage;
     final auto = setting == autoSpeechLanguage;
@@ -384,6 +384,26 @@ class PrompterController extends Notifier<PrompterState> {
       detected: auto ? await native.detectLanguage(_script) : null,
       supported: auto ? await native.supportedLanguages() : const [],
     );
+    state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false);
+    // Apple's speech models for the language are fetched once, here, with their progress as the status, so Voice then
+    // listens on this device (Portuguese with Apple's newer engine, the other languages with the older recogniser,
+    // which uses the same downloaded models) and works offline from then on. English ships with the system, and the
+    // other platforms have nothing to fetch. If a download fails the recogniser still starts and does what it can.
+    if (!language.toLowerCase().startsWith('en')) {
+      final watch = ref.listen(languagePackProvider, (_, s) {
+        final note = s.note;
+        if (s.phase == LanguagePackPhase.downloading && note != null && _nativeVoice) state = state.copyWith(status: note);
+      });
+      try {
+        await ref.read(languagePackProvider.notifier).ensure(language);
+      } catch (_) {
+        // The recogniser below reports what it cannot do.
+      } finally {
+        watch.close();
+      }
+      if (!_nativeVoice) return; // paused or closed while the pack downloaded
+      state = state.copyWith(status: 'Listening');
+    }
     _voiceSub = native.hypotheses(micFallback: _externalSamples == null, headsetMic: _mode != PromptControlMode.recordedAudio, language: language).listen(_onHypothesis, onError: (Object e) {
       final sub = _voiceSub;
       _nativeVoice = false;

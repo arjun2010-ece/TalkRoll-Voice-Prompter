@@ -1,48 +1,108 @@
 # Languages EchoPrompter supports on Apple devices
 
-For the App Review notes and the store description. Measured on an iPhone 15 Pro Max (iOS 26.6.2) on 2026-11-02, with a test passage per language spoken by macOS text-to-speech voices (not real speech yet). Score = share of the script's letters found, in order, in what Apple's engine returned.
+For the App Review notes and the store description. Measured on an iPhone 15 Pro Max (iOS 26.6.2) on 2026-11-02 and 2026-11-03, with test passages spoken by macOS text-to-speech voices (not real speech yet).
 
-## The 33 languages
+## The 33 languages: two separate records
 
-Apple's speech recognition covers **33 languages** on iOS 26 and macOS 26 and later (Narration, and Voice mode through the newer engines). Both of Apple's newer engines run on the device: the speech is not sent anywhere. The first use of a language downloads its language pack from Apple once (a few seconds to a minute); after that the language works offline.
+Apple's speech recognition covers **33 languages** on iOS 26 and macOS 26 and later. Narration and Voice mode are measured separately below, because they use different recognisers and a language can work in one and not the other. Both run on the device; a language's pack downloads from Apple once (see "Language packs" further down).
 
-| Language | Code | Engine | Narration score |
+### Voice mode (whole script, voice only), measured 2026-11-03
+
+Method: for each language a two-paragraph script (70 to 240 words or characters) was read aloud by a macOS text-to-speech voice from the Mac's speaker, and the iPhone's microphone listened through Voice mode with the reading language set to that language. The prompter's own tracker counted how many script words the highlight reached. The harness drove the app's real Voice controller (the same code as the Play button), downloading any missing pack first as if the reader had agreed. One run per language; none fell below the 70% bar that would have called for a rerun.
+
+| Language | Tag tested | Words followed | Engine used in the test |
 |---|---|---|---|
-| Arabic | ar | Dictation | 98% |
-| Catalan | ca | Dictation | 96% |
-| Cantonese (Hong Kong) | yue | Speech | transcript turned into Traditional characters, matches the script |
-| Chinese (Simplified, Traditional) | zh | Speech | 89% |
-| Croatian | hr | Dictation | 91% |
-| Czech | cs | Dictation | 100% |
-| Danish | da | Dictation | 94% |
-| Dutch | nl | Dictation | 100% |
-| English (US, UK, AU, CA, IN, IE, NZ, SG, ZA) | en | Speech | 100% (300 of 300 words; 3:59 file 787 of 790) |
-| Finnish | fi | Dictation | 93% |
-| French (France, Canada, Belgium, Switzerland) | fr | Speech | 91% |
-| German | de | Speech | 100% |
-| Greek | el | Dictation | 97% |
-| Hebrew | he | Dictation | 98% |
-| Hindi | hi | Dictation | 93% |
-| Hungarian | hu | Dictation | 99% |
-| Indonesian | id | Dictation | 99% |
-| Italian | it | Speech | 100% |
-| Japanese | ja | Speech | 98% |
-| Korean | ko | Speech | 96% |
-| Malay | ms | Dictation | 99% |
-| Norwegian Bokmål | nb | Dictation | 99% |
-| Polish | pl | Dictation | 92% |
-| Portuguese (Brazil, Portugal) | pt | Speech | 100% (Brazil tested) |
-| Romanian | ro | Dictation | 96% |
-| Russian | ru | Dictation | 99% |
-| Slovak | sk | Dictation | 97% |
-| Spanish (Spain, Mexico, US, Chile) | es | Speech | 98% |
-| Swedish | sv | Dictation | 97% |
-| Thai | th | Dictation | 96% |
-| Turkish | tr | Dictation | 98% |
-| Ukrainian | uk | Dictation | 100% |
-| Vietnamese | vi | Dictation | 95% |
+| Arabic | ar-SA | 77 of 77 (100%) | older recogniser |
+| Catalan | ca-ES | 98 of 98 (100%) | older |
+| Cantonese (Hong Kong) | yue-Hant-HK | 155 of 155 (100%) | newer |
+| Chinese (Simplified) | zh-CN | 175 of 175 (100%) | older |
+| Croatian | hr-HR | 84 of 84 (100%) | older |
+| Czech | cs-CZ | 83 of 83 (100%) | older |
+| Danish | da-DK | 101 of 101 (100%) | older |
+| Dutch | nl-NL | 100 of 100 (100%) | older |
+| English | en-US | 299 of 300 (earlier run, one paragraph pair of 300 words) | older |
+| Finnish | fi-FI | 70 of 71 (99%) | older |
+| French | fr-FR | 97 of 105 (92%) | older |
+| German | de-DE | 102 of 102 (100%) | newer |
+| Greek | el-GR | 96 of 96 (100%) | older |
+| Hebrew | he-IL | 77 of 78 (99%) | older |
+| Hindi | hi-IN | 118 of 118 (100%) | older |
+| Hungarian | hu-HU | 80 of 80 (100%) | older |
+| Indonesian | id-ID | 90 of 90 (100%) | older |
+| Italian | it-IT | 96 of 96 (100%) | newer |
+| Japanese | ja-JP | 240 of 240 characters (100%) | newer |
+| Korean | ko-KR | 70 of 70 (100%) | newer |
+| Malay | ms-MY | 89 of 91 (98%) | older |
+| Norwegian Bokmål | nb-NO | 98 of 98 (100%) | older |
+| Polish | pl-PL | 81 of 82 (99%) | older |
+| Portuguese | pt-BR | 90 of 90 (100%) | newer |
+| Romanian | ro-RO | 96 of 96 (100%) | older |
+| Russian | ru-RU | 86 of 86 (100%) | older |
+| Slovak | sk-SK | 82 of 83 (99%) | older |
+| Spanish | es-ES | 101 of 101 (100%) | newer |
+| Swedish | sv-SE | 98 of 98 (100%) | older |
+| Thai | th-TH | 16 of 16 whitespace words (100%); Thai is followed by letters, so this is a weaker measure | older |
+| Turkish | tr-TR | 74 of 74 (100%) | older |
+| Ukrainian | uk-UA | 84 of 84 (100%) | older |
+| Vietnamese | vi-VN | 136 of 136 (100%) | older |
 
-"Speech" is Apple's newer `SpeechTranscriber` (10 languages); "Dictation" is `DictationTranscriber` (the other 23). The app picks the engine itself.
+Result: **all 33 languages followed in Voice mode on this phone, 92% to 100%, no failures.** Other tags of the same language (en-GB, pt-PT, es-MX, fr-CA, zh-TW and so on) were not run.
+
+Read these with care:
+
+- **"Older" and "newer" depended on what the phone already had.** Voice uses the older recogniser where it reports an on-device model for the language at that moment, and the newer engine otherwise (always for Portuguese). On this phone, many languages had an older on-device model only because their dictation pack had been installed earlier by Narration tests. On a phone where that pack was never installed, those languages would use the newer engine instead and would first ask to download its pack. That path was measured for Portuguese, Russian, German, Turkish, Vietnamese and Chinese earlier, not for each language again.
+- **Synthetic speech, one phone, one run each.** A real voice, background noise, other iPhones and iOS versions are untested. Text-to-speech through a speaker is cleaner than most people, so real-world numbers may be lower.
+- **English** was measured earlier (299 of 300 words in one run), not in this batch.
+
+### Narration mode (a recorded file transcribed on the device, then played with the highlight), measured 2026-11-03
+
+Method: for each language the same two-paragraph script as the Voice test was spoken by a macOS text-to-speech voice and saved as an audio file. The app transcribed the file on the phone (downloading any missing pack first), lined the transcript up with the script, and played the file through the real Narration controller; the prompter's own tracker counted how many script words the highlight reached. Narration engine: "Speech" is Apple's newer `SpeechTranscriber` (10 languages), "Dictation" is `DictationTranscriber` (the other 23); the app picks it. One run per language.
+
+| Language | Code | Engine | How well the transcript matches the script | Playback highlight |
+|---|---|---|---|---|
+| Arabic | ar | Dictation | 95% of script words found in the transcript | highlight reached 77 of 77 (end of script) |
+| Cantonese (Hong Kong) | yue | Speech | 95% of script words found in the transcript | highlight reached 155 of 155 (end of script) |
+| Catalan | ca | Dictation | 94% of script words found in the transcript | highlight reached 98 of 98 (end of script) |
+| Chinese | zh | Speech | 89% of script words found in the transcript | highlight reached 175 of 175 (end of script) |
+| Croatian | hr | Dictation | 86% of script words found in the transcript | highlight reached 84 of 84 (end of script) |
+| Czech | cs | Dictation | 98% of script words found in the transcript | highlight reached 83 of 83 (end of script) |
+| Danish | da | Dictation | 91% of script words found in the transcript | highlight reached 101 of 101 (end of script) |
+| Dutch | nl | Dictation | 98% of script words found in the transcript | highlight reached 100 of 100 (end of script) |
+| English | en | Speech | 299 of 300 transcribed words earlier (3:59 file 787 of 790); not in the two-paragraph batch | not run in the batch |
+| Finnish | fi | Dictation | 86% of script words found in the transcript | highlight reached 71 of 71 (end of script) |
+| French | fr | Speech | 85% of script words found in the transcript | highlight reached 105 of 105 (end of script) |
+| German | de | Speech | 99% of script words found in the transcript | highlight reached 102 of 102 (end of script) |
+| Greek | el | Dictation | 92% of script words found in the transcript | highlight reached 96 of 96 (end of script) |
+| Hebrew | he | Dictation | 96% of script words found in the transcript | highlight reached 78 of 78 (end of script) |
+| Hindi | hi | Dictation | 84% of script words found in the transcript | highlight reached 118 of 118 (end of script) |
+| Hungarian | hu | Dictation | 93% of script words found in the transcript | highlight reached 80 of 80 (end of script) |
+| Indonesian | id | Dictation | 99% of script words found in the transcript | highlight reached 90 of 90 (end of script) |
+| Italian | it | Speech | 100% of script words found in the transcript | highlight reached 96 of 96 (end of script) |
+| Japanese | ja | Speech | 97% of script words found in the transcript | highlight reached 240 of 240 (end of script) |
+| Korean | ko | Speech | 81% of script words found in the transcript | highlight reached 70 of 70 (end of script) |
+| Malay | ms | Dictation | 93% of script words found in the transcript | highlight reached 91 of 91 (end of script) |
+| Norwegian Bokmål | nb | Dictation | 100% of script words found in the transcript | highlight reached 98 of 98 (end of script) |
+| Polish | pl | Dictation | 89% of script words found in the transcript | highlight reached 82 of 82 (end of script) |
+| Portuguese | pt | Speech | 97% of script words found in the transcript | highlight reached 90 of 90 (end of script) |
+| Romanian | ro | Dictation | 90% of script words found in the transcript | highlight reached 96 of 96 (end of script) |
+| Russian | ru | Dictation | 98% of script words found in the transcript | highlight reached 86 of 86 (end of script) |
+| Slovak | sk | Dictation | 92% of script words found in the transcript | highlight reached 83 of 83 (end of script) |
+| Spanish | es | Speech | 97% of script words found in the transcript | highlight reached 101 of 101 (end of script) |
+| Swedish | sv | Dictation | 93% of script words found in the transcript | highlight reached 98 of 98 (end of script) |
+| Thai | th | Dictation | 100% of script words found in the transcript | highlight reached 16 of 16 (end of script) |
+| Turkish | tr | Dictation | 97% of script words found in the transcript | highlight reached 74 of 74 (end of script) |
+| Ukrainian | uk | Dictation | 99% of script words found in the transcript | highlight reached 84 of 84 (end of script) |
+| Vietnamese | vi | Dictation | 96% of script words found in the transcript | highlight reached 136 of 136 (end of script) |
+
+Result: **Narration plays and the highlight runs to the end of the script in all 32 languages measured**, with 81% to 100% of the script's words found in the transcript.
+
+How to read the two numbers:
+
+- **"Highlight reached the end" is the weaker one.** Narration scrolls by the audio's playing time, so when the audio plays through, the highlight reaches the end. It shows that transcription, alignment and playback work for the language. It does not show every word is lit at the right moment.
+- **"% of script words found in the transcript" is the one that tells how exact the timing is.** Words the recogniser missed or misheard are placed by interpolation between the words around them, so a lower percentage means a looser fit. The lowest were Korean 81%, Hindi 84%, French 85%, Finnish 86% and Croatian 86%; the app warns "doesn't seem to match this script" only below 70%. I did not measure the timing error in seconds.
+- Text-to-speech through a file is cleaner than a real recording; a real voice, music or room noise would lower the match.
+
+Both records together: every one of the 33 languages works in both modes by these measurements (English in Narration from the earlier runs, the other 32 in the batch). Voice mode and Narration mode were each measured end to end for every language; both use text-to-speech audio, one phone, one run each.
 
 ## Not supported on Apple
 

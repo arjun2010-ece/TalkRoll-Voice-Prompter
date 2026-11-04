@@ -70,6 +70,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
     private var activityStart: Long? = null
     private var activityLast: Long? = null
     private var activityMs = 0L
+    private var onDeviceHeardSpeech = false // the on-device recogniser's own speech detection fired on our capture
 
     private var readyWatchdog: Runnable? = null
     private var utteranceWatchdog: Runnable? = null
@@ -90,7 +91,11 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
                 activityMs += 250
             }
             val start = activityStart
-            if (!loud || start == null || now - start < 8000 || activityMs < 1500) {
+            // Once the on-device recogniser has detected speech in our capture it is reading it; no words yet means
+            // the sound isn't clear speech (a noisy room, several voices), not a broken audio source. It then gets
+            // much longer before it is swapped for the system recogniser, which may not read the capture at all.
+            val patience = if (onDeviceHeardSpeech) HEARD_SPEECH_PATIENCE_MS else 8000L
+            if (!loud || start == null || now - start < patience || activityMs < 1500) {
                 main.postDelayed(this, 250)
                 return
             }
@@ -230,6 +235,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         restartBurst = 0
         lastRestartAt = 0L
         resetActivity()
+        onDeviceHeardSpeech = false
         gaveUp = false
         main.post { startSession() }
         if (sharedAudio != null) main.postDelayed(activityCheck, 250)
@@ -542,6 +548,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         override fun onBeginningOfSpeech() {
             release()
             if (!isCurrent(gen)) return
+            if (onDevice && sharedAudio != null) onDeviceHeardSpeech = true
             clearReady()
             clearUtterance()
             if (speechWatchdog == null && sharedAudio == null) {
@@ -705,6 +712,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         const val DEFAULT_LANGUAGE = "en-US"
         const val SILENCE_MS = 2000
         const val LOUD_LEVEL = 0.008f
+        const val HEARD_SPEECH_PATIENCE_MS = 30000L
         const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
         const val ERROR_LANGUAGE_UNAVAILABLE = 13
     }

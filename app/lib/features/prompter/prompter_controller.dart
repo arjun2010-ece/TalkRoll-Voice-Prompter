@@ -210,6 +210,7 @@ class PrompterController extends Notifier<PrompterState> {
   /// Audio mode: the recording's length and how far playback has got, for the time left.
   double? get audioSeconds => _audioSeconds;
   Duration get audioPosition => _clock?.position ?? Duration.zero;
+  bool get audioPlaying => _clock?.isPlaying ?? false;
 
   Future<void> begin({
     required int sessionId,

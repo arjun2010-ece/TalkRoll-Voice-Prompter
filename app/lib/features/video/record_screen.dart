@@ -46,6 +46,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   int _recordings = 0;
   Duration _elapsed = Duration.zero;
   Timer? _timer;
+  Timer? _narrationTicks;
   ReferenceRoute _route = ReferenceRoute.silent;
   StreamSubscription<Map<Object?, Object?>>? _events;
   DateTime? _micStart;
@@ -272,6 +273,18 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   void _startTimer() =>
       _timer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() => _elapsed += const Duration(seconds: 1)));
 
+  /// Tells the camera where the narration file is while a take runs, so the video gets the parts that played.
+  void _startNarrationTicks() {
+    _narrationTicks?.cancel();
+    _narrationTicks = Timer.periodic(const Duration(milliseconds: 50), (t) {
+      if (!_recording) {
+        t.cancel();
+        return;
+      }
+      EchoPrompterCamera.narrationTick(position: _prompter.audioPosition, playing: _prompter.audioPlaying);
+    });
+  }
+
   Future<void> _togglePause() async {
     HapticFeedback.mediumImpact();
     final prompter = ref.read(prompterProvider.notifier);
@@ -349,7 +362,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     );
     final mode = ref.read(settingsProvider).mode;
     await EchoPrompterCamera.setReferenceRoute(_route);
-    await EchoPrompterCamera.startRecording(landscape: landscape);
+    // iPhone/iPad Narration: the video gets the narration file itself, not what the microphone hears of it.
+    final narrationFile = Platform.isIOS && mode == PromptControlMode.recordedAudio ? ref.read(audioPathProvider) : null;
+    await EchoPrompterCamera.startRecording(landscape: landscape, narrationPath: narrationFile);
+    if (narrationFile != null) _startNarrationTicks();
     analytics.log('video_record_start', {
       'orientation': landscape ? 'landscape' : 'portrait',
       'camera': _facing.name,
@@ -411,6 +427,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _events?.cancel();
+    _narrationTicks?.cancel();
     // Mobile: the play button alone switches the microphone here, so leaving the screen must switch it off.
     if (isMobile) Future.microtask(_prompter.pause);
     _analytics.log('video_mode_exit', {'recordings_count': _recordings});
@@ -710,7 +727,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             left: landscape ? panelWidth + 24 : 24,
             right: landscape ? 120 : 24,
             bottom: hintBottom,
-            child: const _Hint('Your narration plays on the speaker so the video records it.', icon: Icons.volume_up_outlined),
+            child: _Hint(
+              Platform.isIOS
+                  ? 'Your narration is added to the video from its file, however you listen.'
+                  : 'Your narration plays on the speaker so the video records it.',
+              icon: Icons.volume_up_outlined,
+            ),
           )
         : null;
 

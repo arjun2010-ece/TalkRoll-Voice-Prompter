@@ -51,6 +51,11 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
     private var landscapeRecording = false
     private var recordingHeight = 1080
     private var useHEVC = false
+    // Narration mode: the take has no microphone. `narrationPath` is the file that plays while filming; the
+    // stretches of it that were heard are noted from the position Dart reports, and put into the video at the end.
+    private var narrationPath: String?
+    private var narrationSegments: [NarrationSegment] = []
+    private var narrationOpen = false
 
     private var converter: AVAudioConverter?
     private var converterSource: AVAudioFormat?
@@ -99,10 +104,14 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
             landscapeRecording = a["landscape"] as? Bool ?? false
             recordingHeight = a["height"] as? Int ?? 1080
             useHEVC = a["hevc"] as? Bool ?? false
+            narrationPath = a["narrationPath"] as? String
             queue.async { do { try self.beginWriter(); DispatchQueue.main.async { result(nil) } }
                 catch { DispatchQueue.main.async { result(FlutterError(code: "record", message: "\(error)", details: nil)) } } }
         case "pauseRecording": queue.async { if self.writer != nil { self.paused = true; self.resuming = false }; DispatchQueue.main.async { result(nil) } }
         case "resumeRecording": queue.async { if self.paused { self.paused = false; self.resuming = true }; DispatchQueue.main.async { result(nil) } }
+        case "narrationTick":
+            let ms = a["positionMs"] as? Int ?? 0, playing = a["playing"] as? Bool ?? false
+            queue.async { self.narrationTick(positionMs: ms, playing: playing); DispatchQueue.main.async { result(nil) } }
         case "stopRecording": finishRecording(reason: a["reason"] as? String ?? "user", result: result)
         case "saveToGallery": saveToGallery(a["path"] as? String ?? "", result: result)
         case "headphonesConnected":
@@ -275,7 +284,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         }
         // A camera session now carries the audio; drop the microphone-only capture.
         if micSession != nil { updateMicOnlyCapture(need: false) }
-        let need = audioListening || speechActive || writer != nil
+        let need = audioListening || speechActive || aInput != nil
         if need && audioOut == nil {
             configureAudioSession()
             s.beginConfiguration()
@@ -380,14 +389,43 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
             AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44100, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 128_000,
         ])
         a.expectsMediaDataInRealTime = true
-        w.add(v); w.add(a)
-        writer = w; vInput = v; aInput = a; outputURL = url
+        w.add(v)
+        // Narration mode adds the narration file afterwards, so there is no microphone track.
+        let narration = narrationPath != nil
+        if !narration { w.add(a) }
+        writer = w; vInput = v; aInput = narration ? nil : a; outputURL = url
+        narrationSegments = []; narrationOpen = false
+        if narration { playNarrationSession() }
         writerStarted = false; startTime = .invalid; lastTime = .zero
         paused = false; resuming = false; pausedOffset = .zero; lastRawVideo = .zero
         w.startWriting()
-        // After `writer` is set: updateAudioInput() keeps the microphone on while a take is being written. Without
-        // this, a take with no recogniser listening (Narration) was saved without any audio track.
+        // After `writer` is set: updateAudioInput() keeps the microphone on while a take with a microphone track is
+        // being written, and releases it for a Narration take.
         updateAudioInput()
+    }
+
+    /// Narration plays back only: the silent switch, headphones and the volume decide what the reader hears, and
+    /// none of it reaches the file.
+    private func playNarrationSession() {
+        let a = AVAudioSession.sharedInstance()
+        try? a.setCategory(.playback, mode: .default, options: [])
+        try? a.setActive(true)
+    }
+
+    /// Where the narration file is now, and whether it is playing. Plays that carry on from the last tick extend
+    /// the open stretch; a pause, a jump or a restart starts a new one.
+    private func narrationTick(positionMs: Int, playing: Bool) {
+        guard narrationPath != nil, writer != nil else { return }
+        guard writerStarted, !paused, !resuming, playing else { narrationOpen = false; return }
+        let now = CMClockGetTime(CMClockGetHostTimeClock())
+        let at = max(0, CMTimeGetSeconds(CMTimeSubtract(CMTimeSubtract(now, startTime), pausedOffset)))
+        let position = Double(positionMs) / 1000
+        if narrationOpen, let last = narrationSegments.last, abs(last.audioStart + (at - last.videoStart) - position) < 0.15 {
+            narrationSegments[narrationSegments.count - 1].length = at - last.videoStart
+        } else {
+            narrationSegments.append(NarrationSegment(videoStart: at, audioStart: position, length: 0))
+            narrationOpen = true
+        }
     }
 
     private func write(_ sb: CMSampleBuffer, video: Bool) {
@@ -431,14 +469,31 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
             }
             let duration = self.writerStarted ? CMTimeGetSeconds(CMTimeSubtract(self.lastTime, self.startTime)) : 0
             self.vInput?.markAsFinished(); self.aInput?.markAsFinished()
+            let narration = self.narrationPath
+            let segments = self.narrationSegments.filter { $0.length > 0.05 }
+            self.narrationPath = nil; self.narrationSegments = []; self.narrationOpen = false
             self.writer = nil; self.vInput = nil; self.aInput = nil
             self.orientationLocked = false
             self.updateVideoRotation()
             self.updateAudioInput()
             w.finishWriting {
-                if reason != "user" { DispatchQueue.main.async { self.eventSink?(["type": reason, "path": url.path]) } }
-                DispatchQueue.main.async {
-                    result(["path": url.path, "durationMs": Int(duration * 1000), "reason": reason])
+                Task {
+                    // Narration mode: put the narration file into the video. If that fails the take is kept as filmed.
+                    var path = url.path
+                    if let narration, !segments.isEmpty {
+                        let output = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_\(Int(Date().timeIntervalSince1970))_n.mp4")
+                        do {
+                            try await NarrationMux.mux(video: url, narration: URL(fileURLWithPath: narration), segments: segments, to: output)
+                            try? FileManager.default.removeItem(at: url)
+                            path = output.path
+                        } catch {
+                            NSLog("EchoPrompter: could not add the narration to the video: \(error)")
+                        }
+                    }
+                    if reason != "user" { DispatchQueue.main.async { self.eventSink?(["type": reason, "path": path]) } }
+                    DispatchQueue.main.async {
+                        result(["path": path, "durationMs": Int(duration * 1000), "reason": reason])
+                    }
                 }
             }
         }

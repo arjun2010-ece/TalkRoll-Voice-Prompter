@@ -92,15 +92,25 @@ class EchoPrompterCamera {
 
   /// Locks the output orientation for the file. Called when recording starts
   /// and released on stop; [landscape] is the current UI orientation.
+  ///
+  /// iOS Narration mode: [narrationPath] is the file that plays during the take. The take is filmed without the
+  /// microphone, and [narrationTick] tells the camera which part of the file is playing so [stopRecording] can put
+  /// that part of the file itself into the video.
   static Future<void> startRecording({
     required bool landscape,
     int height = 1080,
     bool hevc = false,
+    String? narrationPath,
   }) => _channel.invokeMethod('startRecording', {
     'landscape': landscape,
     'height': height,
     'hevc': hevc,
+    'narrationPath': ?narrationPath,
   });
+
+  /// iOS Narration mode: where the narration file is now and whether it is playing. Call often during a take.
+  static Future<void> narrationTick({required Duration position, required bool playing}) =>
+      _channel.invokeMethod('narrationTick', {'positionMs': position.inMilliseconds, 'playing': playing});
 
   /// Pauses/resumes the take without ending the file.
   static Future<void> pauseRecording() => _channel.invokeMethod('pauseRecording');

@@ -51,6 +51,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   not also show that action on the current screen. Every control must make sense
   for what the user can do next from that screen.
 
+## Cross-platform bug tracking
+
+When you fix a bug or make a change on one platform (iOS, Android, macOS):
+
+1. Fix it on the platform you're working on.
+2. Check whether the same issue exists on the other platforms. Don't fix it
+   there yet.
+3. If it does, log it in `docs/signature-features-echoprompter.md` under
+   `## Cross-platform fixes pending`, using this format:
+
+   ### <Short issue title>
+   - **Fixed on:** <platform> (<files changed>)
+   - **Also affects:** <platform(s)>
+   - **Issue:** <exact symptom and steps to reproduce>
+   - **Root cause:** <what caused it>
+   - **Fix applied:** <what was changed, so it can be ported>
+   - **Status:** Pending
+
+4. When it's later fixed on another platform, update its **Status** (e.g.
+   "Fixed on Android"). Mark it **Done** once all affected platforms are fixed.
+
 ## Efficient investigation and validation
 
 - Start with targeted searches and read only the relevant code sections.

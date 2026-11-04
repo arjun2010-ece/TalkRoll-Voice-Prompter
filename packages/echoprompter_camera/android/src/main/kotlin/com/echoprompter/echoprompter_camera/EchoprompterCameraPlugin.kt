@@ -11,6 +11,7 @@ import android.hardware.camera2.*
 import android.media.*
 import android.os.*
 import android.provider.MediaStore
+import android.util.Log
 import android.view.Surface
 import android.view.WindowManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -119,12 +120,16 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
                 "startPreview" -> startPreview(call.argument<String>("facing") == "front", result)
                 "stopPreview" -> { stopPreview(); result.success(null) }
                 "startRecording" -> {
-                    startRecording(call.argument<Boolean>("landscape") ?: false, call.argument<Int>("height") ?: 1080)
+                    startRecording(call.argument<Boolean>("landscape") ?: false, call.argument<Int>("height") ?: 1080, call.argument<String>("narrationPath"))
+                    result.success(null)
+                }
+                "narrationTick" -> {
+                    recorder?.narrationTick((call.argument<Int>("positionMs") ?: 0) * 1000L, call.argument<Boolean>("playing") ?: false)
                     result.success(null)
                 }
                 "pauseRecording" -> { recorder?.pause(); result.success(null) }
                 "resumeRecording" -> { recorder?.resume(); result.success(null) }
-                "stopRecording" -> result.success(finishRecording(call.argument<String>("reason") ?: "user"))
+                "stopRecording" -> finishRecording(call.argument<String>("reason") ?: "user") { result.success(it) }
                 "saveToGallery" -> { saveToGallery(call.argument<String>("path")!!); result.success(null) }
                 "headphonesConnected" -> result.success(headphones())
                 "setReferenceRoute" -> result.success(null) // reference audio always plays on the speaker
@@ -359,30 +364,69 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
     // MARK: Recording
 
     @SuppressLint("MissingPermission")
-    private fun startRecording(landscape: Boolean, height: Int) {
+    private fun startRecording(landscape: Boolean, height: Int, narrationPath: String?) {
         check(recorder == null) { "Already recording" }
         val e = entry ?: error("No preview")
-        ensureAudio()
+        // Narration takes are filmed without the microphone: the narration file is added to the video when the take stops.
+        if (narrationPath == null) ensureAudio()
+        narrationFile = narrationPath?.let { File(it) }
         // Orientation is locked by Dart while recording, so the display rotation
         // now is the file's orientation ([landscape] is informational).
         val hint = upright(displayRotationDegrees())
         val file = File(context.cacheDir, "echoprompter_${System.currentTimeMillis()}.mp4")
-        val r = Recorder(file, previewSize.width, previewSize.height, hint) { reason -> main.post { finishRecording(reason) } }
+        val r = Recorder(file, previewSize.width, previewSize.height, hint, withAudio = narrationPath == null) { reason -> main.post { finishRecording(reason) } }
         recorder = r
         context.startForegroundService(Intent(context, RecordingService::class.java))
         createSession(listOf(Surface(e.surfaceTexture()), r.videoSurface), record = true)
         r.start()
     }
 
-    private fun finishRecording(reason: String): Map<String, Any>? {
-        val r = recorder ?: return null
+    // The narration file of the take being recorded (Narration mode), or null when the microphone is the soundtrack.
+    private var narrationFile: File? = null
+
+    /**
+     * Ends the take. [reply] gets the result (null if nothing was recording). A Narration take is joined with its
+     * narration on a background thread first, so [reply] and the event come a moment later.
+     */
+    private fun finishRecording(reason: String, reply: ((Map<String, Any>?) -> Unit)? = null) {
+        val r = recorder
+        if (r == null) { reply?.invoke(null); return }
         recorder = null
+        val narration = narrationFile
+        narrationFile = null
         val (path, durationMs) = r.stop()
-        context.stopService(Intent(context, RecordingService::class.java))
-        entry?.let { createSession(listOf(Surface(it.surfaceTexture()))) }
-        releaseAudioIfUnused()
-        if (reason != "user") emit(mapOf("type" to reason, "path" to path, "durationMs" to durationMs.toInt()))
-        return mapOf("path" to path, "durationMs" to durationMs.toInt(), "reason" to reason)
+        val done = { finalPath: String, narrationFailed: Boolean ->
+            context.stopService(Intent(context, RecordingService::class.java))
+            entry?.let { createSession(listOf(Surface(it.surfaceTexture()))) }
+            releaseAudioIfUnused()
+            if (reason != "user") emit(mapOf("type" to reason, "path" to finalPath, "durationMs" to durationMs.toInt(), "narrationFailed" to narrationFailed))
+            reply?.invoke(mapOf("path" to finalPath, "durationMs" to durationMs.toInt(), "reason" to reason, "narrationFailed" to narrationFailed))
+        }
+        if (narration == null) {
+            done(path, false)
+            return
+        }
+        Thread {
+            // If the narration cannot be added (or never played) the file stays the take as filmed, and the app is told.
+            var finalPath = path
+            var failed = false
+            val segments = r.narrationSegments()
+            if (segments.isEmpty()) {
+                failed = true
+            } else {
+                val output = File(context.cacheDir, "echoprompter_${System.currentTimeMillis()}_n.mp4")
+                try {
+                    NarrationMux.mux(File(path), narration, segments, r.orientationHint, output)
+                    File(path).delete()
+                    finalPath = output.path
+                } catch (e: Exception) {
+                    Log.e("EchoPrompterCamera", "Could not add the narration to the video", e)
+                    output.delete()
+                    failed = true
+                }
+            }
+            main.post { done(finalPath, failed) }
+        }.start()
     }
 
     private fun saveToGallery(path: String) {
@@ -502,11 +546,13 @@ private class AudioCapture(val onData: (ShortArray, Long) -> Unit) {
 
 /** H.264 + AAC into an MP4. Video comes from [videoSurface]; audio is pushed. */
 private class Recorder(
-    val file: File, w: Int, h: Int, orientationHint: Int,
+    val file: File, w: Int, h: Int, val orientationHint: Int,
+    // False for a Narration take: the file has no audio track, the narration is joined to it afterwards.
+    private val withAudio: Boolean,
     val onFailure: (String) -> Unit,
 ) {
     private val videoCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-    private val audioCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+    private val audioCodec: MediaCodec? = if (withAudio) MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC) else null
     private val muxer = MediaMuxer(file.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     val videoSurface: Surface
     private var videoTrack = -1
@@ -533,17 +579,19 @@ private class Recorder(
         }
         videoCodec.configure(vf, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         videoSurface = videoCodec.createInputSurface()
-        val af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 48000, 1).apply {
-            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
+        if (audioCodec != null) {
+            val af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 48000, 1).apply {
+                setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+                setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
+            }
+            audioCodec.configure(af, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         }
-        audioCodec.configure(af, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         muxer.setOrientationHint(orientationHint)
     }
 
     fun start() {
         startUs = SystemClock.elapsedRealtimeNanos() / 1000
-        videoCodec.start(); audioCodec.start()
+        videoCodec.start(); audioCodec?.start()
         running = true
         vThread = Thread {
             try {
@@ -568,6 +616,42 @@ private class Recorder(
         }
     }
 
+    // Narration: the stretches of the narration file heard during the take, on the take's timeline (see narrationTick).
+    private val narrationHeard = mutableListOf<NarrationSegment>()
+    private var narrationOpen = false
+    // Timeline time of the first video frame: the file's picture starts there.
+    @Volatile private var firstVideoUs = -1L
+
+    /**
+     * Where the narration file is now and whether it is playing. Playback that carries on from the last tick extends
+     * the open stretch; a pause, a jump or a restart starts a new one.
+     */
+    fun narrationTick(positionUs: Long, playing: Boolean) {
+        synchronized(narrationHeard) {
+            val t = if (running && playing) timeline(nowUs()) else -1L
+            if (t < 0) { narrationOpen = false; return }
+            val last = narrationHeard.lastOrNull()
+            if (narrationOpen && last != null && Math.abs(last.audioStartUs + (t - last.videoStartUs) - positionUs) < 150_000L) {
+                last.lengthUs = t - last.videoStartUs
+            } else {
+                narrationHeard.add(NarrationSegment(t, positionUs, 0))
+                narrationOpen = true
+            }
+        }
+    }
+
+    /**
+     * The stretches heard, timed from the file's first video frame. What played before that frame is cut off, and ones
+     * too short to matter are left out.
+     */
+    fun narrationSegments(): List<NarrationSegment> = synchronized(narrationHeard) {
+        val origin = maxOf(firstVideoUs, 0L)
+        narrationHeard.map {
+            val cut = maxOf(origin - it.videoStartUs, 0L)
+            NarrationSegment(it.videoStartUs + cut - origin, it.audioStartUs + cut, it.lengthUs - cut)
+        }.filter { it.lengthUs > 50_000L }
+    }
+
     /** Recording-timeline timestamp for a raw one, or -1 if it falls inside a pause. */
     private fun timeline(rawUs: Long): Long {
         synchronized(pauses) {
@@ -580,6 +664,7 @@ private class Recorder(
     }
 
     fun onAudio(pcm: ShortArray, ptsUs: Long) {
+        val audioCodec = audioCodec ?: return
         if (!running) return
         val t = timeline(ptsUs)
         if (t < 0) return
@@ -593,6 +678,7 @@ private class Recorder(
     }
 
     private fun drainAudioOnce() {
+        val audioCodec = audioCodec ?: return
         val info = MediaCodec.BufferInfo()
         while (true) {
             val idx = audioCodec.dequeueOutputBuffer(info, 0)
@@ -606,7 +692,7 @@ private class Recorder(
 
     private fun addTrack(format: MediaFormat, video: Boolean) = synchronized(lock) {
         if (video) videoTrack = muxer.addTrack(format) else audioTrack = muxer.addTrack(format)
-        if (videoTrack >= 0 && audioTrack >= 0 && !muxerStarted) { muxer.start(); muxerStarted = true; lock.notifyAll() }
+        if (videoTrack >= 0 && (audioTrack >= 0 || !withAudio) && !muxerStarted) { muxer.start(); muxerStarted = true; lock.notifyAll() }
     }
 
     private fun write(codec: MediaCodec, idx: Int, info: MediaCodec.BufferInfo, video: Boolean) {
@@ -618,7 +704,7 @@ private class Recorder(
                     // Video timestamps arrive in the camera's CLOCK_BOOTTIME base.
                     val t = if (video) timeline(info.presentationTimeUs) else info.presentationTimeUs
                     if (t >= 0) {
-                        if (video) { info.presentationTimeUs = t; lastPtsUs = t }
+                        if (video) { info.presentationTimeUs = t; lastPtsUs = t; if (firstVideoUs < 0) firstVideoUs = t }
                         muxer.writeSampleData(if (video) videoTrack else audioTrack, data, info)
                     }
                 }
@@ -654,12 +740,12 @@ private class Recorder(
                 vThread?.join(1000)
             }
             drainAudioOnce()
-            audioCodec.stop(); videoCodec.stop()
+            audioCodec?.stop(); videoCodec.stop()
             synchronized(lock) { if (muxerStarted) muxer.stop() }
         } catch (_: Exception) {
             onFailure("error")
         } finally {
-            audioCodec.release(); videoCodec.release(); muxer.release(); videoSurface.release()
+            audioCodec?.release(); videoCodec.release(); muxer.release(); videoSurface.release()
         }
         return file.path to lastPtsUs / 1000
     }

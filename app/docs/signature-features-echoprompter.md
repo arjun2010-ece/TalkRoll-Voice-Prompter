@@ -385,6 +385,30 @@ Fixed on iOS and iPadOS in the Narration-with-camera work, not yet on Android. m
 - **What Android needs:** The Dart side is shared (`RecordingResult.narrationFailed`, `_onStopped`, `_endTake`), so only native work is left: return `narrationFailed` in the result map and in the event emitted by `finishRecording` in `EchoprompterCameraPlugin.kt`. The hint is still the old speaker text on Android (`Platform.isIOS ? ... : ...` in `record_screen.dart`); switch it when the audio port ships.
 - **Status:** Pending on Android (after the first entry)
 
+### Found while testing, not fixed yet
+These were seen while testing the work above. None of them were part of it, so nothing was changed. Each says which platform needs fixing.
+
+#### "Saved to your gallery" is shown even when the save failed
+- **Needs fixing on:** iOS, iPadOS and Android (the same shared Dart code)
+- **Issue:** Record a take and stop it when the gallery cannot take the video (for example Photos access refused on iOS, or no space on Android). The camera screen still says "Saved to your gallery" (and "What you recorded was saved" after an interruption), and the take is lost from the reader's point of view.
+- **Root cause:** `_onStopped` and `_endTake` in `app/lib/features/video/record_screen.dart` call `EchoPrompterCamera.saveToGallery(r.path)` inside `try { ... } catch (_) {}`, so the error the native side returns is thrown away and the card is shown anyway. iOS reports it as a `FlutterError` (`permission` or `save`); Android throws from `saveToGallery` in `EchoprompterCameraPlugin.kt` (MediaStore insert or copy).
+- **Suggested fix:** Keep the file when the save fails and show a clear message with Try again and Share, in place of the "Saved" card. Same Dart change for both platforms; no native change is needed.
+- **Status:** Pending on iOS, iPadOS and Android
+
+#### Camera screen does not notice a permission turned on in Settings
+- **Needs fixing on:** Android (iOS restarts the app when a permission is changed in Settings, so it does not show there)
+- **Issue:** Open the camera screen with the camera or microphone refused, tap Open settings, turn the permission on and come back. The "... access is off" card stays and the reader has to leave the screen and open it again.
+- **Root cause:** `didChangeAppLifecycleState` in `record_screen.dart` only restarts the preview on resume. It never runs `_ensurePermissions()` again, so `_perm` stays `denied`.
+- **Suggested fix:** On resume, if `_perm` is `denied`, check the permission status again and carry on to the preview once it is granted. Shared Dart code, so it also covers iOS in cases where the app is not restarted.
+- **Status:** Pending on Android
+
+#### Android: after an interrupted take the card shows the video length, not the file's
+- **Needs fixing on:** Android only (an iPhone take interrupted the same way came out 6.60 s of video and 6.5 s of audio, so iOS is fine)
+- **Issue:** Record in Voice mode with the camera, press Home after about 8 s and come back. The card says "Saved 00:06 to your gallery", but the saved file has 8.6 s of audio and only 6.65 s of video, so the video ends before the sound does.
+- **Root cause:** When the app goes to the background the camera closes first, so video frames stop while the audio keeps going until the take is stopped. `Recorder.stop()` in `EchoprompterCameraPlugin.kt` reports `lastPtsUs`, the last video frame, as the take's length.
+- **Suggested fix:** Decide what an interrupted take should be. Either report the file's real length (the longer of the two tracks), or end the audio at the last video frame so the file is consistent. Then the card and the file agree.
+- **Status:** Pending on Android
+
 ### Checked, nothing pending
 - **Take ended by the system saved to the gallery** (call, app in the background, storage full): fixed on iOS and Android together; macOS does not record.
 - **Android crash when the app goes to the background mid-take** (video thread stopped under the encoder): Android only. iOS finishes its writer and was tested with the same interruption, so it is not affected.

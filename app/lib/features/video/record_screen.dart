@@ -408,6 +408,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _paused = false;
     });
     if (r == null) return;
+    if (r.narrationFailed) {
+      // A video without its narration is not what the reader recorded, so it is not kept: they are told, and can retry.
+      a.log('video_narration_failed', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
+      try {
+        await File(r.path).delete();
+      } catch (_) {}
+      if (mounted) setState(() => _stopped = (title: _narrationFailedTitle, body: _narrationFailedBody, detail: null, result: null));
+      return;
+    }
     _recordings++;
     a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
     try {
@@ -513,7 +522,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       a.log('mic_stop', {'duration_s': DateTime.now().difference(_micStart!).inSeconds, 'reason': save ? 'mode_change_saved' : 'mode_change_discarded'});
       _micStart = null;
     }
-    if (save) {
+    final narrationLost = save && r.narrationFailed;
+    if (narrationLost) {
+      a.log('video_narration_failed', {'duration_s': r.duration.inSeconds, 'reason': 'mode_change_saved'});
+      try {
+        await File(r.path).delete();
+      } catch (_) {}
+    } else if (save) {
       _recordings++;
       a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
       try {
@@ -531,7 +546,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _paused = false;
       _elapsed = Duration.zero;
     });
-    if (save) {
+    if (narrationLost) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text(_narrationFailedBody)));
+    } else if (save) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
@@ -575,6 +594,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   }
 
   Future<void> _share(RecordingResult r) => SharePlus.instance.share(ShareParams(files: [XFile(r.path)]));
+
+  static const _narrationFailedTitle = "Narration wasn't added";
+  static const _narrationFailedBody =
+      "Your video was recorded, but the narration couldn't be added to it, so it wasn't saved. Please record the take again.";
 
   /// Ready for another take after a saved or stopped one.
   void _recordAgain() {

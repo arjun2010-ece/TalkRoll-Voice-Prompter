@@ -478,21 +478,28 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
             self.updateAudioInput()
             w.finishWriting {
                 Task {
-                    // Narration mode: put the narration file into the video. If that fails the take is kept as filmed.
+                    // Narration mode: put the narration file into the video. If that fails the file is still the take as
+                    // filmed, and `narrationFailed` tells the app so it can say the narration is missing.
                     var path = url.path
-                    if let narration, !segments.isEmpty {
-                        let output = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_\(Int(Date().timeIntervalSince1970))_n.mp4")
-                        do {
-                            try await NarrationMux.mux(video: url, narration: URL(fileURLWithPath: narration), segments: segments, to: output)
-                            try? FileManager.default.removeItem(at: url)
-                            path = output.path
-                        } catch {
-                            NSLog("EchoPrompter: could not add the narration to the video: \(error)")
+                    var narrationFailed = false
+                    if let narration {
+                        if segments.isEmpty {
+                            narrationFailed = true  // the narration never played during the take
+                        } else {
+                            let output = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_\(Int(Date().timeIntervalSince1970))_n.mp4")
+                            do {
+                                try await NarrationMux.mux(video: url, narration: URL(fileURLWithPath: narration), segments: segments, to: output)
+                                try? FileManager.default.removeItem(at: url)
+                                path = output.path
+                            } catch {
+                                NSLog("EchoPrompter: could not add the narration to the video: \(error)")
+                                narrationFailed = true
+                            }
                         }
                     }
                     if reason != "user" { DispatchQueue.main.async { self.eventSink?(["type": reason, "path": path]) } }
                     DispatchQueue.main.async {
-                        result(["path": path, "durationMs": Int(duration * 1000), "reason": reason])
+                        result(["path": path, "durationMs": Int(duration * 1000), "reason": reason, "narrationFailed": narrationFailed])
                     }
                 }
             }

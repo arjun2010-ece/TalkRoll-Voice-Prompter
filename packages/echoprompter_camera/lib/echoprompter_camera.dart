@@ -36,9 +36,12 @@ class CameraPreviewInfo {
 }
 
 class RecordingResult {
-  const RecordingResult(this.path, this.duration, this.reason);
+  const RecordingResult(this.path, this.duration, this.reason, {this.narrationFailed = false});
   final String path;
   final Duration duration;
+
+  /// iOS Narration mode: the narration could not be put into the video, so the file has no sound.
+  final bool narrationFailed;
 
   /// user | interrupted | storage_full | error
   final String reason;
@@ -125,6 +128,7 @@ class EchoPrompterCamera {
       m['path']! as String,
       Duration(milliseconds: m['durationMs']! as int),
       m['reason']! as String,
+      narrationFailed: (m['narrationFailed'] as bool?) ?? false,
     );
   }
 

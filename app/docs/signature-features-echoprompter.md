@@ -357,7 +357,7 @@ Don't start until Arjun confirms the new name. Then:
 
 ## Cross-platform fixes pending
 
-Fixed on iOS and iPadOS in the Narration-with-camera work. The first and third entries are now also fixed on Android; the permission entry is still pending there. macOS does not record, so it is not affected.
+Fixed on iOS and iPadOS in the Narration-with-camera work. The three entries below are now also fixed on Android. macOS does not record, so it is not affected.
 
 ### Narration video had no narration audio
 - **Fixed on:** iOS and iPadOS (`packages/echoprompter_camera/ios/.../EchoprompterCameraPlugin.swift`, `NarrationMux.swift`, `packages/echoprompter_camera/lib/echoprompter_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`) and Android (`packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `NarrationMux.kt`, `app/lib/features/video/record_screen.dart`)
@@ -371,13 +371,14 @@ Fixed on iOS and iPadOS in the Narration-with-camera work. The first and third e
 - **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Narration with the camera asked for the microphone
-- **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`)
-- **Also affects:** Android
+- **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`) and Android (`app/lib/features/video/record_screen.dart`, `packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `RecordingService.kt`)
+- **Also affects:** none left (macOS does not record)
 - **Issue:** Start Narration with the camera. The permission card and the system prompt ask for the microphone even though the take does not need it.
 - **Root cause:** The camera screen asked for camera and microphone for every mode.
 - **Fix applied (iOS):** `_needsMic(mode)` is false for Narration on iOS, so only the camera is asked for, the card says the microphone is not used, and switching to Voice on the camera screen asks for the microphone then (`_askMicIfNeeded`).
-- **What Android needs:** `_needsMic` is still true on Android (`RECORD_AUDIO` is in the manifest for Voice mode). The Android Narration take no longer uses the microphone (entry above), so this is now unblocked: widen the check to Android Narration. The permission flow is the same `permission_handler` code, so only that one check changes.
-- **Status:** Pending on Android
+- **Fix applied (Android):** `_needsMic(mode)` is now false for Narration on Android too (`Platform.isIOS || Platform.isAndroid`). That alone made the app crash when recording: `RecordingService` always started its foreground service with the `microphone` type, and Android refuses that without the microphone permission (`SecurityException: Starting FGS with type microphone ... requires ... RECORD_AUDIO`). So `startRecording` now passes `withMic` (false for a Narration take) to `RecordingService`, which asks for the `camera` type only in that case. Voice takes still start it with `camera|microphone`.
+- **Verified (Android emulator, API 37, permissions reset before each run):** (1) Narration with the camera asks for the camera only, and the card says the microphone is not used; (2) switching to Voice on the camera screen then asks for the microphone; (3) Voice with the camera from the start asks for both, as before; (4) a Narration take with the microphone never granted saves with the narration in it (the audio matches the file, silent during the hold cue, and picks up after Continue). A Voice take afterwards saved normally with the `camera|microphone` service.
+- **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Message when the narration could not be added, and the camera hint
 - **Fixed on:** iOS and iPadOS (`EchoprompterCameraPlugin.swift`, `record_screen.dart`, `echoprompter_camera.dart`) and Android (`EchoprompterCameraPlugin.kt`, `record_screen.dart`)

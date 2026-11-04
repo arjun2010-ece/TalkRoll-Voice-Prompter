@@ -383,8 +383,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     );
     final mode = ref.read(settingsProvider).mode;
     await EchoPrompterCamera.setReferenceRoute(_route);
-    // iPhone/iPad Narration: the video gets the narration file itself, not what the microphone hears of it.
-    final narrationFile = Platform.isIOS && mode == PromptControlMode.recordedAudio ? ref.read(audioPathProvider) : null;
+    // iPhone, iPad and Android Narration: the video gets the narration file itself, not what the microphone hears of it.
+    final narrationFile = (Platform.isIOS || Platform.isAndroid) && mode == PromptControlMode.recordedAudio ? ref.read(audioPathProvider) : null;
     await EchoPrompterCamera.startRecording(landscape: landscape, narrationPath: narrationFile);
     if (narrationFile != null) _startNarrationTicks();
     analytics.log('video_record_start', {
@@ -776,12 +776,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             left: landscape ? panelWidth + 24 : 24,
             right: landscape ? 120 : 24,
             bottom: hintBottom,
-            child: _Hint(
-              Platform.isIOS
-                  ? 'Your narration is added to the video from its file, however you listen.'
-                  : 'Your narration plays on the speaker so the video records it.',
-              icon: Icons.volume_up_outlined,
-            ),
+            child: const _Hint('Your narration is added to the video from its file, however you listen.', icon: Icons.volume_up_outlined),
           )
         : null;
 

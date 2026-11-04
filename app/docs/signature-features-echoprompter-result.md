@@ -157,6 +157,111 @@ The 33 languages, with the engine and measured score for each, are in `docs/appl
 - In Narration, the camera option still says "Voice only / Voice + camera" (copy to revisit).
 - My touch driver sometimes causes "Build scheduled during frame" asserts in the log. They come from synthetic touches arriving mid-frame, not from a user path.
 
-## §3 onward
+## §3: Action cues
+
+Platforms: macOS, iOS (iPhone) and Android. Modes: Auto-scroll, Voice, Narration. Design: the "quiet inline" artboards 37 to 41 of the design canvas (https://claude.ai/artifact/LjCLG754qyvCXoeqFtQhpB), approved after an earlier chip design was rejected as too heavy.
+
+### What was built
+
+- **Storage (proposal accepted by default, no migration):** a cue is a marker line in the script body, `{{ text }}` for a plain cue and `{{! text }}` for a hold cue. Old scripts load unchanged and cues round-trip. Cue lines are skipped by word counts, spoken-word matching, section detection and the Narration alignment (`core/script/sections.dart`, `text.dart`, `clean_script.dart`, `saved_script.dart`), so word indices are the same as without cues.
+- **Editor:** "Insert Action Cue" next to "Insert Section" on mobile and in the macOS Studio, with a text field and a Hold toggle (`studio/action_cue_dialog.dart`). The macOS menu has an Insert Action Cue item. On mobile the button shares the row with Insert Section, and the word count and Clear sit on their own line above. Cue lines are tinted in the editor.
+- **Prompter display** (`prompter/cue_widgets.dart`, `prompt_surface.dart`, `word_layout.dart`): cues are inline lines between the text, left-aligned, not part of the reading line. A plain cue shows as "↳ text"; a hold cue is amber with a "Hold" tag; the active cue shows "now". Heads-up: the upcoming cue is shown before it becomes active (no countdown, by design). A "Holding at cue" footer with a Continue button shows while holding (macOS shows the button in the control bar, the phone hides its dock). Text is `#EDEDEB` unspoken and `#A6A9B0` read, line height 1.32, with one spacing scale for the gaps above and below cues and sections.
+- **Heads-up setting:** "Action cue heads-up" slider on the "How to read" sheet (1 to 5 s, default 3 s, `cueLeadSeconds`).
+- **Hold, per mode** (`prompter_controller.dart`): Auto-scroll stops scrolling at the cue; Voice keeps the recogniser running but ignores speech until Continue; Narration pauses the audio at the cue time (alignment time minus 0.1 s) and resumes it on Continue. Continue works from the button, a tap, the macOS hotkey ⌃⌥↩ and Play. A plain cue never pauses.
+- **Language row on "How to read"** (all platforms): "Listening for X · Change", with Automatic from the script. On Android, detection uses `TextClassifier` through the `detectLanguage` method channel with a fallback; the Apple path is unchanged.
+
+### Bugs found and fixed during the build (before this round of tests)
+
+- Voice overshot past a hold cue: progress now snaps back to the cue word when the hold starts and speech is dropped while it holds.
+- The heads-up was missing after Continue, and the orange current-word highlight crossed a cue into text not yet spoken (`_predictedAfter`). Behaviour is unchanged when a script has no cues.
+- Crash with large text ("Null check operator"): cue heights are now computed before the text is laid out.
+- Auto-scroll hold jumped to the top, and a hold fired while its cue was below the reading line at large text: the scroller moved in the widget tree when the footer appeared; it is now always in the same stack.
+- The "Cleared · Undo" snackbar stayed over Start.
+- macOS: Space, the arrows and Esc did nothing in the prompter because the Studio text field kept keyboard focus. The window plugin now reclaims focus (`makeFirstResponder`) and the prompter uses a focus node. Play pressed while the recording was loading is remembered.
+- macOS: the ↩ in the shortcut hint drew as a blue emoji box; it is now an icon.
+- Android Voice did not follow the speech: the Voice language was fixed to Spanish for an English script (fixed with an Android-only branch, `_confirmOnAndroid`), and the on-device recogniser was swapped for the system one too early (it now gets 30 s once speech is detected, `SpeechChannel.kt`). The emulator needed `-allow-host-audio` and `adb emu avd hostmicon` to hear the Mac.
+
+### Round of tests and fixes in this session
+
+**Issue 1, Narration preloaded an audio file (not intended, fixed; all platforms).** A new, duplicated, imported or demo script has no saved identity but inherited the previous script's recording from the session. `StudioNotifier` (`services/providers.dart`) now clears the recording in those four places; a saved script still restores the recording linked to it. Checked on macOS: a new script shows "Choose a recording…", and the saved script with a linked recording still restores it.
+
+**Issue 2, Voice: speech during a hold highlighted after Continue (fixed; shared Dart code).** Root cause: a recogniser's text is the whole running transcript of its current utterance, and it keeps growing until the recogniser ends the utterance (a final result; on macOS only after a pause). Words heard during the hold were still at the start of that transcript after Continue, so the tracker took them as new speech. That is why it only happened if Continue was pressed within a few seconds. Fix (`prompter_controller.dart`, helper `trackerWords` in `core/matching/script_tracker.dart`): count the words the transcript holds during the hold, and after Continue drop that many from the start of the same utterance's transcript until the utterance ends. No timer or delay. It does nothing unless a hold happened, and a final result or a recogniser restart resets it. Known limit: a word or two spoken between the last reported partial and the click can still count.
+
+**Voice status line on macOS (fixed, macOS only; `desktop_prompter_screen.dart`).** The footer always read "Listening — start reading your script". It now reads "Following your voice" once the first script word is confirmed.
+
+**Test script:** cues dense on purpose: two plain cues in a row, a plain cue before the hold, one hold ("Click Submit" / "Clique em enviar"), and two plain cues before the last sentence. English 34 words, Portuguese 33 words. Narration used recordings made with macOS text-to-speech (Samantha and Luciana), each matching its script 100% (0:11 and 0:15). Voice used the same voices played from the Mac speaker into each device's microphone.
+
+| Mode | macOS | iPhone 15 Pro Max (iOS 26.6.2) | Android emulator (Pixel 7, earlier rounds Pixel 6) |
+|---|---|---|---|
+| Auto-scroll | Hold and plain cues checked in the build rounds | **Pass** | Checked at large text: the cue stays on one line and the hold stops at the cue |
+| Voice, English | **Pass** (this round and the build rounds) | **Pass** | **Pass** (build rounds), hold re-checked after the Issue 2 fix |
+| Voice, Portuguese | **Pass** (this round; build rounds after the language pack download) | **Pass** | **Pass** (build rounds, language set to Portuguese by hand) |
+| Narration, English | **Pass** (this round and the build rounds) | **Pass** | **Pass** (build rounds, audio paused at 0:04, played to 0:11) |
+| Narration, Portuguese | **Pass** (this round and the build rounds) | **Pass** | **Pass** (build rounds, audio paused at 0:03, played to 0:08) |
+
+The Android and macOS "build rounds" are the runs made while the design was implemented and reworked, before this round. Their results are in the next subsection.
+
+What each check showed, where "pass" means all of these held:
+
+- Cues display in the distinct style, are never highlighted as read text, and don't change the word counts (34 and 33 words).
+- A plain cue does not pause, and the highlight keeps following across it.
+- A hold stops the prompter at the cue ("On hold" and "Holding at cue" with Continue). In Voice, a sentence spoken during the hold was ignored (the confirmed word index did not move, also when Continue was pressed within a second), and after Continue only new speech advanced the highlight to the end. In Narration the audio paused at the cue and resumed from the same point on Continue, finishing at 100%. In Auto-scroll the scroll stopped and Continue resumed it to "End of script".
+- macOS: Continue was checked with the ⌃⌥↩ hotkey in English and the button in Portuguese. The Voice and Narration runs ended at 100% in both languages.
+- iPhone: no permission prompt appeared. The English Narration language pack needed a one-time download (the user tapped Download); the Portuguese pack was already installed. The Voice language on the phone was left at Thai by an earlier test and was reset to Automatic from the sheet.
+
+### Earlier test rounds (during the build)
+
+**Android emulator** (first Pixel 6, then a Pixel 7 after the first emulator's microphone stayed silent; speech was the Mac's text-to-speech played from its speaker, narration recordings were made with the same voices):
+
+| | Voice, English | Voice, Portuguese | Narration, English | Narration, Portuguese |
+|---|---|---|---|---|
+| Highlight follows the speech or audio | Pass | Pass | Pass | Pass |
+| Hold cue pauses until Continue or Play | Pass, speech during the hold ignored | Pass, speech ignored | Pass, audio paused at 0:04 | Pass, audio paused at 0:03 |
+| Plain cue is visual only | Pass, no pause, highlight continued | Pass | Pass, no pause | Pass |
+
+Continue and Play resumed the run in every case, and every run reached "End of script" at 100%. After the design rework (screens 40 and 41) the same four runs were repeated and passed, plus Auto-scroll at large text. The first Narration pass (with the hold only) also passed before the Voice problems were solved.
+
+**macOS** (built app, Voice and Narration, English then Portuguese; the Portuguese (Brazil) pack was downloaded once when the app asked):
+
+- **Voice, English and Portuguese:** pass. The highlight followed the speech, the heads-up showed, speech during the hold was ignored, ⌃⌥↩ or the Continue button resumed it, the plain cue showed "now" without pausing, and it reached 100%.
+- **Narration, English and Portuguese:** pass. The recording matched 100%, the heads-up showed "IN 1S", the audio paused at the hold ("Waiting for you"), Continue resumed it, and it finished at 100%.
+- **Design checked against the artboards:** artboard 38 (floating window: the control bar is replaced by "Holding at cue · ⌃⌥↩ · Continue", 64 px tall, the cue sits on the reading line in Voice and Narration) and artboard 39 (notch: compact holding strip). The prompter was set back to Floating afterwards.
+
+**Mobile design checked against screens 40 and 41 (Android):** while a hold is active the dock and progress bar are hidden and only "Holding at cue" with a large Continue shows, clear of the gesture bar; "01  Demo" is a fixed readable size (55% of the script size, 14 to 20 px) with a gap below; with very large text the "Next" strip sits above the dock; long cue text stays on one line up to 24 px and wraps to two lines after that.
+
+**Fixed during those rounds (not listed above):**
+
+- The status pill showed a red "Unavailable" during a hold; it now shows "On hold" (`tracking_status.dart`, all platforms; only while a hold is active).
+- The mobile editor's Insert Section and Insert Action Cue labels wrapped; they now stay on one line.
+- On Android the Voice highlight did not follow the speech after the recogniser had been swapped for the system one (details in the Android Voice entry above).
+
+**Open items from those rounds (still true):**
+
+- **Android "Automatic" language:** Android has no built-in language detector, so it first guessed from letters (Devanagari, Cyrillic, CJK, Arabic, Hebrew, Greek, Thai and Latin letters with tell-tale marks worked; French, Italian, Dutch and Spanish without ñ fell back to English). It was then reworked to use `TextClassifier` first with the letter and common-word guesses as fallbacks, and the language row on "How to read" shows what was chosen. macOS and iOS use Apple's detector and were not changed.
+- **macOS "Start ⌘↩":** the ↩ in the Studio's Start button still shows as a blue emoji box (an older label; the cue footer was fixed).
+- **macOS Narration start:** Space does not start Narration on the prompter, so Play has to be clicked. This was already so before the cues.
+- **macOS desktop layout at very large text:** the "Next" strip sits just above the control bar; artboard 39 merges it into the bar, which would need the bar rebuilt, so it was kept simpler.
+- **Emulator recogniser:** on the Android emulator the recogniser sometimes misses the last word of a sentence ("time.", "assistir.") until it is repeated; it is the emulator's microphone feed, not the cue logic.
+- **Cue "now" window:** it lasts 2.5 s rather than "until the next text starts".
+- **Test leftovers:** the emulator's "Script five…" held the Portuguese test script, and its Voice language was left on Portuguese (Brazil); the Mac's script list has the "Hello everyone…" and "Olá a todos…" test scripts.
+
+### Other findings from these runs
+
+- Nothing failed on macOS or the iPhone in this round, so no macOS-only or iOS-only fix was needed. The Issue 2 fix is shared code that is idle unless a hold happened.
+- macOS paste into the Studio editor did nothing from automation, so the test scripts were loaded with Import.
+- The Android emulator froze under CPU load once (screenshots came back empty and System UI stopped responding). It was restarted. `adb input text` also dropped characters, so the Android script was imported as a file.
+- For macOS screenshots, "hide from screen capture" was turned off temporarily and the original setting was restored afterwards.
+- The iPhone was driven with the same touch driver as the earlier runs (debug build over USB, touches through the Dart VM service, screenshots from `devicectl`, controller state read through the VM service). A "Build scheduled during frame" assert appeared once from a synthetic tap; the next tap worked.
+- Xcode again rewrote `ios/Runner.xcodeproj/project.pbxproj` during the iPhone build (generated, not part of this work).
+
+### Not covered / open
+
+- **iPad** and a real Android phone were not run. Android Voice used speech played from the Mac, not a human voice.
+- **Insert Action Cue flow on macOS:** the menu item and dialog opened and worked in the build rounds, but a full dialog insert was not re-run after the menu change (one scripted click missed, so the cue line was typed). The cue round-trip through saved storage was checked during the build, not re-run in this round.
+- **Narration with the camera and section-by-section runs with cues** were not run in this round.
+- **Unit tests:** the spec asks for a script dense with cues to be tested for voice following and alignment. It was tested by hand (above); no automated tests were written, because CLAUDE.md says not to create tests.
+- The "Next up" heads-up in Voice is estimated from reading pace; its timing was seen working but not measured.
+
+## §4 onward
 
 Not started.

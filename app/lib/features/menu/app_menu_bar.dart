@@ -76,6 +76,7 @@ class AppMenuBar extends ConsumerWidget {
           ]),
           PlatformMenuItemGroup(members: [
             PlatformMenuItem(label: 'Insert Section', shortcut: _cmd(LogicalKeyboardKey.keyK), onSelected: c?.insertSection),
+            PlatformMenuItem(label: 'Insert Action Cue…', shortcut: _cmd(LogicalKeyboardKey.keyK, shift: true), onSelected: c?.insertActionCue),
           ]),
         ]),
         PlatformMenu(label: 'View', menus: [

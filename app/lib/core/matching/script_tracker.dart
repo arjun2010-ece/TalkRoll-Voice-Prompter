@@ -2,6 +2,9 @@ import '../script/text.dart';
 
 final _apostrophes = RegExp("['’]");
 
+/// The spoken words of a recogniser's [text] as the tracker reads them (apostrophes dropped, so "it's" is one word).
+List<String> trackerWords(String text) => spokenWords(text.replaceAll(_apostrophes, ''));
+
 /// Voice-script tracker for recognisers that report their whole running
 /// hypothesis (Android `SpeechRecognizer`). It is re-run on every partial
 /// result and matches the last few spoken words against an n-gram window of the

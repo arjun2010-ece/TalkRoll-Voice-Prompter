@@ -30,7 +30,7 @@ class SavedScript {
   String get title {
     if (hasCustomTitle) return customTitle!.trim();
     for (final line in const LineSplitter().convert(body)) {
-      if (line.trim().isNotEmpty && !isSectionMarkerLine(line)) return line;
+      if (line.trim().isNotEmpty && !isSectionMarkerLine(line) && !isActionCueLine(line)) return line;
     }
     return 'Untitled script';
   }
@@ -38,7 +38,7 @@ class SavedScript {
   /// One line for the script list: the start of the text, line breaks folded to spaces. When the
   /// title came from the first line, the preview starts after it so it isn't shown twice.
   String get preview {
-    final lines = const LineSplitter().convert(body).where((l) => l.trim().isNotEmpty && !isSectionMarkerLine(l));
+    final lines = const LineSplitter().convert(body).where((l) => l.trim().isNotEmpty && !isSectionMarkerLine(l) && !isActionCueLine(l));
     return (hasCustomTitle ? lines : lines.skip(1)).map((l) => l.trim()).join(' ');
   }
 

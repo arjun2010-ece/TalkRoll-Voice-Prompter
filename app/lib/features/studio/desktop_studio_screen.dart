@@ -11,6 +11,7 @@ import '../../core/script/saved_script.dart';
 import '../../core/script/sections.dart';
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
+import '../../core/shortcuts/shortcut_binding.dart';
 import '../../services/providers.dart';
 import '../../services/speech/speech_requirements.dart';
 import '../../services/storage/script_io.dart';
@@ -27,6 +28,8 @@ import '../pro/upgrade_card.dart';
 import '../menu/studio_commands.dart';
 import '../notes/notes_pane.dart';
 import '../notes/notes_state.dart';
+import '../prompter/cue_widgets.dart';
+import 'action_cue_dialog.dart';
 import 'narration_card.dart';
 import 'narration_prep.dart';
 import 'prompt_preview.dart';
@@ -133,6 +136,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
           exportFile: _export,
           save: _save,
           insertSection: _insertSection,
+          insertActionCue: _insertActionCue,
           start: _start,
           settings: _preferences,
           showScriptsFolder: () => ScriptIO.reveal(ref.read(libraryProvider).directory),
@@ -311,6 +315,18 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     _publishDirty();
   }
 
+  /// Asks for an action cue and puts it at the caret (or edits the cue the caret is on).
+  Future<void> _insertActionCue() async {
+    if (_onNotes) return;
+    final studio = ref.read(studioProvider);
+    if (studio.script == StudioNotifier.welcome && ref.read(studioProvider.notifier).currentId == null) return;
+    final key = ref.read(shortcutsProvider)[ShortcutAction.continueCue];
+    if (!await insertActionCue(context, _controller, continueShortcut: key?.label(mac: isMacOS))) return;
+    if (!mounted) return;
+    _focus.requestFocus();
+    _publishDirty();
+  }
+
   void _closeDrawer() {
     final s = _scaffold.currentState;
     if (s != null && s.isDrawerOpen) s.closeDrawer();
@@ -344,6 +360,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
       onSave: _save,
       onCancel: _cancel,
       onInsertSection: _insertSection,
+      onInsertActionCue: _insertActionCue,
     );
     final inspector = _Inspector(
       caretWord: _caretWord,
@@ -405,6 +422,8 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
             _save,
         SingleActivator(LogicalKeyboardKey.keyK, meta: _mac, control: !_mac):
             _insertSection,
+        SingleActivator(LogicalKeyboardKey.keyK, meta: _mac, control: !_mac, shift: true):
+            _insertActionCue,
       },
       child: Scaffold(
         key: _scaffold,
@@ -592,6 +611,7 @@ class _EditorPane extends ConsumerWidget {
     required this.onSave,
     required this.onCancel,
     required this.onInsertSection,
+    required this.onInsertActionCue,
   });
   final TextEditingController controller;
   final TextEditingController titleController;
@@ -601,6 +621,7 @@ class _EditorPane extends ConsumerWidget {
   final VoidCallback onSave;
   final VoidCallback onCancel;
   final VoidCallback onInsertSection;
+  final VoidCallback onInsertActionCue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -717,6 +738,18 @@ class _EditorPane extends ConsumerWidget {
                                 visualDensity: VisualDensity.compact,
                               ),
                             ),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Insert Action Cue ($mod⇧K): something to do, not say',
+                      child: compact
+                          ? IconButton.outlined(
+                              onPressed: onInsertActionCue,
+                              icon: const Icon(Icons.ads_click, size: 16, color: cueLabelColor),
+                              style: IconButton.styleFrom(backgroundColor: cueIconFill, side: const BorderSide(color: cuePurple)),
+                              visualDensity: VisualDensity.compact,
+                            )
+                          : ActionCueButton(onPressed: onInsertActionCue, dense: true),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -933,7 +966,7 @@ class _Inspector extends ConsumerWidget {
                           ? null
                           : onStart,
                       icon: Icon(locked ? Icons.lock_outline : Icons.play_arrow),
-                      label: Text('Start  $startKey'),
+                      label: ShortcutHint('Start  $startKey'),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                       ),

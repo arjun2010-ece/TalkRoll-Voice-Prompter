@@ -1,3 +1,5 @@
+import 'sections.dart' show isActionCueLine;
+
 /// Strips Markdown from a script the way the reference app does when a script is saved:
 /// list markers, headings, quotes and inline formatting go, the words stay. Line by line;
 /// fenced code keeps its text and loses only the fence lines.
@@ -14,6 +16,11 @@ String cleanScript(String text) {
     }
     if (inFence) {
       out.add(line);
+      continue;
+    }
+    // An action cue keeps its text exactly, so `code` in it stays.
+    if (isActionCueLine(line)) {
+      out.add(line.trim());
       continue;
     }
     if (_linkDefinition.hasMatch(line) || _rule.hasMatch(line)) {

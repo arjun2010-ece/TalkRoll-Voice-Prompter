@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/script/sections.dart' show actionCues;
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../core/shortcuts/shortcut_binding.dart';
@@ -18,6 +19,7 @@ import '../../ui/position_picker.dart';
 import '../../ui/prompt_text_controls.dart';
 import 'notch_clipper.dart';
 import 'progress_line.dart';
+import 'cue_widgets.dart';
 import 'prompt_surface.dart';
 import 'prompter_controller.dart';
 import 'section_end.dart';
@@ -61,6 +63,10 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
   String? _banner;
   Timer? _bannerTimer;
 
+  /// The prompter's keyboard focus (Space, arrows, Esc). Claimed when it opens: the Studio it replaces may have had a
+  /// control focused, and autofocus does not take focus away from one, so keys used to go nowhere.
+  final _keys = FocusNode(debugLabel: 'prompter keys');
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +87,10 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     _begin();
     _registerHotkeys();
     _showOpeningBanner();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncTray());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncTray();
+      if (mounted) _keys.requestFocus();
+    });
   }
 
   @override
@@ -90,6 +99,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       s.cancel();
     }
     _bannerTimer?.cancel();
+    _keys.dispose();
     EchoPrompterWindow.unregisterHotkeys();
     EchoPrompterWindow.setTrayMenu(null);
     _window.exit();
@@ -190,11 +200,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
 
   PromptControlMode get _mode => ref.read(settingsProvider).mode;
 
-  void _primary() {
-    final pr = ref.read(prompterProvider);
-    if (_mode == PromptControlMode.recordedAudio && pr.preparing) return;
-    ref.read(prompterProvider.notifier).togglePlay();
-  }
+  /// Space, the Play button and the global shortcut. While a recording is still loading, the controller remembers it
+  /// and starts playing once the recording is ready (it used to be dropped silently).
+  void _primary() => ref.read(prompterProvider.notifier).togglePlay();
 
   void _restart() async {
     final c = ref.read(prompterProvider.notifier);
@@ -296,6 +304,8 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
         if (ref.read(prompterProvider.notifier).sectionRun) ref.read(prompterProvider.notifier).retakeSection();
       case 'openSections':
         _toggleSections();
+      case 'continueCue':
+        unawaited(ref.read(prompterProvider.notifier).continueFromHold());
       case 'back5':
         if (_mode == PromptControlMode.recordedAudio) ref.read(prompterProvider.notifier).skip(const Duration(seconds: -5));
       case 'backToStudio':
@@ -317,10 +327,12 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     final bindings = ref.read(shortcutsProvider);
     final run = ref.read(prompterProvider.notifier).sectionRun;
     final narration = _mode == PromptControlMode.recordedAudio;
+    // Continue is only taken from other apps when the script has a cue that holds.
+    final hasHold = actionCues(ref.read(studioProvider).script).any((c) => c.hold);
     await EchoPrompterWindow.registerHotkeys([
       for (final e in bindings.entries)
         // The section keys, and Back 5 seconds, are only taken from other apps while they do something.
-        if ((!e.key.isSectionAction || run) && (e.key != ShortcutAction.back5 || narration))
+        if ((!e.key.isSectionAction || run) && (e.key != ShortcutAction.back5 || narration) && (e.key != ShortcutAction.continueCue || hasHold))
           HotkeyBinding(e.key.name, e.value.key, {for (final m in e.value.mods) m.name}),
     ]);
   }
@@ -401,6 +413,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
           if (!_mac) const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _quit,
         },
         child: Focus(
+          focusNode: _keys,
           autofocus: true,
           child: LayoutBuilder(
             builder: (context, c) {
@@ -536,15 +549,20 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     ),
   );
 
-  Widget _fullLayout(PromptSettings s) => _frame(
-    Stack(
-      children: [
-        Positioned.fill(child: ColoredBox(color: promptBackground.withValues(alpha: s.opacity))),
-        Positioned.fill(child: _surface(PromptLayoutStyle.full)),
-        Column(children: [_fullHeader(s), const Spacer(), _fullControlBar(s)]),
-      ],
-    ),
-  );
+  Widget _fullLayout(PromptSettings s) {
+    // While an action cue holds, "Holding at cue" with Continue takes the control bar's place (the surface draws it);
+    // the bar comes back on Continue.
+    final holding = ref.watch(prompterProvider.select((p) => p.cueHolding >= 0));
+    return _frame(
+      Stack(
+        children: [
+          Positioned.fill(child: ColoredBox(color: promptBackground.withValues(alpha: s.opacity))),
+          Positioned.fill(child: _surface(PromptLayoutStyle.full)),
+          Column(children: [_fullHeader(s), const Spacer(), if (!holding) _fullControlBar(s)]),
+        ],
+      ),
+    );
+  }
 
   Widget _compactLayout(PromptSettings s) => _frame(
     Stack(
@@ -709,7 +727,8 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
   String _footer(PromptSettings s, PrompterState pr) => switch (s.mode) {
     PromptControlMode.voice =>
       pr.playing
-          ? 'Listening — start reading your script'
+          // The prompt to start only makes sense until the first words of the script are heard.
+          ? (pr.progress.confirmedWordIndex >= 0 ? 'Following your voice' : 'Listening — start reading your script')
           : (pr.status.isEmpty || pr.status == 'Listening'
                 ? 'Microphone off  •  Press Space or Start voice to resume listening'
                 : 'Microphone off  •  ${pr.status}'),
@@ -846,18 +865,43 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
             ],
             Flexible(
               flex: s.showProgress ? 2 : 1,
-              child: Text(
-                _footer(s, pr),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: s.showProgress ? TextAlign.end : TextAlign.center,
-                style: TextStyle(fontSize: 12, color: attention ? Colors.orange : Colors.white.withValues(alpha: s.showProgress ? 0.6 : 0.7)),
-              ),
+              child: _nextCue() ??
+                  Text(
+                    _footer(s, pr),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: s.showProgress ? TextAlign.end : TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: attention ? Colors.orange : Colors.white.withValues(alpha: s.showProgress ? 0.6 : 0.7)),
+                  ),
             ),
           ]),
         ],
       ),
     );
+  }
+
+  /// The action cue coming up while it is still below the window, in place of the status text: "Next ↳ Point at the
+  /// chart", or with pause bars and "Hold" (amber) for a cue that holds. Null when there is none.
+  Widget? _nextCue() {
+    final i = ref.watch(cueBelowProvider);
+    final cues = ref.read(prompterProvider.notifier).cues;
+    if (i < 0 || i >= cues.length) return null;
+    final cue = cues[i];
+    final color = cue.hold ? cueQuietAmber : cueQuietNext;
+    const label = TextStyle(fontSize: 12, color: cueQuietGrey);
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+      const Text('Next', style: label),
+      const SizedBox(width: 8),
+      Icon(cue.hold ? Icons.pause_rounded : Icons.subdirectory_arrow_right_rounded, size: 14, color: color),
+      const SizedBox(width: 6),
+      Flexible(
+        child: Text(cue.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: label.copyWith(fontStyle: FontStyle.italic, color: color)),
+      ),
+      if (cue.hold) ...[
+        const SizedBox(width: 6),
+        Text('Hold', style: label.copyWith(fontSize: 11, color: color)),
+      ],
+    ]);
   }
 
   /// "Aa" popover: the same size / spacing / opacity controls as Studio.

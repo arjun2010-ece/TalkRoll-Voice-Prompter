@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
 import '../../core/script/run_sections.dart';
+import '../../core/script/sections.dart' show actionCues;
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
@@ -419,7 +420,35 @@ class RunOptions extends StatelessWidget {
             ),
           ]),
         ),
+      if (actionCues(script).isNotEmpty) const _CueLead(),
     ]);
+  }
+}
+
+/// Action cues: how many seconds ahead the "Next up" heads-up appears (1–5). Shown only when the script has cues.
+class _CueLead extends ConsumerWidget {
+  const _CueLead();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final seconds = ref.watch(settingsProvider.select((s) => s.cueLeadSeconds));
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('Action cue heads-up', style: theme.textTheme.bodyMedium)),
+          Text('$seconds s', style: TextStyle(color: theme.colorScheme.primary)),
+        ]),
+        Slider(
+          value: seconds.toDouble(),
+          min: minCueLeadSeconds.toDouble(),
+          max: maxCueLeadSeconds.toDouble(),
+          divisions: maxCueLeadSeconds - minCueLeadSeconds,
+          onChanged: (v) => ref.read(settingsProvider.notifier).update((c) => c.copyWith(cueLeadSeconds: v.round())),
+        ),
+      ]),
+    );
   }
 }
 

@@ -559,6 +559,7 @@ class _ShortcutRecorderState extends State<_ShortcutRecorder> {
 
   static String? _keyName(LogicalKeyboardKey k) {
     if (k == LogicalKeyboardKey.space) return 'space';
+    if (k == LogicalKeyboardKey.enter) return 'return';
     if (k == LogicalKeyboardKey.arrowUp) return 'up';
     if (k == LogicalKeyboardKey.arrowDown) return 'down';
     if (k == LogicalKeyboardKey.arrowLeft) return 'left';

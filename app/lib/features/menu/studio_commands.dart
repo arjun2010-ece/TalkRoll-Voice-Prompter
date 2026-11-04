@@ -13,6 +13,7 @@ class StudioCommands {
     required this.exportFile,
     required this.save,
     required this.insertSection,
+    required this.insertActionCue,
     required this.start,
     required this.settings,
     required this.showScriptsFolder,
@@ -28,6 +29,7 @@ class StudioCommands {
   final VoidCallback exportFile;
   final VoidCallback save;
   final VoidCallback insertSection;
+  final VoidCallback insertActionCue;
   final VoidCallback start;
   final VoidCallback settings;
   final VoidCallback showScriptsFolder;

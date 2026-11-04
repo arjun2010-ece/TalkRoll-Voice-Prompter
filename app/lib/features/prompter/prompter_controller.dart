@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +9,7 @@ import '../../core/matching/script_tracker.dart';
 import '../../core/narration/alignment.dart';
 import '../../core/progress/reading_progress.dart';
 import '../../core/script/run_sections.dart';
+import '../../core/script/sections.dart' show ActionCue, actionCues;
 import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/audio/audio_input.dart';
@@ -59,6 +59,10 @@ class PrompterState {
     this.sectionSeconds = 0,
     this.jumpWord = -1,
     this.jumpToken = 0,
+    this.cueNow = -1,
+    this.cueNext = -1,
+    this.cueSeconds = 0,
+    this.cueHolding = -1,
   });
   final PromptReadingProgress progress;
   final bool playing;
@@ -93,6 +97,13 @@ class PrompterState {
   final int jumpWord;
   final int jumpToken;
 
+  /// Action cues, as indexes into the script's cue list (-1 for none): the one just reached, the one coming up
+  /// (with [cueSeconds] to go, for the "Next up" heads-up), and the one that is holding the prompter until Continue.
+  final int cueNow;
+  final int cueNext;
+  final int cueSeconds;
+  final int cueHolding;
+
   PrompterState copyWith({
     PromptReadingProgress? progress,
     bool? playing,
@@ -108,6 +119,10 @@ class PrompterState {
     double? sectionSeconds,
     int? jumpWord,
     int? jumpToken,
+    int? cueNow,
+    int? cueNext,
+    int? cueSeconds,
+    int? cueHolding,
   }) => PrompterState(
     progress: progress ?? this.progress,
     playing: playing ?? this.playing,
@@ -123,6 +138,10 @@ class PrompterState {
     sectionSeconds: sectionSeconds ?? this.sectionSeconds,
     jumpWord: jumpWord ?? this.jumpWord,
     jumpToken: jumpToken ?? this.jumpToken,
+    cueNow: cueNow ?? this.cueNow,
+    cueNext: cueNext ?? this.cueNext,
+    cueSeconds: cueSeconds ?? this.cueSeconds,
+    cueHolding: cueHolding ?? this.cueHolding,
   );
 }
 
@@ -148,6 +167,18 @@ class PrompterController extends Notifier<PrompterState> {
   List<RunSection> _sections = const [];
   final _sectionClock = Stopwatch();
 
+  // Action cues. A cue is "done" once it has been shown (or, for a hold cue, continued past); a Retake, a jump back or
+  // a restart makes the cues after that point fire again.
+  List<ActionCue> _cues = const [];
+  List<double> _cueTimes = const [];
+  final _cuesDone = <int>{};
+  Timer? _cueNowTimer;
+  Future<void>? _holdSettled;
+  final _pace = <(int, int)>[];
+  static const _cueNowFor = Duration(milliseconds: 2500);
+  static const _fallbackWordsPerSecond = 2.5;
+  static const _voiceLineWords = 8;
+
   @override
   PrompterState build() {
     _input = ref.read(audioInputProvider);
@@ -162,6 +193,16 @@ class PrompterController extends Notifier<PrompterState> {
 
   /// Whether the script is being run one section at a time (Run: Section by section, and the script has words).
   bool get sectionRun => ref.read(settingsProvider).runStyle == RunStyle.sections && _sections.isNotEmpty;
+
+  /// The script's action cues, in order.
+  List<ActionCue> get cues => _cues;
+
+  /// Whether cue [i] belongs to the part of the script being run (all of it, or the current section).
+  bool cueInRun(int i) {
+    final c = _cues[i], s = currentSection;
+    if (s == null) return true;
+    return c.wordIndex >= s.startWord && (c.wordIndex < s.endWord || (s.endWord >= _wordCount && c.wordIndex >= _wordCount));
+  }
 
   /// The section being run, or null when running the whole script.
   RunSection? get currentSection => sectionRun ? _sections[state.sectionIndex.clamp(0, _sections.length - 1)] : null;
@@ -181,12 +222,14 @@ class PrompterController extends Notifier<PrompterState> {
     if (sessionId == _session && mode == _mode) return;
     await _teardown();
     _session = sessionId;
+    _playWhenReady = false;
     _mode = mode;
     _script = script;
     _wordCount = scriptWords(script).length;
     _tracker = ScriptTracker(scriptWords(script));
     _sections = runSections(script);
     _sectionClock.reset();
+    _resetCues(script);
     state = PrompterState(resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     _externalSamples = externalSamples;
     _audioPath = audioPath;
@@ -197,9 +240,23 @@ class PrompterController extends Notifier<PrompterState> {
   Stream<Float32List>? _externalSamples;
   String? _audioPath;
 
+  /// Narration: Play was pressed while the recording was loading.
+  bool _playWhenReady = false;
+
+  /// Voice: a recogniser's text is the whole running transcript of its current utterance, not only what was said since
+  /// the last result, and it goes on growing until the recogniser ends the utterance (a final result). Words heard
+  /// while a hold cue held are therefore still at the start of the transcript after Continue, and the tracker would
+  /// take them for new speech and highlight them. [_heldWords] counts the words the transcript held during the hold,
+  /// and after Continue [_ignoredWords] drops that many from its start, until the utterance ends.
+  int _heldWords = 0;
+  int _ignoredWords = 0;
+
   Future<void> togglePlay() => state.playing ? pause() : play();
 
   Future<void> play() async {
+    // Play on a held cue is Continue.
+    if (state.cueHolding >= 0) _releaseHold();
+    await _holdSettled;
     // Pressing play on a finished section carries on: the next section, or a retake after the last one.
     if (sectionRun && state.sectionDone) {
       return state.sectionIndex < _sections.length - 1 ? nextSection() : retakeSection();
@@ -210,9 +267,15 @@ class PrompterController extends Notifier<PrompterState> {
         state = state.copyWith(playing: true, finished: false);
       case PromptControlMode.voice:
         await _startVoice();
+        _voiceCues();
       case PromptControlMode.recordedAudio:
         // Narration scrolls by the playback position alone: no microphone, no recogniser.
         final clock = _clock;
+        // Play pressed while the recording is still loading starts it as soon as it is ready.
+        if (state.preparing) {
+          _playWhenReady = true;
+          return;
+        }
         if (clock == null || _alignment == null) return;
         state = state.copyWith(playing: true, finished: false, status: 'Playing');
         // just_audio's play() future only completes on pause/end, so don't await it.
@@ -236,6 +299,7 @@ class PrompterController extends Notifier<PrompterState> {
     state = state.copyWith(
       playing: false,
       lost: false,
+      cueNext: -1,
       status: _mode == PromptControlMode.recordedAudio && !state.finished ? 'Paused' : state.status,
     );
   }
@@ -244,6 +308,7 @@ class PrompterController extends Notifier<PrompterState> {
     final wasMode = _mode;
     await pause();
     _sectionClock.reset();
+    _resetCues(_script);
     state = PrompterState(preparing: state.preparing, status: state.status, resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     if (wasMode == PromptControlMode.recordedAudio) await _clock?.seekToStart();
   }
@@ -260,7 +325,14 @@ class PrompterController extends Notifier<PrompterState> {
     final reopen = _mode == PromptControlMode.recordedAudio && state.finished;
     // Section by section: a tap in another section makes it the current one, and a tap in a finished section reopens it.
     final run = sectionRun && _mode != PromptControlMode.normal;
+    _cuesDone
+      ..clear()
+      ..addAll([for (var i = 0; i < _cues.length; i++) if (_cues[i].wordIndex <= index) i]);
+    _cueNowTimer?.cancel();
     state = state.copyWith(
+      cueNow: -1,
+      cueNext: -1,
+      cueHolding: -1,
       lost: false,
       finished: reopen || (run && state.sectionDone) ? false : null,
       status: reopen || (run && state.sectionDone) ? 'Paused' : null,
@@ -268,7 +340,7 @@ class PrompterController extends Notifier<PrompterState> {
       sectionDone: run ? false : null,
       progress: PromptReadingProgress.synchronized(
         confirmed: index,
-        predicted: index + 1 < _wordCount ? index + 1 : null,
+        predicted: _predictedAfter(index),
       ),
     );
   }
@@ -289,7 +361,7 @@ class PrompterController extends Notifier<PrompterState> {
         ? _sectionEndSeconds(section, map) - _sectionStartSeconds(section, map)
         : _sectionClock.elapsedMilliseconds / 1000.0;
     // Mark it first, so a result that arrives while the recogniser shuts down cannot end the section twice.
-    state = state.copyWith(sectionDone: true, sectionSeconds: seconds);
+    state = state.copyWith(sectionDone: true, sectionSeconds: seconds, cueNow: -1, cueNext: -1, cueHolding: -1);
     await pause();
     state = state.copyWith(playing: false, finished: last, status: last ? 'Finished' : 'Section done');
   }
@@ -308,7 +380,14 @@ class PrompterController extends Notifier<PrompterState> {
       await _clock?.seek(_clockPositionFor(_sectionStartSeconds(section, map)));
     }
     _tracker?.syncTo(word - 1);
+    _cuesDone
+      ..clear()
+      ..addAll([for (var k = 0; k < _cues.length; k++) if (_cues[k].wordIndex < word) k]);
+    _cueNowTimer?.cancel();
     state = state.copyWith(
+      cueNow: -1,
+      cueNext: -1,
+      cueHolding: -1,
       sectionIndex: i,
       sectionDone: false,
       finished: false,
@@ -318,7 +397,7 @@ class PrompterController extends Notifier<PrompterState> {
       // Narration puts its first word on the reading line; Voice and Auto-scroll wait for the first word, with
       // nothing highlighted or dimmed (Voice's matcher is started at the section by `_onHypothesis`).
       progress: _mode == PromptControlMode.recordedAudio && word > 0
-          ? PromptReadingProgress.synchronized(confirmed: word, predicted: word + 1 < _wordCount ? word + 1 : null)
+          ? PromptReadingProgress.synchronized(confirmed: word, predicted: _predictedAfter(word))
           : PromptReadingProgress.inactive,
       jumpWord: word,
       jumpToken: state.jumpToken + 1,
@@ -352,6 +431,174 @@ class PrompterController extends Notifier<PrompterState> {
   double _sectionEndSeconds(RunSection s, AlignmentMap map) =>
       s.endWord < map.wordCount ? map.timeOfWord(s.endWord) : map.duration;
 
+  // --- Action cues -------------------------------------------------------------
+
+  void _resetCues(String script) {
+    _cues = actionCues(script);
+    _cueTimes = const [];
+    _cuesDone.clear();
+    _pace.clear();
+    _cueNowTimer?.cancel();
+  }
+
+  /// Every mode reports where the text is: the first [reached] cues are at or behind the reading line, and cue
+  /// [next] (the first of the rest in this run), if any, is [secondsToNext] seconds away and so due a heads-up.
+  /// A reached cue shows as "now", or holds the prompter if it is a hold cue.
+  void cuePosition({required int reached, int? next, double secondsToNext = 0}) {
+    if (_cues.isEmpty) return;
+    for (var i = 0; i < reached && i < _cues.length; i++) {
+      if (_cuesDone.contains(i) || state.cueHolding == i || !cueInRun(i)) continue;
+      if (_cues[i].hold) {
+        _beginHold(i);
+        return;
+      }
+      _cuesDone.add(i);
+      _showCueNow(i);
+    }
+    final coming = next != null && state.cueHolding < 0 && secondsToNext <= ref.read(settingsProvider).cueLeadSeconds ? next : -1;
+    final seconds = coming < 0 ? 0 : math.max(1, secondsToNext.ceil());
+    if (coming != state.cueNext || (coming >= 0 && seconds != state.cueSeconds)) {
+      state = state.copyWith(cueNext: coming, cueSeconds: seconds);
+    }
+  }
+
+  /// The word to show as coming next after [confirmed]: the following word, or none at the end. When an action cue
+  /// sits right before that word, none either: the next line is not due until the cue is done, so the highlight stays
+  /// on this side of it. A script without cues always gets the following word.
+  int? _predictedAfter(int confirmed) {
+    final next = confirmed + 1;
+    if (next >= _wordCount) return null;
+    for (final c in _cues) {
+      if (c.wordIndex == next) return null;
+    }
+    return next;
+  }
+
+  void _showCueNow(int i) {
+    _cueNowTimer?.cancel();
+    state = state.copyWith(cueNow: i, cueNext: -1);
+    _cueNowTimer = Timer(_cueNowFor, () {
+      if (state.cueNow == i && state.cueHolding != i) state = state.copyWith(cueNow: -1);
+    });
+  }
+
+  /// A hold cue was reached: the text stops (Auto-scroll), speech is ignored (Voice) or the audio pauses (Narration)
+  /// until [continueFromHold].
+  void _beginHold(int i) {
+    _cueNowTimer?.cancel();
+    state = state.copyWith(cueNow: i, cueNext: -1, cueHolding: i, status: 'On hold');
+    switch (_mode) {
+      case PromptControlMode.normal:
+        state = state.copyWith(playing: false);
+      case PromptControlMode.voice:
+        // The recogniser can deliver several words at once and run past the cue: the reader resumes after
+        // Continue from the cue, not from wherever that burst ended.
+        final at = _cues[i].wordIndex - 1;
+        if (state.progress.confirmedWordIndex > at) {
+          _tracker?.syncTo(at);
+          state = state.copyWith(
+            progress: at < 0
+                ? PromptReadingProgress.inactive
+                : PromptReadingProgress.synchronized(confirmed: at, predicted: _predictedAfter(at)),
+          );
+        }
+      case PromptControlMode.recordedAudio:
+        _narrationTicker?.cancel();
+        state = state.copyWith(playing: false);
+        _holdSettled = _holdAudioAt(i);
+    }
+  }
+
+  /// Narration: stops the audio exactly at cue [i], so Continue resumes from the same point.
+  Future<void> _holdAudioAt(int i) async {
+    final clock = _clock;
+    if (clock == null) return;
+    await clock.pause();
+    if (state.cueHolding == i) await clock.seek(_clockPositionFor(_cueTimes[i]));
+  }
+
+  /// Ends the hold. The held cue has been on screen the whole time, so it doesn't turn "now" again; that would hide
+  /// the next cue's heads-up for a few seconds.
+  void _releaseHold() {
+    // What was said during the hold is not read: only words after it count.
+    _ignoredWords = _heldWords;
+    _heldWords = 0;
+    _cuesDone.add(state.cueHolding);
+    _cueNowTimer?.cancel();
+    state = state.copyWith(cueHolding: -1, cueNow: -1);
+  }
+
+  /// Continue after a hold cue (button, tap or hotkey).
+  Future<void> continueFromHold() async {
+    if (state.cueHolding < 0) return;
+    // Voice is still listening, so only the hold has to end; the others play from where they stopped.
+    if (state.playing) {
+      _releaseHold();
+      state = state.copyWith(status: 'Listening');
+      // The next cue's heads-up shows now, not only after the next words are heard.
+      _voiceCues();
+    } else {
+      await play();
+    }
+  }
+
+  void _notePace(int confirmed) {
+    final now = _trackerClock.elapsedMilliseconds;
+    _pace.add((now, confirmed));
+    _pace.removeWhere((p) => now - p.$1 > 30000);
+  }
+
+  /// Words per second over the last ~30 s, or a typical 150 words per minute until there is enough to measure.
+  double get _wordsPerSecond {
+    if (_pace.length < 3) return _fallbackWordsPerSecond;
+    final spanMs = _pace.last.$1 - _pace.first.$1, words = _pace.last.$2 - _pace.first.$2;
+    if (spanMs < 3000 || words < 4) return _fallbackWordsPerSecond;
+    return (words * 1000 / spanMs).clamp(0.8, 6.0);
+  }
+
+  /// Voice: where the reader is, in words, against each cue's position. The heads-up comes by the reader's pace, but
+  /// never less than about a line ahead.
+  void _voiceCues() {
+    if (_cues.isEmpty) return;
+    final pos = math.max(state.progress.confirmedWordIndex, (currentSection?.startWord ?? 0) - 1);
+    var reached = 0;
+    while (reached < _cues.length && _cues[reached].wordIndex - 1 <= pos) {
+      reached++;
+    }
+    int? next;
+    var seconds = 0.0;
+    for (var i = reached; i < _cues.length; i++) {
+      if (!cueInRun(i)) continue;
+      final away = _cues[i].wordIndex - 1 - pos;
+      final pace = _wordsPerSecond;
+      final byPace = away / pace;
+      // A cue within a line is announced even if the pace says it is further off than the setting.
+      seconds = away <= _voiceLineWords ? math.min(byPace, ref.read(settingsProvider).cueLeadSeconds.toDouble()) : byPace;
+      next = i;
+      break;
+    }
+    cuePosition(reached: reached, next: next, secondsToNext: seconds);
+  }
+
+  /// Narration: cue times come from the alignment, so the heads-up is exactly the set number of seconds ahead.
+  /// Returns true when a hold cue has just stopped the audio.
+  bool _narrationCues(double seconds) {
+    if (_cueTimes.length != _cues.length) return false;
+    var reached = 0;
+    while (reached < _cueTimes.length && _cueTimes[reached] <= seconds) {
+      reached++;
+    }
+    int? next;
+    for (var i = reached; i < _cues.length; i++) {
+      if (cueInRun(i)) {
+        next = i;
+        break;
+      }
+    }
+    cuePosition(reached: reached, next: next, secondsToNext: next == null ? 0 : _cueTimes[next] - seconds);
+    return state.cueHolding >= 0;
+  }
+
   // --- Voice ---------------------------------------------------------------
 
   Future<void> _startVoice() async {
@@ -384,14 +631,10 @@ class PrompterController extends Notifier<PrompterState> {
     _tracker?.syncTo(state.progress.confirmedWordIndex);
     await _sendBias(native);
     // The Record screen records the microphone, so the recogniser may not open it itself (reference: Video mode).
-    final setting = ref.read(settingsProvider).speechLanguage;
-    final auto = setting == autoSpeechLanguage;
-    final language = resolveSpeechLanguage(
-      setting: setting,
+    final language = await speechLanguageForScript(
+      native: native,
+      setting: ref.read(settingsProvider).speechLanguage,
       script: _script,
-      deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
-      detected: auto ? await native.detectLanguage(_script) : null,
-      supported: auto ? await native.supportedLanguages() : const [],
     );
     state = state.copyWith(playing: true, status: 'Listening', voiceUnsupported: false, voiceNeedsPack: false);
     // Apple's speech pack for the language must be on this device (English ships with the system, the other platforms
@@ -450,6 +693,9 @@ class PrompterController extends Notifier<PrompterState> {
     if (sub == null) return;
     _voiceSub = null;
     _nativeVoice = false;
+    // The next listening session starts with an empty transcript.
+    _heldWords = 0;
+    _ignoredWords = 0;
     await sub.cancel(); // stops the recogniser, which owns its microphone
   }
 
@@ -457,12 +703,27 @@ class PrompterController extends Notifier<PrompterState> {
   void _onHypothesis(SpeechHypothesis h) {
     final tracker = _tracker;
     // A finished section ignores speech until Retake, Next or a jump.
-    if (tracker == null || state.sectionDone) return;
-    if (h.text.trim().isNotEmpty) {
+    // A finished section, and a hold cue, ignore speech until Retake, Next, a jump or Continue.
+    if (tracker == null || state.sectionDone || state.cueHolding >= 0) {
+      if (state.cueHolding >= 0) {
+        // Count what the transcript holds through the hold (none once the utterance has ended), so that after
+        // Continue only words spoken later are read.
+        _heldWords = h.isFinal ? 0 : trackerWords(h.text).length;
+        if (h.isFinal) tracker?.endUtterance();
+      }
+      return;
+    }
+    // After Continue, the first words of the same utterance's transcript were heard during the hold.
+    var text = h.text;
+    if (_ignoredWords > 0) {
+      final words = trackerWords(text);
+      text = words.length > _ignoredWords ? words.skip(_ignoredWords).join(' ') : '';
+    }
+    if (text.trim().isNotEmpty) {
       // A section that has not heard its first word yet starts the matcher at the section, not at the script's start.
       final start = currentSection?.startWord ?? 0;
       tracker.syncTo(math.max(state.progress.confirmedWordIndex, start - 1));
-      final moved = tracker.update(h.text, _trackerClock.elapsedMilliseconds);
+      final moved = tracker.update(text, _trackerClock.elapsedMilliseconds);
       if (moved == null) {
         // Speech that keeps not matching means the reader is out of step.
         if (!state.lost) _lostTimer ??= Timer(_lostAfter, () => state = state.copyWith(lost: true));
@@ -472,16 +733,22 @@ class PrompterController extends Notifier<PrompterState> {
         state = state.copyWith(
           progress: PromptReadingProgress.synchronized(
             confirmed: confirmed,
-            predicted: confirmed + 1 < _wordCount ? confirmed + 1 : null,
+            predicted: _predictedAfter(confirmed),
           ),
           lost: false,
           finished: moved >= _wordCount,
         );
+        _notePace(confirmed);
+        _voiceCues();
+        // This result reached a hold cue: everything its transcript holds so far was heard before or during the hold.
+        if (state.cueHolding >= 0) _heldWords = trackerWords(h.text).length;
         final section = currentSection;
-        if (section != null && confirmed >= section.endWord - 1) unawaited(endSection());
+        if (section != null && confirmed >= section.endWord - 1 && state.cueHolding < 0) unawaited(endSection());
       }
     }
     if (h.isFinal) {
+      // The utterance has ended: the next transcript starts empty.
+      _ignoredWords = 0;
       tracker.endUtterance();
       final native = ref.read(nativeSpeechProvider);
       if (native != null && _nativeVoice) unawaited(_sendBias(native));
@@ -516,6 +783,10 @@ class PrompterController extends Notifier<PrompterState> {
       }
       _audioSeconds = seconds;
       _alignment = alignScript(scriptWords(_script), transcript, duration: seconds);
+      _cueTimes = [
+        for (final c in _cues)
+          c.wordIndex >= _alignment!.wordCount ? _alignment!.duration : math.max(0.0, _alignment!.timeOfWord(c.wordIndex) - 0.1),
+      ];
       _clock = clock;
       _completedSub = clock.completed.listen((_) async {
         if (_clock != clock) return;
@@ -524,23 +795,20 @@ class PrompterController extends Notifier<PrompterState> {
         state = state.copyWith(finished: true, status: 'Finished');
       });
       state = state.copyWith(preparing: false, status: 'Ready — press Play');
+      if (_playWhenReady) {
+        _playWhenReady = false;
+        await play();
+      }
     } catch (_) {
       state = state.copyWith(preparing: false, status: 'Could not load this audio file');
     }
   }
 
-  Future<String> _narrationLanguage() async {
-    final native = ref.read(nativeSpeechProvider);
-    final setting = ref.read(settingsProvider).speechLanguage;
-    final auto = setting == autoSpeechLanguage;
-    return resolveSpeechLanguage(
-      setting: setting,
-      script: _script,
-      deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
-      detected: auto && native != null ? await native.detectLanguage(_script) : null,
-      supported: auto && native != null ? await native.supportedLanguages() : const [],
-    );
-  }
+  Future<String> _narrationLanguage() => speechLanguageForScript(
+    native: ref.read(nativeSpeechProvider),
+    setting: ref.read(settingsProvider).speechLanguage,
+    script: _script,
+  );
 
   /// The audio position that shows the script word spoken at [seconds], allowing for the sync offset.
   Duration _clockPositionFor(double seconds) {
@@ -560,6 +828,7 @@ class PrompterController extends Notifier<PrompterState> {
     if (map == null || clock == null || map.wordCount == 0) return;
     final offset = ref.read(settingsProvider).narrationOffsetMs;
     final seconds = (clock.position.inMilliseconds + offset) / 1000.0;
+    if (_cues.isNotEmpty && _narrationCues(seconds)) return;
     final section = currentSection;
     if (section != null && !state.sectionDone && seconds >= _sectionEndSeconds(section, map)) {
       // Play only this section's part of the recording, then wait.
@@ -570,7 +839,7 @@ class PrompterController extends Notifier<PrompterState> {
     if (section != null) word = word.clamp(section.startWord, section.endWord - 1);
     if (word == state.progress.confirmedWordIndex) return;
     state = state.copyWith(
-      progress: PromptReadingProgress.synchronized(confirmed: word, predicted: word + 1 < _wordCount ? word + 1 : null),
+      progress: PromptReadingProgress.synchronized(confirmed: word, predicted: _predictedAfter(word)),
     );
   }
 
@@ -588,6 +857,9 @@ class PrompterController extends Notifier<PrompterState> {
       if (target > to) target = to < from ? from : to;
     }
     await clock.seek(target < Duration.zero ? Duration.zero : target);
+    // Cues after the new position fire again when the audio gets to them.
+    final at = (target.inMilliseconds + ref.read(settingsProvider).narrationOffsetMs) / 1000.0;
+    _cuesDone.removeWhere((i) => i < _cueTimes.length && _cueTimes[i] > at);
     if (state.finished || state.sectionDone) {
       state = state.copyWith(finished: false, sectionDone: false, status: state.playing ? 'Playing' : 'Paused');
     }
@@ -596,6 +868,7 @@ class PrompterController extends Notifier<PrompterState> {
 
   Future<void> _teardown() async {
     _clearLost();
+    _cueNowTimer?.cancel();
     _narrationTicker?.cancel();
     _narrationTicker = null;
     await _completedSub?.cancel();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,11 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../core/progress/reading_progress.dart';
+import '../../core/script/sections.dart' show actionCues;
 import '../../core/script/text.dart';
 import '../../core/settings/prompt_settings.dart';
+import '../../core/shortcuts/shortcut_binding.dart';
 import '../../services/platform.dart';
 import '../../services/providers.dart';
 import 'prompter_controller.dart';
+import 'cue_widgets.dart';
 import 'reading_guide.dart';
 import 'word_layout.dart';
 
@@ -21,6 +25,23 @@ enum PromptLayoutStyle { full, compact, notch }
 /// (It does not follow the app's light/dark appearance.)
 const promptBackground = Colors.black;
 const promptText = Colors.white;
+
+/// Script words not spoken yet: off-white, easier on the eyes on black than pure white. Words already read are grey.
+const promptScriptText = Color(0xFFEDEDEB);
+const promptReadText = Color(0xFFA6A9B0);
+
+/// Desktop full layout: the action cue coming up while it is still below the window (its index, -1 for none). The
+/// control bar shows it in its status line, so no strip covers the text.
+final cueBelowProvider = NotifierProvider<_CueBelow, int>(_CueBelow.new);
+
+class _CueBelow extends Notifier<int> {
+  @override
+  int build() => -1;
+
+  void set(int cue) {
+    if (state != cue) state = cue;
+  }
+}
 
 /// The scrolling script text, shared by every host. Port of the Swift
 /// `scriptArea`: centered words, live word in orange, completed words
@@ -40,6 +61,7 @@ class PromptSurface extends ConsumerStatefulWidget {
     this.previewWordIndex,
     this.scriptOverride,
     this.coveredByDesktopChrome = false,
+    this.cueFooterBottom,
   });
 
   final PromptLayoutStyle style;
@@ -65,6 +87,11 @@ class PromptSurface extends ConsumerStatefulWidget {
   /// Desktop full layout: a header and control bar overlay the top and bottom
   /// edges, so the reading line must sit between them.
   final bool coveredByDesktopChrome;
+
+  /// Phone reader: what covers the bottom of the text right now (its dock, while shown), so the "Next" strip sits just
+  /// above it. While a cue holds, the host hides its dock and the "Holding at cue" strip takes the bottom instead.
+  /// Null elsewhere (camera overlay, previews): the strip sits at the bottom of the text.
+  final double? cueFooterBottom;
 
   bool get isPreview => previewWordIndex != null;
 
@@ -107,6 +134,21 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
   double _anchorY = 0;
   double _topPad = 0;
   double _lastReport = 0;
+
+  /// Auto-scroll: the offset at which each action cue's line reaches the reading line.
+  List<double> _cueOffsets = const [];
+
+  /// Action cue lines: their type size (a little over half the script's).
+  double _cueFont = 16;
+
+  /// Space above and below a cue line, as a share of the script's size (the design's 14 px at 30 px).
+  static const _blockGap = 0.47;
+
+  /// Where the next cue is drawn (in the text), the visible height and what covers its bottom, so the footer can say
+  /// "Next" only while the cue is still below the window.
+  double _viewH = 0;
+  double _viewBottomInset = 0;
+  bool _nextOnScreen = true;
 
   @override
   void initState() {
@@ -179,6 +221,7 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       // point no longer applies.
       if (pr.jumpToken != _jumpToken) return;
       _offset += settings.speed * dt;
+      _tickCues(settings.speed, max);
       final stop = math.min(max, _sectionLimit);
       if (_offset >= stop) {
         _offset = stop;
@@ -198,6 +241,47 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
     }
     _scroll.jumpTo(_offset.clamp(0.0, max).toDouble());
     _reportReadingWord(now.inMicroseconds / 1e6);
+    _checkNextOnScreen();
+  }
+
+  /// Auto-scroll: tells the controller which cues the text has reached, and how soon the next one is. A hold cue
+  /// stops the text on its line until Continue.
+  void _tickCues(double speed, double max) {
+    final n = _cueOffsets.length;
+    if (n == 0) return;
+    final controller = ref.read(prompterProvider.notifier);
+    double at(int i) => _cueOffsets[i].clamp(0.0, max).toDouble();
+    var reached = 0;
+    while (reached < n && at(reached) <= _offset) {
+      reached++;
+    }
+    int? next;
+    for (var i = reached; i < n; i++) {
+      if (controller.cueInRun(i)) {
+        next = i;
+        break;
+      }
+    }
+    controller.cuePosition(reached: reached, next: next, secondsToNext: next == null ? 0 : (at(next) - _offset) / speed);
+    final held = ref.read(prompterProvider).cueHolding;
+    if (held >= 0 && held < n) _offset = math.min(_offset, at(held));
+  }
+
+  /// Whether action cue [i]'s line is inside the visible text, above whatever covers the bottom (dock or control bar).
+  bool _cueOnScreen(int i) {
+    final layout = _layout;
+    if (layout == null || i < 0 || i >= layout.cueRanges.length || _viewH <= 0) return true;
+    final y = _topPad + layout.cueMidY(i) - _offset;
+    // Phones keep room for the strip that would cover the bottom; desktop shows "Next" in its control bar instead.
+    return y > 0 && y < _viewH - _viewBottomInset - (isMobile ? 56 : 0);
+  }
+
+  /// The "Next" footer follows the text as it scrolls, so it goes away once the cue comes into view.
+  void _checkNextOnScreen() {
+    final next = ref.read(prompterProvider).cueNext;
+    if (next < 0) return;
+    final on = _cueOnScreen(next);
+    if (on != _nextOnScreen && mounted) setState(() => _nextOnScreen = on);
   }
 
   void _syncWakelock(bool playing) {
@@ -229,11 +313,13 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
 
     final style = widget.style;
     final notch = style == PromptLayoutStyle.notch;
-    const textColor = promptText;
+    const textColor = promptScriptText;
 
     Widget body = LayoutBuilder(builder: (context, c) {
       final h = c.maxHeight;
-      final hPad = (style == PromptLayoutStyle.full ? 56.0 : (notch ? 16.0 : 20.0)) * settings.margins.scale;
+      // Left-aligned text starts where the reading guide's edge arrow is drawn in the small layouts, so they keep
+      // a little more room than they needed when the text was centred.
+      final hPad = (style == PromptLayoutStyle.full ? 56.0 : 28.0) * settings.margins.scale;
       // Small layouts keep at least ~2 lines visible.
       final fontSize = style == PromptLayoutStyle.full
           ? settings.fontSize
@@ -258,7 +344,12 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
         fontFamily: settings.font.family,
         color: textColor,
       );
-      final key = (script, fontSize, settings.lineSpacing, width, settings.font, settings.showSections);
+      // Phones are small and the text is read from arm's length, so the cue pill is smaller there.
+      // A stage direction stays small however large the script is set, so it fits on one line and never competes.
+      _cueFont = (fontSize * 0.62).clamp(12.0, 24.0).toDouble();
+      _viewH = h;
+      _viewBottomInset = isMobile ? (widget.cueFooterBottom ?? 0) : clearBottom;
+      final key = (script, fontSize, settings.lineSpacing, width, settings.font, settings.showSections, _cueFont);
       if (_layoutKey != key) {
         // A different wrap (margins, font, size) moves words, so keep the word on the reading
         // line where it was instead of leaving the offset to land somewhere else.
@@ -267,7 +358,11 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
             ? old.nearestWord(Offset(old.painter.width / 2, _offset + anchorY - topPad))
             : null;
         _layoutKey = key;
-        _layout = WordLayout(script, base, width, align: TextAlign.center, showSections: settings.showSections, textDirection: scriptTextDirection(script));
+        final scriptCues = actionCues(script);
+        _layout = WordLayout(script, base, width, align: TextAlign.start, showSections: settings.showSections, textDirection: scriptTextDirection(script), cueSize: Size(width, _cueFont * 1.2 + fontSize * _blockGap * 2), cueHeight: (i) {
+          final c = scriptCues[i];
+          return CueLine.heightFor(c.text, c.hold, _cueFont, width, gap: fontSize * _blockGap);
+        });
         if (!preview) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _publishRemaining() : null);
         if (held != null && held < _layout!.ranges.length) {
           _offset = math.max(0.0, topPad + _layout!.midY(held) - anchorY);
@@ -278,6 +373,9 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
         }
       }
       final layout = _layout!;
+      _cueOffsets = !preview && settings.mode == PromptControlMode.normal
+          ? [for (var i = 0; i < layout.cueRanges.length; i++) math.max(0.0, topPad + layout.cueMidY(i) - anchorY)]
+          : const [];
 
       // A Retake, Next or jump: put that word on the reading line, whatever the mode.
       if (!preview && pr.jumpToken != _jumpToken) {
@@ -334,18 +432,26 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
         // Section by section: the text stays within the section being read, so it never runs ahead into the next one.
         final run = ref.read(prompterProvider.notifier).currentSection;
         if (run != null) scrollWord = math.min(scrollWord, run.endWord - 1);
+        // A hold cue keeps its line at the reading line instead of letting the text run on past it.
+        final cues = ref.read(prompterProvider.notifier).cues;
+        if (pr.cueHolding >= 0 && pr.cueHolding < cues.length) scrollWord = math.min(scrollWord, math.max(0, cues[pr.cueHolding].wordIndex - 1));
         // Never pull the prompt backward for a short-lived predictive cue, but do follow the
         // confirmed word when it moves back (the reader repeated a passage or tapped an earlier word).
-        final target = math.max(0.0, topPad + layout.midY(scrollWord) - anchorY);
         final confirmed = pr.progress.confirmedWordIndex;
-        _followTarget = confirmed < _lastConfirmed ? target : math.max(_followTarget, target);
+        if (pr.cueHolding >= 0 && pr.cueHolding < layout.cueRanges.length) {
+          // A hold cue sits on the reading line while it holds, even if the text had already run a little past it.
+          _followTarget = math.max(0.0, topPad + layout.cueMidY(pr.cueHolding) - anchorY);
+        } else {
+          final target = math.max(0.0, topPad + layout.midY(scrollWord) - anchorY);
+          _followTarget = confirmed < _lastConfirmed ? target : math.max(_followTarget, target);
+        }
         _lastConfirmed = confirmed;
         if ((_followTarget - _offset).abs() > 0.05) _wake();
       }
 
       Widget text = Text.rich(
-        _spans(layout.script, layout, base, pr.progress, textColor),
-        textAlign: TextAlign.center,
+        _spans(layout.script, layout, base, pr, settings.mode, textColor),
+        textAlign: TextAlign.start,
         textDirection: layout.painter.textDirection,
         textWidthBasis: TextWidthBasis.parent,
         // Measured by WordLayout without the system text size; the font size is an in-app setting.
@@ -393,7 +499,21 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
           child: scroller,
         );
       }
-      return scroller;
+      // Always the same Stack, so the footer appearing never moves the scroller in the tree (that would rebuild it
+      // and send the text back to the top).
+      final banner = hasCueBanner(pr);
+      // Desktop full layout: "Next" goes into the control bar's status line; only the holding strip is drawn here.
+      final intoBar = !preview && !isMobile && clearBottom > 0;
+      if (intoBar) {
+        final below = banner && pr.cueHolding < 0 ? pr.cueNext : -1;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ref.read(cueBelowProvider.notifier).set(below);
+        });
+      }
+      return Stack(children: [
+        Positioned.fill(child: scroller),
+        if (banner && !(intoBar && pr.cueHolding < 0)) _cueBanner(pr, settings, notch, clearBottom),
+      ]);
     });
 
     // Small layouts fade lines out at the top edge instead of cutting them off;
@@ -410,14 +530,76 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
     );
   }
 
-  TextSpan _spans(String script, WordLayout layout, TextStyle base, PromptReadingProgress progress, Color text) {
+  /// A footer while a hold cue holds, or (no countdown) when the next cue is still below the window.
+  bool hasCueBanner(PrompterState pr) {
+    if (pr.cueHolding >= 0) return true;
+    if (pr.cueNext < 0 || pr.cueNow >= 0) return false;
+    _nextOnScreen = _cueOnScreen(pr.cueNext);
+    return !_nextOnScreen;
+  }
+
+  /// "Holding at cue" with Continue, or "Next" with the cue: a strip just above the controls, edge to edge, so the
+  /// reading line is never covered.
+  Widget _cueBanner(PrompterState pr, PromptSettings settings, bool compact, double clearBottom) {
+    final controller = ref.read(prompterProvider.notifier);
+    final cues = controller.cues;
+    final holding = pr.cueHolding >= 0;
+    final i = holding ? pr.cueHolding : pr.cueNext;
+    if (i < 0 || i >= cues.length) return const SizedBox.shrink();
+    // Phone reader: the holding strip replaces the dock at the very bottom, clear of the home indicator.
+    final reader = isMobile && widget.cueFooterBottom != null;
+    final safe = reader && holding ? MediaQuery.viewPaddingOf(context).bottom : 0.0;
+    Widget banner;
+    if (holding) {
+      final key = ref.read(shortcutsProvider)[ShortcutAction.continueCue];
+      banner = CueFooter.holding(
+        compact: compact,
+        large: reader,
+        bottomInset: safe,
+        shortcut: isMobile || key == null ? null : key.label(mac: Platform.isMacOS),
+        onContinue: () => unawaited(controller.continueFromHold()),
+      );
+    } else {
+      banner = CueFooter.next(text: cues[i].text, hold: cues[i].hold, compact: compact);
+    }
+    // The strip reads the same way as the text on a mirror or a glass rig.
+    if (settings.mirror) banner = Transform.flip(flipX: true, child: banner);
+    final rotated = settings.rotated && isMobile;
+    if (rotated) banner = RotatedBox(quarterTurns: 2, child: banner);
+    // Mobile: just above the control dock (below the top bar when the text is rotated). Desktop: above the control bar.
+    final top = rotated;
+    // Desktop full layout: the holding strip replaces the control bar, so it sits at the very bottom.
+    final bottom = isMobile ? (holding ? 0.0 : (widget.cueFooterBottom ?? 0)) : (holding ? 0.0 : clearBottom);
+    return Align(
+      alignment: top ? Alignment.topCenter : Alignment.bottomCenter,
+      child: Padding(
+        padding: EdgeInsets.only(top: top ? 80 : 0, bottom: top ? 0 : bottom),
+        child: banner,
+      ),
+    );
+  }
+
+  TextSpan _spans(String script, WordLayout layout, TextStyle base, PrompterState pr, PromptControlMode mode, Color text) {
+    final progress = pr.progress;
+    Widget cueBuilder(int i) {
+      final cue = layout.cues[i];
+      final state = pr.cueHolding == i || pr.cueNow == i
+          ? CueLineState.now
+          : pr.cueNext == i
+              ? CueLineState.next
+              : mode != PromptControlMode.normal && cue.wordIndex <= progress.confirmedWordIndex
+                  ? CueLineState.done
+                  : CueLineState.upcoming;
+      return CueLine(text: cue.text, hold: cue.hold, state: state, fontSize: _cueFont);
+    }
+
     final children = <InlineSpan>[];
     var cursor = 0;
     for (var i = 0; i < layout.ranges.length; i++) {
       final r = layout.ranges[i];
-      if (r.start > cursor) children.addAll(layout.gapSpans(cursor, r.start));
+      if (r.start > cursor) children.addAll(layout.gapSpans(cursor, r.start, cueBuilder: cueBuilder));
       final style = switch (progress.stateFor(i)) {
-        WordState.completed => TextStyle(color: text.withValues(alpha: 0.46)),
+        WordState.completed => const TextStyle(color: promptReadText),
         WordState.current => const TextStyle(
           color: Colors.orange,
           decoration: TextDecoration.underline,
@@ -433,7 +615,7 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       children.add(TextSpan(text: script.substring(r.start, r.end), style: style));
       cursor = r.end;
     }
-    if (cursor < script.length) children.addAll(layout.gapSpans(cursor, script.length));
+    if (cursor < script.length) children.addAll(layout.gapSpans(cursor, script.length, cueBuilder: cueBuilder));
     // Not inheriting the theme's default text style (letter spacing) keeps this identical to WordLayout's measure.
     return TextSpan(style: base.copyWith(inherit: false), children: children);
   }

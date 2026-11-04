@@ -45,8 +45,8 @@ final _blankLineRun = RegExp(r'[ \t]*(?:\r?\n[ \t]*){3,}');
 /// line, or none, is left as written.
 String tidyBlankLines(String script) => script.replaceAll(_blankLineRun, '\n\n');
 
-/// Script words as displayed: split on whitespace, punctuation kept. Section marker lines are not words.
-List<String> scriptWords(String script) => script.contains('[')
+/// Script words as displayed: split on whitespace, punctuation kept. Section marker and action cue lines are not words.
+List<String> scriptWords(String script) => hasNonSpokenLines(script)
     ? [for (final m in spokenWordMatches(script)) m[0]!]
     : [for (final m in scriptWordPattern.allMatches(script)) m[0]!];
 

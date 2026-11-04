@@ -19,15 +19,18 @@ class TrackingStatus {
 }
 
 /// Statuses the controller reports that are not problems.
-const _benignStatuses = {'', 'Listening', 'Playing', 'Paused', 'Finished', 'Section done', 'Ready — press Play'};
+const _benignStatuses = {'', 'Listening', 'Playing', 'Paused', 'Finished', 'Section done', 'Ready — press Play', 'On hold'};
 
 TrackingStatus trackingStatusFor(PromptControlMode mode, PrompterState pr, String? audioPath) {
   if (mode == PromptControlMode.normal) {
+    if (pr.cueHolding >= 0) return const TrackingStatus(Tracking.paused, 'On hold');
     if (pr.finished) return const TrackingStatus(Tracking.finished, 'End of script');
     if (pr.sectionDone) return const TrackingStatus(Tracking.finished, 'Section done');
     return pr.playing ? const TrackingStatus(Tracking.scrolling, 'Scrolling') : const TrackingStatus(Tracking.paused, 'Paused');
   }
   if (pr.preparing) return const TrackingStatus(Tracking.preparing, 'Syncing audio…');
+  // A hold cue is a deliberate wait, not a fault; the card on the prompter says what it is waiting for.
+  if (pr.cueHolding >= 0) return const TrackingStatus(Tracking.paused, 'On hold');
   if (!pr.playing && !_benignStatuses.contains(pr.status)) {
     return TrackingStatus(Tracking.unavailable, 'Unavailable', detail: pr.status);
   }

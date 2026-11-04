@@ -11,6 +11,7 @@ enum ShortcutAction {
   retakeSection,
   openSections,
   back5,
+  continueCue,
 }
 
 enum ShortcutMod { ctrl, alt, shift, meta }
@@ -26,6 +27,7 @@ extension ShortcutActionLabel on ShortcutAction {
     ShortcutAction.retakeSection => 'Retake section',
     ShortcutAction.openSections => 'Open sections',
     ShortcutAction.back5 => 'Back 5 seconds (Narration)',
+    ShortcutAction.continueCue => 'Continue (after a hold cue)',
   };
 
   /// Only meaningful when the script is run section by section.
@@ -36,6 +38,7 @@ extension ShortcutActionLabel on ShortcutAction {
 /// Keys a global shortcut may use. Names are shared with the native plugins.
 final List<String> supportedShortcutKeys = [
   'space',
+  'return',
   'up',
   'down',
   'left',
@@ -58,6 +61,7 @@ class ShortcutBinding {
   String label({required bool mac}) {
     final keyLabel = switch (key) {
       'space' => 'Space',
+      'return' => '↩',
       'up' => '↑',
       'down' => '↓',
       'left' => '←',
@@ -126,6 +130,7 @@ Map<ShortcutAction, ShortcutBinding> defaultShortcuts({required bool mac}) {
     ShortcutAction.retakeSection: const ShortcutBinding('left', ca),
     ShortcutAction.openSections: const ShortcutBinding('s', ca),
     ShortcutAction.back5: const ShortcutBinding('b', ca),
+    ShortcutAction.continueCue: const ShortcutBinding('return', ca),
   };
 }
 

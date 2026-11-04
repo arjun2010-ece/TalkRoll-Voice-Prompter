@@ -197,22 +197,29 @@ class _ReadScreenState extends ConsumerState<ReadScreen> {
           child: LayoutBuilder(builder: (context, c) {
             final wide = c.maxWidth >= _wideMinWidth;
             final pad = MediaQuery.viewPaddingOf(context);
+            // While an action cue holds, "Holding at cue" with Continue takes the dock's place; the dock comes back after.
+            final holding = ref.watch(prompterProvider.select((p) => p.cueHolding >= 0));
+            final showProgress = ref.watch(settingsProvider.select((s) => s.showProgress));
+            final dockHeight = _chrome && !holding
+                ? (wide ? 76.0 : 68.0) + 20 + (showProgress ? 26 : 0) + math.max(pad.bottom, 8) + 8
+                : 0.0;
             return Stack(children: [
               Positioned.fill(
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: _maxTextWidth),
-                    child: PromptSurface(onWordTap: true, onTapIntercept: _onTextTap),
+                    child: PromptSurface(onWordTap: true, onTapIntercept: _onTextTap, cueFooterBottom: dockHeight),
                   ),
                 ),
               ),
-              Positioned(left: 0, right: 0, bottom: 0, child: _ProgressLine()),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _Dock(visible: _chrome, wide: wide, bottomInset: pad.bottom, onTogglePlay: _togglePlay, onEdit: _edit),
-              ),
+              if (!holding) Positioned(left: 0, right: 0, bottom: 0, child: _ProgressLine()),
+              if (!holding)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _Dock(visible: _chrome, wide: wide, bottomInset: pad.bottom, onTogglePlay: _togglePlay, onEdit: _edit),
+                ),
               // Over the dock too, which the scrim dims, so the card's buttons are never hidden behind it.
               const Positioned.fill(child: _SectionEnd()),
               Positioned(

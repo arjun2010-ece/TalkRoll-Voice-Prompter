@@ -23,6 +23,7 @@ import '../settings/mobile_settings.dart';
 import '../video/camera_state.dart';
 import '../video/record_screen.dart';
 import 'script_list.dart';
+import 'action_cue_dialog.dart';
 import 'script_text_controller.dart';
 import 'start_options.dart';
 
@@ -572,6 +573,9 @@ class _EditorState extends ConsumerState<_Editor> {
       ..showSnackBar(
         SnackBar(
           content: const Text('Cleared'),
+          // A snackbar with an action stays until it is tapped unless told otherwise; this one must go by itself so
+          // it doesn't cover Start.
+          persist: false,
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () {
@@ -599,6 +603,14 @@ class _EditorState extends ConsumerState<_Editor> {
         extentOffset: nameStart + name.length,
       ),
     );
+    _focus.requestFocus();
+    _edited(_controller.text);
+  }
+
+  /// Asks for an action cue and puts it at the caret (or edits the cue the caret is on).
+  Future<void> _insertActionCue() async {
+    if (!await insertActionCue(context, _controller)) return;
+    if (!mounted) return;
     _focus.requestFocus();
     _edited(_controller.text);
   }
@@ -643,11 +655,21 @@ class _EditorState extends ConsumerState<_Editor> {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              dirty ? 'Unsaved changes' : 'Saved',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: dirty ? scheme.secondary : scheme.onSurfaceVariant,
-              ),
+            // Save state and the word count share this line, so the buttons below can have a row to themselves.
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                  text: dirty ? 'Unsaved changes' : 'Saved',
+                  style: TextStyle(color: dirty ? scheme.secondary : scheme.onSurfaceVariant),
+                ),
+                TextSpan(
+                  text: ' · ${_stats(text)}',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
             ),
           ),
           if (isMobile) ...[
@@ -705,28 +727,30 @@ class _EditorState extends ConsumerState<_Editor> {
       ),
     );
 
-    final statsRow = Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 12, 0),
+    // Insert Section and Insert Action Cue sit side by side, as in the design; Clear is the small button after them.
+    final insertRow = Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              _stats(text),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+            child: OutlinedButton.icon(
+              onPressed: _insertSection,
+              icon: const Icon(Icons.horizontal_rule, size: 18),
+              label: const FittedBox(fit: BoxFit.scaleDown, child: Text('Insert Section', maxLines: 1, softWrap: false)),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 10)),
             ),
           ),
-          if (!empty) TextButton(onPressed: _clear, child: const Text('Clear')),
-          OutlinedButton.icon(
-            onPressed: _insertSection,
-            icon: const Icon(Icons.horizontal_rule, size: 18),
-            label: const Text('Insert Section'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 40),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+          const SizedBox(width: 8),
+          Expanded(child: ActionCueButton(onPressed: _insertActionCue, height: 40)),
+          if (!empty) ...[
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              onPressed: _clear,
+              tooltip: 'Clear',
+              icon: const Icon(Icons.backspace_outlined, size: 18),
+              style: IconButton.styleFrom(fixedSize: const Size(40, 40)),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -818,7 +842,7 @@ class _EditorState extends ConsumerState<_Editor> {
                   titleField,
                   const Divider(indent: 24, endIndent: 24),
                   const SizedBox(height: 4),
-                  statsRow,
+                  insertRow,
                   body,
                 ],
               ),

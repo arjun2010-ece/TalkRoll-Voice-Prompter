@@ -11,6 +11,10 @@ enum RunStyle { whole, sections }
 /// Largest Narration sync offset either way, in milliseconds.
 const maxNarrationOffsetMs = 500;
 
+/// How many seconds ahead the "Next up" heads-up for an action cue appears.
+const minCueLeadSeconds = 1;
+const maxCueLeadSeconds = 5;
+
 enum PromptPlacement { notch, corner, floating }
 
 /// Space either side of the text. Medium is what the prompter always used.
@@ -58,7 +62,7 @@ double _inRangeOr(num? v, ({double min, double max}) r, double fallback) =>
 class PromptSettings {
   const PromptSettings({
     this.fontSize = 25,
-    this.lineSpacing = 1.0,
+    this.lineSpacing = 1.32,
     this.speed = 24,
     this.opacity = 0.92,
     this.studioAppearance = StudioAppearance.dark,
@@ -76,6 +80,7 @@ class PromptSettings {
     this.font = PromptFont.system,
     this.speechLanguage = 'auto',
     this.narrationOffsetMs = 0,
+    this.cueLeadSeconds = 3,
     this.notchSize = const Size(560, 150),
     this.cornerSize = const Size(420, 240),
   });
@@ -115,6 +120,9 @@ class PromptSettings {
   /// Positive moves the script later.
   final int narrationOffsetMs;
 
+  /// Action cues: seconds of warning before a cue (1–5).
+  final int cueLeadSeconds;
+
   /// Whether every option under "Text" is at its default, so Reset has nothing to do.
   bool get isTextDefault {
     const d = PromptSettings();
@@ -152,6 +160,7 @@ class PromptSettings {
     PromptFont? font,
     String? speechLanguage,
     int? narrationOffsetMs,
+    int? cueLeadSeconds,
     Size? notchSize,
     Size? cornerSize,
   }) => PromptSettings(
@@ -174,6 +183,7 @@ class PromptSettings {
     font: font ?? this.font,
     speechLanguage: speechLanguage ?? this.speechLanguage,
     narrationOffsetMs: (narrationOffsetMs ?? this.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
+    cueLeadSeconds: (cueLeadSeconds ?? this.cueLeadSeconds).clamp(minCueLeadSeconds, maxCueLeadSeconds),
     notchSize: notchSize ?? this.notchSize,
     cornerSize: cornerSize ?? this.cornerSize,
   );
@@ -181,6 +191,7 @@ class PromptSettings {
   Map<String, Object> toJson() => {
     'fontSize': fontSize,
     'lineSpacing': lineSpacing,
+    'lineSpacingV': 2,
     'speed': speed,
     'opacity': opacity,
     'studioAppearance': studioAppearance.name,
@@ -198,6 +209,7 @@ class PromptSettings {
     'font': font.name,
     'speechLanguage': speechLanguage,
     'narrationOffsetMs': narrationOffsetMs,
+    'cueLeadSeconds': cueLeadSeconds,
     'notchW': notchSize.width,
     'notchH': notchSize.height,
     'cornerW': cornerSize.width,
@@ -210,7 +222,10 @@ class PromptSettings {
     const d = PromptSettings();
     return PromptSettings(
       fontSize: _clamp((j['fontSize'] as num?) ?? d.fontSize, PromptLimits.fontSize),
-      lineSpacing: _inRangeOr(j['lineSpacing'] as num?, PromptLimits.lineSpacing, d.lineSpacing),
+      // Settings saved before line spacing defaulted to 1.32 hold the old 1.0 default; they move to the new one once.
+      lineSpacing: j['lineSpacingV'] == null && (j['lineSpacing'] as num?) == 1.0
+          ? d.lineSpacing
+          : _inRangeOr(j['lineSpacing'] as num?, PromptLimits.lineSpacing, d.lineSpacing),
       speed: _inRangeOr(j['speed'] as num?, PromptLimits.speed, d.speed),
       opacity: _clamp((j['opacity'] as num?) ?? d.opacity, PromptLimits.opacity),
       studioAppearance: e(StudioAppearance.values, j['studioAppearance'], d.studioAppearance),
@@ -228,6 +243,7 @@ class PromptSettings {
       font: e(PromptFont.values, j['font'], d.font),
       speechLanguage: j['speechLanguage'] as String? ?? d.speechLanguage,
       narrationOffsetMs: ((j['narrationOffsetMs'] as num?)?.round() ?? d.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
+      cueLeadSeconds: ((j['cueLeadSeconds'] as num?)?.round() ?? d.cueLeadSeconds).clamp(minCueLeadSeconds, maxCueLeadSeconds),
       notchSize: Size(
         (j['notchW'] as num?)?.toDouble() ?? d.notchSize.width,
         (j['notchH'] as num?)?.toDouble() ?? d.notchSize.height,

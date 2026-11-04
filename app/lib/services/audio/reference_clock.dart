@@ -21,7 +21,12 @@ abstract class ReferenceClock {
 }
 
 class AudiblePlayback implements ReferenceClock {
-  final _player = AudioPlayer();
+  /// [handleSession] false leaves the audio session to the caller. The iPhone camera already holds a
+  /// play-and-record session while it films; just_audio would try to switch it to playback-only, iOS refuses
+  /// ('!pri'), and the narration then never plays although its position keeps advancing.
+  AudiblePlayback({bool handleSession = true}) : _player = AudioPlayer(handleAudioSessionActivation: handleSession);
+
+  final AudioPlayer _player;
 
   @override
   Future<double> load(String path) async {

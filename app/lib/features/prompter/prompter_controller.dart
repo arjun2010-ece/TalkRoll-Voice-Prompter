@@ -20,6 +20,7 @@ import '../../services/narration/narration_store.dart';
 import '../../services/providers.dart';
 import '../../services/speech/native_speech_recognizer.dart';
 import '../../services/speech/speech_languages.dart';
+import '../video/camera_state.dart';
 
 /// Voice and Audio mode's recogniser: the platform's own (Android, iOS, macOS, Windows); null elsewhere.
 /// A device without one is told so.
@@ -30,9 +31,9 @@ final audioInputProvider = Provider<AudioInput>((_) => RecordAudioInput());
 
 /// Builds the clock for a take; overridden in tests.
 final referenceClockFactoryProvider =
-    Provider<ReferenceClock Function({required bool audible})>((ref) {
-      return ({required bool audible}) =>
-          audible ? AudiblePlayback() : SilentClock(durationOf: (path) async {
+    Provider<ReferenceClock Function({required bool audible, bool cameraOn})>((ref) {
+      return ({required bool audible, bool cameraOn = false}) =>
+          audible ? AudiblePlayback(handleSession: !(cameraOn && Platform.isIOS)) : SilentClock(durationOf: (path) async {
             final c = AudiblePlayback();
             try {
               return await c.load(path);
@@ -504,7 +505,7 @@ class PrompterController extends Notifier<PrompterState> {
     }
     state = state.copyWith(preparing: true, status: 'Loading audio…');
     try {
-      final clock = ref.read(referenceClockFactoryProvider)(audible: true);
+      final clock = ref.read(referenceClockFactoryProvider)(audible: true, cameraOn: ref.read(cameraOnProvider));
       final seconds = await clock.load(path);
       final language = await _narrationLanguage();
       final transcript = await const NarrationStore().cachedTranscript(path, language);

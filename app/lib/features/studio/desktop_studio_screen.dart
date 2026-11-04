@@ -19,6 +19,7 @@ import '../../ui/position_picker.dart';
 import '../../ui/language_pack_prompt.dart';
 import '../../ui/speech_language_prompt.dart';
 import '../../ui/prompt_text_controls.dart';
+import '../../ui/speech_language_row.dart';
 import '../settings/preferences_screen.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
@@ -850,6 +851,13 @@ class _Inspector extends ConsumerWidget {
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
+                  if (mode != PromptControlMode.normal) ...[
+                    const SizedBox(height: 10),
+                    SpeechLanguageLine(
+                      dense: true,
+                      script: ref.watch(studioProvider.select((s) => s.script)),
+                    ),
+                  ],
                   if (mode == PromptControlMode.normal) ...[
                     const SizedBox(height: 8),
                     const ScrollSpeedControl(),

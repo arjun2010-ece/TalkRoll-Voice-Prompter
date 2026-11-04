@@ -18,6 +18,8 @@ import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import android.view.textclassifier.TextClassificationManager
+import android.view.textclassifier.TextLanguage
 import com.echoprompter.echoprompter_camera.SpeechAudioBridge
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
@@ -109,6 +111,7 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
         when (call.method) {
             "isAvailable" -> result.success(available())
             "supportedLanguages" -> supportedLanguages(result)
+            "detectLanguage" -> detectLanguage(call.arguments as? String ?: "", result)
             "setBias" -> {
                 bias = ArrayList(call.arguments<List<String>>() ?: emptyList())
                 result.success(null)
@@ -169,6 +172,27 @@ class SpeechChannel(private val context: Context, messenger: BinaryMessenger) :
             checker.destroy()
             result.success(emptyList<String>())
         }
+    }
+
+    /**
+     * The language of [text] as Android's own text classifier reads it (`pt`, `bs`, `hi-Latn`, `zh`), or null when
+     * it can't tell or the phone has no classifier (below Android 10). On device; it blocks, so it runs off the main
+     * thread. Dart maps the result to a recogniser language.
+     */
+    private fun detectLanguage(text: String, result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || text.isBlank()) return result.success(null)
+        val sample = text.take(2000)
+        Thread {
+            val tag = try {
+                val classifier = context.getSystemService(TextClassificationManager::class.java)?.textClassifier
+                val found = classifier?.detectLanguage(TextLanguage.Request.Builder(sample).build())
+                if (found != null && found.localeHypothesisCount > 0) found.getLocale(0).toLanguageTag() else null
+            } catch (e: Exception) {
+                Log.w(TAG, "language detection failed", e)
+                null
+            }
+            main.post { result.success(tag?.takeIf { it.isNotBlank() && it != "und" }) }
+        }.apply { name = "echoprompter-language-detect" }.start()
     }
 
     private fun createRecognizer(): SpeechRecognizer {

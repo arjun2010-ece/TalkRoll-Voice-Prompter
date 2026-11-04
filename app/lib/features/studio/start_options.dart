@@ -8,6 +8,7 @@ import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
 import '../../ui/prompt_text_controls.dart';
+import '../../ui/speech_language_row.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 import '../prompter/voice_availability.dart';
@@ -211,6 +212,7 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
               camera: _camera,
               onMode: (m) => setState(() => _mode = m),
               onCamera: (c) => setState(() => _camera = c),
+              script: widget.scriptText ?? ref.watch(studioProvider.select((x) => x.script)),
               run: RunOptions(
                 mode: _mode,
                 run: _run,
@@ -261,10 +263,13 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
 /// The mode, what it needs (scroll speed, or the recording), and the Voice only / Voice + camera choice. The caller
 /// owns the values, so the screen behind a sheet can stay as it is until the choices are confirmed.
 class FollowOptions extends ConsumerWidget {
-  const FollowOptions({super.key, required this.mode, required this.camera, required this.onMode, required this.onCamera, this.run});
+  const FollowOptions({super.key, required this.mode, required this.camera, required this.onMode, required this.onCamera, this.run, this.script});
 
   /// The Run choice, shown between the mode and the camera.
   final Widget? run;
+
+  /// The script being read, for the language Voice and Narration will listen for. Null hides that line.
+  final String? script;
   final PromptControlMode mode;
   final bool camera;
   final ValueChanged<PromptControlMode> onMode;
@@ -300,6 +305,8 @@ class FollowOptions extends ConsumerWidget {
         ),
       ),
       Padding(padding: const EdgeInsets.only(top: 10), child: Text(mode.explanation, style: muted)),
+      if (mode != PromptControlMode.normal && script != null)
+        Padding(padding: const EdgeInsets.only(top: 12), child: SpeechLanguageLine(script: script!)),
       if (!voiceOk && mode != PromptControlMode.normal)
         Padding(
           padding: const EdgeInsets.only(top: 10),

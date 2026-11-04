@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
@@ -77,18 +76,11 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
   NarrationPrepState build() => const NarrationPrepState();
 
   /// The language to transcribe in: the reading-language setting, or the script's own language.
-  Future<String> language(String script) async {
-    final native = ref.read(nativeSpeechProvider);
-    final setting = ref.read(settingsProvider).speechLanguage;
-    final auto = setting == autoSpeechLanguage;
-    return resolveSpeechLanguage(
-      setting: setting,
-      script: script,
-      deviceTag: PlatformDispatcher.instance.locale.toLanguageTag(),
-      detected: auto && native != null ? await native.detectLanguage(script) : null,
-      supported: auto && native != null ? await native.supportedLanguages() : const [],
-    );
-  }
+  Future<String> language(String script) => speechLanguageForScript(
+    native: ref.read(nativeSpeechProvider),
+    setting: ref.read(settingsProvider).speechLanguage,
+    script: script,
+  );
 
   /// Chooses [source] for the current script: copies it into app storage, links it, and transcribes it.
   Future<void> choose(String source) async {

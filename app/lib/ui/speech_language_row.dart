@@ -33,6 +33,60 @@ class SpeechLanguageRow extends ConsumerWidget {
   }
 }
 
+/// "How to read" (and the desktop inspector): the language Voice and Narration mode will listen for with [script],
+/// and Change to pick another. A wrong automatic guess (a very short script, two close languages) is seen and fixed
+/// before Start rather than discovered mid-take. It is the same setting as Settings > Voice language.
+class SpeechLanguageLine extends ConsumerStatefulWidget {
+  const SpeechLanguageLine({super.key, required this.script, this.dense = false});
+
+  final String script;
+
+  /// The desktop inspector's smaller type.
+  final bool dense;
+
+  @override
+  ConsumerState<SpeechLanguageLine> createState() => _SpeechLanguageLineState();
+}
+
+class _SpeechLanguageLineState extends ConsumerState<SpeechLanguageLine> {
+  Future<String>? _language;
+  (String, String)? _for;
+
+  @override
+  Widget build(BuildContext context) {
+    final setting = ref.watch(settingsProvider.select((s) => s.speechLanguage));
+    // Worked out again only when the setting or the script changes, not on every rebuild.
+    if (_for != (setting, widget.script)) {
+      _for = (setting, widget.script);
+      _language = speechLanguageForScript(native: ref.read(nativeSpeechProvider), setting: setting, script: widget.script);
+    }
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final title = widget.dense ? theme.textTheme.bodyMedium : theme.textTheme.bodyLarge;
+    final muted = (widget.dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)?.copyWith(color: scheme.onSurfaceVariant);
+    return Row(children: [
+      Icon(Icons.translate_rounded, size: widget.dense ? 18 : 20, color: scheme.onSurfaceVariant),
+      SizedBox(width: widget.dense ? 8 : 12),
+      Expanded(
+        child: FutureBuilder<String>(
+          future: _language,
+          builder: (context, snap) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(snap.hasData ? 'Listening for ${speechLanguageName(snap.data!)}' : 'Checking the language…', style: title),
+            Text(setting == autoSpeechLanguage ? 'Automatic, from your script' : 'Chosen by you', style: muted),
+          ]),
+        ),
+      ),
+      TextButton(
+        onPressed: () async {
+          final picked = await showDialog<String>(context: context, builder: (_) => _LanguageDialog(current: setting));
+          if (picked != null) ref.read(settingsProvider.notifier).update((s) => s.copyWith(speechLanguage: picked));
+        },
+        child: const Text('Change'),
+      ),
+    ]);
+  }
+}
+
 class _LanguageDialog extends ConsumerStatefulWidget {
   const _LanguageDialog({required this.current});
   final String current;
@@ -43,7 +97,8 @@ class _LanguageDialog extends ConsumerStatefulWidget {
 
 class _LanguageDialogState extends ConsumerState<_LanguageDialog> {
   String _query = '';
-  List<SpeechLanguage> _available = speechLanguages;
+  final List<SpeechLanguage> _available = speechLanguages;
+  List<String> _supported = const [];
 
   @override
   void initState() {
@@ -51,20 +106,14 @@ class _LanguageDialogState extends ConsumerState<_LanguageDialog> {
     _loadSupported();
   }
 
-  /// Narrows the list to the languages this device's recogniser reports (all of them when it reports none).
+  /// Every language is offered. The ones this device's recogniser doesn't report (Android reports only those it can
+  /// recognise offline) are marked, since they may need the internet or a download.
   Future<void> _loadSupported() async {
     final native = ref.read(nativeSpeechProvider);
     if (native == null) return;
     final supported = await native.supportedLanguages();
     if (!mounted) return;
-    setState(() {
-      _available = supportedSpeechLanguages(supported);
-      // A language chosen earlier stays visible even if this device no longer lists it.
-      final c = widget.current;
-      if (c != autoSpeechLanguage && !_available.any((l) => l.tag == c)) {
-        _available = [...speechLanguages.where((l) => l.tag == c), ..._available];
-      }
-    });
+    setState(() => _supported = supported);
   }
 
   @override
@@ -87,7 +136,8 @@ class _LanguageDialogState extends ConsumerState<_LanguageDialog> {
           Flexible(
             child: ListView(shrinkWrap: true, children: [
               if (q.isEmpty) _tile(autoSpeechLanguage, 'Automatic', 'From the script'),
-              for (final l in shown) _tile(l.tag, l.name, l.tag),
+              for (final l in shown)
+                _tile(l.tag, l.name, speechLanguageListed(l.tag, _supported) ? l.tag : '${l.tag} · may need the internet or a download'),
             ]),
           ),
           Padding(

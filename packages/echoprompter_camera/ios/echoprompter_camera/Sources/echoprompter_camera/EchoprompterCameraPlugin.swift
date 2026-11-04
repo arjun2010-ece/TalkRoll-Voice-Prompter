@@ -365,7 +365,6 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         lockedAngle = currentAngle()  // read before locking, or it just returns the stale locked value
         orientationLocked = true
         updateVideoRotation()
-        updateAudioInput()
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_\(Int(Date().timeIntervalSince1970)).mp4")
         try? FileManager.default.removeItem(at: url)
         let w = try AVAssetWriter(outputURL: url, fileType: .mp4)
@@ -386,6 +385,9 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
         writerStarted = false; startTime = .invalid; lastTime = .zero
         paused = false; resuming = false; pausedOffset = .zero; lastRawVideo = .zero
         w.startWriting()
+        // After `writer` is set: updateAudioInput() keeps the microphone on while a take is being written. Without
+        // this, a take with no recogniser listening (Narration) was saved without any audio track.
+        updateAudioInput()
     }
 
     private func write(_ sb: CMSampleBuffer, video: Bool) {

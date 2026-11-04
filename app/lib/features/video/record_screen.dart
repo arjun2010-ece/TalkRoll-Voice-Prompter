@@ -158,10 +158,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   /// The camera and microphone, asked for with an explanation first. False when the reader said no (the screen then
   /// shows how to carry on without them).
   Future<bool> _ensurePermissions() async {
+    final needMic = _needsMic(ref.read(settingsProvider).mode);
     var cam = await Permission.camera.status;
     var mic = await Permission.microphone.status;
-    if (cam.isGranted && mic.isGranted) return true;
-    final blocked = cam.isPermanentlyDenied || cam.isRestricted || mic.isPermanentlyDenied || mic.isRestricted;
+    if (cam.isGranted && (!needMic || mic.isGranted)) return true;
+    final blocked = cam.isPermanentlyDenied || cam.isRestricted || (needMic && (mic.isPermanentlyDenied || mic.isRestricted));
     if (!blocked) {
       _primer = Completer<bool>();
       if (mounted) setState(() => _perm = _Perm.primer);
@@ -171,10 +172,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       }
       final a = ref.read(analyticsProvider);
       await requestPermission(Permission.camera, 'camera', a);
-      await requestPermission(Permission.microphone, 'mic', a);
+      if (needMic) await requestPermission(Permission.microphone, 'mic', a);
       cam = await Permission.camera.status;
       mic = await Permission.microphone.status;
-      if (cam.isGranted && mic.isGranted) {
+      if (cam.isGranted && (!needMic || mic.isGranted)) {
         if (mounted) setState(() => _perm = _Perm.ok);
         return true;
       }
@@ -183,10 +184,20 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       setState(() {
         _perm = _Perm.denied;
         _deniedCam = !cam.isGranted;
-        _deniedMic = !mic.isGranted;
+        _deniedMic = needMic && !mic.isGranted;
       });
     }
     return false;
+  }
+
+  /// Whether a take in [mode] listens to the microphone. iPhone and iPad Narration takes don't: the video gets the
+  /// narration file itself (see `_toggleRecord`), so those takes only need the camera.
+  bool _needsMic(PromptControlMode mode) => !(Platform.isIOS && mode == PromptControlMode.recordedAudio);
+
+  /// A reader who started in Narration (camera only) and switched to Voice has not been asked for the microphone yet.
+  Future<void> _askMicIfNeeded(PromptControlMode mode) async {
+    if (!_needsMic(mode) || _perm == _Perm.primer || _perm == _Perm.denied || (await Permission.microphone.status).isGranted) return;
+    await _ensurePermissions();
   }
 
   /// Back to the reader without the camera.
@@ -576,6 +587,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   Widget build(BuildContext context) {
     ref.listen(settingsProvider.select((s) => s.mode), (_, mode) {
       _routeInput(mode);
+      _askMicIfNeeded(mode);
       if (_recording) return;
       if (mode == PromptControlMode.recordedAudio) _route = ReferenceRoute.speaker;
       _beginPrompter();
@@ -865,7 +877,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       card = CameraStateCard(
         icon: Icons.videocam_outlined,
         title: 'Record yourself while you read',
-        body: 'EchoPrompter needs your camera and microphone. Your video stays on this device until you share it.',
+        body: _needsMic(mode)
+            ? 'EchoPrompter needs your camera and microphone. Your video stays on this device until you share it.'
+            : 'EchoPrompter needs your camera. Your narration is added to the video from its file, so the microphone is not used. Your video stays on this device until you share it.',
         primaryLabel: 'Continue',
         onPrimary: () => _primer?.complete(true),
         secondaryLabel: 'Not now, use voice only',

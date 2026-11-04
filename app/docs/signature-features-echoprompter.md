@@ -357,16 +357,18 @@ Don't start until Arjun confirms the new name. Then:
 
 ## Cross-platform fixes pending
 
-Fixed on iOS and iPadOS in the Narration-with-camera work, not yet on Android. macOS does not record, so it is not affected. All three entries are one piece of work on Android; the first one has to come first.
+Fixed on iOS and iPadOS in the Narration-with-camera work. The first and third entries are now also fixed on Android; the permission entry is still pending there. macOS does not record, so it is not affected.
 
 ### Narration video had no narration audio
-- **Fixed on:** iOS and iPadOS (`packages/echoprompter_camera/ios/.../EchoprompterCameraPlugin.swift`, `NarrationMux.swift`, `packages/echoprompter_camera/lib/echoprompter_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`)
-- **Also affects:** Android
+- **Fixed on:** iOS and iPadOS (`packages/echoprompter_camera/ios/.../EchoprompterCameraPlugin.swift`, `NarrationMux.swift`, `packages/echoprompter_camera/lib/echoprompter_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`) and Android (`packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `NarrationMux.kt`, `app/lib/features/video/record_screen.dart`)
+- **Also affects:** none left (macOS does not record)
 - **Issue:** Record a take in Narration mode with the camera. With headphones, the volume down or silent mode, the saved video has only background noise instead of the narration.
 - **Root cause:** The video's audio track was the microphone, which only heard the narration through the speaker.
 - **Fix applied (iOS):** The take is filmed without the microphone. The Record screen reports the narration's playback position every 50 ms (`EchoPrompterCamera.narrationTick`), the camera notes which parts of the file played, and when the take stops `NarrationMux` puts those parts into the video (AAC soundtrack, picture copied without re-encoding). The audio session is set to playback only.
-- **What Android needs (checked in the code):** `Recorder` in `EchoprompterCameraPlugin.kt` always runs an AAC codec fed by `AudioRecord` (`MediaRecorder.AudioSource.MIC`). In Narration mode Dart asks for the built-in microphone (`setHeadsetInput(false)`) and plays the narration on the speaker (`_route = speaker`; `setReferenceRoute` does nothing on Android), so an Android take still records the speaker and has the same bug. Port: for a Narration take do not start `AudioRecord`; put the parts of the narration that played into the audio track instead, using the same playback positions from `narrationTick` (the Dart side only needs `Platform.isIOS` widened to Android in `_toggleRecord`). Either decode the file with `MediaExtractor` and `MediaCodec` and feed the existing audio codec at the right time, or join it afterwards (the doc suggests Media3 Transformer in section 4; a new native dependency needs Arjun's approval first).
-- **Status:** Pending on Android
+- **Root cause on Android (same as iOS):** `Recorder` in `EchoprompterCameraPlugin.kt` always ran an AAC codec fed by `AudioRecord` (`MediaRecorder.AudioSource.MIC`). In Narration mode Dart asked for the built-in microphone (`setHeadsetInput(false)`) and played the narration on the speaker (`setReferenceRoute` does nothing on Android), so the take recorded the speaker.
+- **Fix applied (Android):** A Narration take starts no `AudioRecord` and the `Recorder` runs video-only (`withAudio = false`). `startRecording` receives the narration file and `narrationTick` (the same 50 ms playback reports as iOS) lets `Recorder` note which parts of the file played, on the take's own timeline, cut at the first video frame. When the take stops, `NarrationMux.kt` runs on a background thread: it decodes those parts with `MediaExtractor` and `MediaCodec`, puts silence between them, encodes AAC at the file's own sample rate, and joins that with the untouched video samples through `MediaMuxer` (platform APIs only, no new dependency). If that fails, or the narration never played, the result carries `narrationFailed` and the take is kept as filmed. The Dart side only widened `Platform.isIOS` to `Platform.isIOS || Platform.isAndroid` in `_toggleRecord`.
+- **Verified:** On the Android emulator (API 37) with the volume at maximum and at 0 (muted), the saved video has the narration clearly present both times (same level as the file; per-window correlation 0.5 to 0.95). The narration sits at a steady offset from the video's start, from 220 ms early to 90 ms late depending on the take, because it starts playing a little before or after the first camera frame. A take with a pause and resume stays continuous. An interrupted take (Home) is joined and saved as well. Voice mode takes still record the microphone, and a normal stop is unchanged.
+- **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Narration with the camera asked for the microphone
 - **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`)
@@ -374,16 +376,16 @@ Fixed on iOS and iPadOS in the Narration-with-camera work, not yet on Android. m
 - **Issue:** Start Narration with the camera. The permission card and the system prompt ask for the microphone even though the take does not need it.
 - **Root cause:** The camera screen asked for camera and microphone for every mode.
 - **Fix applied (iOS):** `_needsMic(mode)` is false for Narration on iOS, so only the camera is asked for, the card says the microphone is not used, and switching to Voice on the camera screen asks for the microphone then (`_askMicIfNeeded`).
-- **What Android needs:** `_needsMic` is still true on Android (`RECORD_AUDIO` is in the manifest for Voice mode). Once the Android take no longer uses the microphone (entry above), widen the check to Android Narration. The permission flow is the same `permission_handler` code, so only that one check changes. Do not change it before the audio port, or Android Narration takes would be silent.
-- **Status:** Pending on Android (after the entry above)
+- **What Android needs:** `_needsMic` is still true on Android (`RECORD_AUDIO` is in the manifest for Voice mode). The Android Narration take no longer uses the microphone (entry above), so this is now unblocked: widen the check to Android Narration. The permission flow is the same `permission_handler` code, so only that one check changes.
+- **Status:** Pending on Android
 
 ### Message when the narration could not be added, and the camera hint
-- **Fixed on:** iOS and iPadOS (`EchoprompterCameraPlugin.swift`, `record_screen.dart`, `echoprompter_camera.dart`)
-- **Also affects:** Android
+- **Fixed on:** iOS and iPadOS (`EchoprompterCameraPlugin.swift`, `record_screen.dart`, `echoprompter_camera.dart`) and Android (`EchoprompterCameraPlugin.kt`, `record_screen.dart`)
+- **Also affects:** none left (macOS does not record)
 - **Issue:** If the narration cannot be put into the video (or never played during the take), the reader should be told, not given a video without sound.
 - **Fix applied (iOS):** `stopRecording` and the interrupted/storage-full event carry `narrationFailed`. The camera screen then deletes the file and shows "Narration wasn't added ... Please record the take again." with Record again (a snackbar when a mode change saves the take). The hint under the preview says the narration is added from its file.
-- **What Android needs:** The Dart side is shared (`RecordingResult.narrationFailed`, `_onStopped`, `_endTake`), so only native work is left: return `narrationFailed` in the result map and in the event emitted by `finishRecording` in `EchoprompterCameraPlugin.kt`. The hint is still the old speaker text on Android (`Platform.isIOS ? ... : ...` in `record_screen.dart`); switch it when the audio port ships.
-- **Status:** Pending on Android (after the first entry)
+- **Fix applied (Android):** The Dart side is shared (`RecordingResult.narrationFailed`, `_onStopped`, `_endTake`). Android's `finishRecording` now returns `narrationFailed` in the `stopRecording` result and in the interrupted/storage-full event. The hint under the preview now shows the same "added from its file" text on both platforms.
+- **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Found while testing, not fixed yet
 These were seen while testing the work above. None of them were part of it, so nothing was changed. Each says which platform needs fixing.

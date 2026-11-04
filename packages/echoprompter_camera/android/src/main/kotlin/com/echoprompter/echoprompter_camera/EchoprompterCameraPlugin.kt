@@ -381,7 +381,7 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
         context.stopService(Intent(context, RecordingService::class.java))
         entry?.let { createSession(listOf(Surface(it.surfaceTexture()))) }
         releaseAudioIfUnused()
-        if (reason != "user") emit(mapOf("type" to reason, "path" to path))
+        if (reason != "user") emit(mapOf("type" to reason, "path" to path, "durationMs" to durationMs.toInt()))
         return mapOf("path" to path, "durationMs" to durationMs.toInt(), "reason" to reason)
     }
 

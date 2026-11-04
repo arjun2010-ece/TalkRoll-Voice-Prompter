@@ -126,11 +126,21 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     _route = ref.read(settingsProvider).mode == PromptControlMode.recordedAudio
         ? ReferenceRoute.speaker
         : await EchoPrompterCamera.headphonesConnected ? ReferenceRoute.headphones : ReferenceRoute.silent;
-    _events = EchoPrompterCamera.events.listen((e) {
+    _events = EchoPrompterCamera.events.listen((e) async {
       final type = e['type'];
       if (type == 'interrupted' || type == 'storage_full') {
-        _onStopped(null, '$type');
-        if (mounted && _saved == null && _stopped == null) {
+        // The camera ended the take itself and finished the file; keep it like a take the reader stopped.
+        final path = e['path'];
+        final r = path is String
+            ? RecordingResult(
+                path,
+                Duration(milliseconds: (e['durationMs'] as int?) ?? 0),
+                '$type',
+                narrationFailed: (e['narrationFailed'] as bool?) ?? false,
+              )
+            : null;
+        await _onStopped(r, '$type');
+        if (r == null && mounted && _saved == null && _stopped == null) {
           setState(() => _stopped = (
             title: type == 'storage_full' ? 'Storage is full' : 'Recording stopped',
             body: type == 'storage_full'

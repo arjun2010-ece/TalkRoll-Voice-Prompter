@@ -497,7 +497,7 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
                             }
                         }
                     }
-                    if reason != "user" { DispatchQueue.main.async { self.eventSink?(["type": reason, "path": path]) } }
+                    if reason != "user" { DispatchQueue.main.async { self.eventSink?(["type": reason, "path": path, "durationMs": Int(duration * 1000), "narrationFailed": narrationFailed]) } }
                     DispatchQueue.main.async {
                         result(["path": path, "durationMs": Int(duration * 1000), "reason": reason, "narrationFailed": narrationFailed])
                     }

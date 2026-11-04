@@ -352,3 +352,22 @@ Don't start until Arjun confirms the new name. Then:
 - Rename user-visible file names and export names (e.g. exported video file names, take-list headers) to the new name.
 - Search the whole repo, including `web/` (the Next.js marketing site), for leftover mentions of the old name and list any that need Arjun's decision (domains, social handles, legal pages).
 - Don't rename Dart packages, folders or classes unless asked. That's internal and not worth the risk.
+---
+
+## Cross-platform fixes pending
+
+### Narration video had no narration audio
+- **Fixed on:** iOS and iPadOS (`packages/echoprompter_camera/ios/.../EchoprompterCameraPlugin.swift`, `NarrationMux.swift`, `packages/echoprompter_camera/lib/echoprompter_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`)
+- **Also affects:** Android. macOS does not record.
+- **Issue:** Record a take in Narration mode with the camera. With headphones, the volume down or silent mode, the saved video has only background noise instead of the narration.
+- **Root cause:** The video's audio track was the microphone, which only heard the narration through the speaker.
+- **Fix applied:** On iOS the take is filmed without the microphone. The Record screen reports the narration's playback position every 50 ms (`narrationTick`), the camera notes which parts of the file played, and when the take stops `NarrationMux` puts those parts into the video (AAC soundtrack, picture copied without re-encoding). If that fails, or the narration never played, the take is not saved and the reader sees "Narration wasn't added". Android still records the speaker through the microphone and needs the same approach (Media3 Transformer or `MediaMuxer`, per section 4).
+- **Status:** Pending on Android
+
+### Narration with the camera asked for the microphone
+- **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`)
+- **Also affects:** Android
+- **Issue:** Start Narration with the camera. The permission card and the system prompt ask for the microphone even though the take does not need it.
+- **Root cause:** The camera screen asked for camera and microphone for every mode.
+- **Fix applied:** `_needsMic(mode)` is false for Narration on iOS, so only the camera is asked for, and switching to Voice on the camera screen asks for the microphone then. Android keeps asking for it until its Narration take stops recording the speaker (see the issue above).
+- **Status:** Pending on Android

@@ -577,11 +577,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   Future<void> _share(RecordingResult r) => SharePlus.instance.share(ShareParams(files: [XFile(r.path)]));
 
   /// Ready for another take after a saved or stopped one.
-  void _recordAgain() => setState(() {
-    _saved = null;
-    _stopped = null;
-    _elapsed = Duration.zero;
-  });
+  void _recordAgain() {
+    // A narration that played to its end would otherwise stay there, and the next take would film in silence.
+    if (ref.read(settingsProvider).mode == PromptControlMode.recordedAudio) _prompter.restart();
+    setState(() {
+      _saved = null;
+      _stopped = null;
+      _elapsed = Duration.zero;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

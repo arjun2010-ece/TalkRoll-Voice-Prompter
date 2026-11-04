@@ -520,6 +520,9 @@ private class Recorder(
     private val pauses = mutableListOf<LongArray>()
     private var vThread: Thread? = null
     @Volatile private var running = false
+    // Set when the video encoder never signals the end of the take (the camera was closed under it, e.g. the app went to
+    // the background), so the drain thread stops waiting for it.
+    @Volatile private var abandonVideo = false
 
     init {
         val vf = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h).apply {
@@ -542,7 +545,13 @@ private class Recorder(
         startUs = SystemClock.elapsedRealtimeNanos() / 1000
         videoCodec.start(); audioCodec.start()
         running = true
-        vThread = Thread { drain(videoCodec, true) }.also { it.start() }
+        vThread = Thread {
+            try {
+                drain(videoCodec, true)
+            } catch (_: IllegalStateException) {
+                // The codec was stopped while this thread waited on it; the take is already ending.
+            }
+        }.also { it.start() }
     }
 
     private fun nowUs() = SystemClock.elapsedRealtimeNanos() / 1000
@@ -620,7 +629,7 @@ private class Recorder(
 
     private fun drain(codec: MediaCodec, video: Boolean) {
         val info = MediaCodec.BufferInfo()
-        while (true) {
+        while (!abandonVideo) {
             val idx = codec.dequeueOutputBuffer(info, 10_000)
             when {
                 idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> addTrack(codec.outputFormat, video)
@@ -639,6 +648,11 @@ private class Recorder(
         try {
             videoCodec.signalEndOfInputStream()
             vThread?.join(2000)
+            if (vThread?.isAlive == true) {
+                // No end-of-stream came. Let the drain thread leave the codec alone before the codec is stopped.
+                abandonVideo = true
+                vThread?.join(1000)
+            }
             drainAudioOnce()
             audioCodec.stop(); videoCodec.stop()
             synchronized(lock) { if (muxerStarted) muxer.stop() }

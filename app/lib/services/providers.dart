@@ -237,11 +237,16 @@ class StudioNotifier extends Notifier<StudioState> {
     );
   }
 
+  /// A script with no saved identity (new, duplicated, imported, the demo) starts with no recording chosen, whatever the
+  /// last script used. A saved script keeps the recording linked to it, restored when it is opened.
+  void _forgetRecording() => ref.read(audioPathProvider.notifier).set(null);
+
   /// Opens the built-in demo script; like the welcome text it is never saved.
   void loadDemo() {
     flush();
     _blockSignalled = false;
     _currentId = null;
+    _forgetRecording();
     state = state.copyWith(
       script: welcome,
       title: '',
@@ -257,6 +262,7 @@ class StudioNotifier extends Notifier<StudioState> {
     flush();
     _blockSignalled = false;
     _currentId = null;
+    _forgetRecording();
     state = state.copyWith(
       script: '',
       title: '',
@@ -272,6 +278,7 @@ class StudioNotifier extends Notifier<StudioState> {
     flush();
     _blockSignalled = false;
     _currentId = null;
+    _forgetRecording();
     state = state.copyWith(
       script: s.body,
       title: s.customTitle ?? '',
@@ -306,6 +313,7 @@ class StudioNotifier extends Notifier<StudioState> {
     flush();
     _blockSignalled = false;
     _currentId = null;
+    _forgetRecording();
     state = state.copyWith(
       script: body,
       title: title ?? '',

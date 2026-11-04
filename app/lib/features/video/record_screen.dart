@@ -200,9 +200,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     return false;
   }
 
-  /// Whether a take in [mode] listens to the microphone. iPhone and iPad Narration takes don't: the video gets the
-  /// narration file itself (see `_toggleRecord`), so those takes only need the camera.
-  bool _needsMic(PromptControlMode mode) => !(Platform.isIOS && mode == PromptControlMode.recordedAudio);
+  /// Whether a take in [mode] listens to the microphone. iPhone, iPad and Android Narration takes don't: the video
+  /// gets the narration file itself (see `_toggleRecord`), so those takes only need the camera.
+  bool _needsMic(PromptControlMode mode) => !((Platform.isIOS || Platform.isAndroid) && mode == PromptControlMode.recordedAudio);
 
   /// A reader who started in Narration (camera only) and switched to Voice has not been asked for the microphone yet.
   Future<void> _askMicIfNeeded(PromptControlMode mode) async {

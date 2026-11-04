@@ -376,7 +376,9 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
         val file = File(context.cacheDir, "echoprompter_${System.currentTimeMillis()}.mp4")
         val r = Recorder(file, previewSize.width, previewSize.height, hint, withAudio = narrationPath == null) { reason -> main.post { finishRecording(reason) } }
         recorder = r
-        context.startForegroundService(Intent(context, RecordingService::class.java))
+        // A Narration take doesn't record the microphone, so its service must not claim the microphone type (Android refuses
+        // that without the microphone permission, which a Narration take no longer asks for).
+        context.startForegroundService(Intent(context, RecordingService::class.java).putExtra("withMic", narrationPath == null))
         createSession(listOf(Surface(e.surfaceTexture()), r.videoSurface), record = true)
         r.start()
     }

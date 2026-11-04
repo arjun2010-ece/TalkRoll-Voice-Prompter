@@ -9,7 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 
-/** Keeps camera + microphone alive while the app is recording. */
+/** Keeps the camera (and the microphone, unless the take is a Narration take) alive while the app is recording. */
 class RecordingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -23,7 +23,10 @@ class RecordingService : Service() {
             .setSmallIcon(android.R.drawable.presence_video_online)
             .build()
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            val withMic = intent?.getBooleanExtra("withMic", true) ?: true
+            val type = if (withMic) ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            else ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            startForeground(1, n, type)
         } else {
             startForeground(1, n)
         }

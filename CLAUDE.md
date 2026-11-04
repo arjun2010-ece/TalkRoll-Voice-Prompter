@@ -15,6 +15,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   requests testing. Do not introduce test frameworks, linters, or other
   development tooling as part of an implementation task.
 
+- Any change you make must be limited or gated to the specific platform it is
+  for (Android-specific, iOS-specific or macOS-specific: platform code under
+  `android/`, `ios/` or `macos/`, or a `Platform.isAndroid` / `Platform.isIOS` /
+  `Platform.isMacOS` check in shared code), so a fix for one platform cannot leak
+  bugs into the others.
+
 - If you discover an unrelated bug or a pre-existing build failure, leave it
   unchanged and briefly mention it in the final response. Fix errors caused
   by your own changes.

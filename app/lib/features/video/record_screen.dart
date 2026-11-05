@@ -889,7 +889,14 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               landscape ? 'Holding\nat cue' : 'Holding at cue',
               textAlign: landscape ? TextAlign.center : TextAlign.start,
               maxLines: 2,
-              style: const TextStyle(color: cueQuietGrey, fontSize: 15, decoration: TextDecoration.none),
+              // White with a soft shadow: the controls row can overlap the bottom edge of the camera picture, and grey
+              // text is hard to read over it.
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.92),
+                fontSize: 15,
+                decoration: TextDecoration.none,
+                shadows: const [Shadow(color: Color(0xAA000000), blurRadius: 6)],
+              ),
             ),
           )
         : flip;

@@ -392,6 +392,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
   void _home() => Navigator.of(context).popUntil((r) => r.isFirst);
 
+  /// "Done" on the saved card. On Android and iOS the take is finished, so it goes to the scripts list rather than back
+  /// to the script's editor.
+  void _done() => (Platform.isAndroid || Platform.isIOS) ? _home() : _close();
+
   /// Close while recording: save the take, or discard it and go back to the
   /// scripts. [home] also leaves for the scripts list after saving.
   Future<void> _confirmClose({bool home = false}) async {
@@ -1072,7 +1076,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               subtitle: '${_fmt(_saved!.duration)} · 1080p',
               onShare: () => _share(_saved!),
               onRecordAgain: _recordAgain,
-              onDone: _close,
+              onDone: _done,
             ),
           ),
         if (_unsaved != null)

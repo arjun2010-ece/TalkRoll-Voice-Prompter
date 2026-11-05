@@ -462,6 +462,15 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Not tried:** a take interrupted by storage full, a take with pauses before the interruption, a take longer than a minute.
 - **Status:** Done on Android (iOS not affected)
 
+#### "Done" on the saved card went back to the script's editor
+- **Fixed on:** Android and iOS/iPadOS (`app/lib/features/video/record_screen.dart`, shared Dart gated by `Platform.isAndroid || Platform.isIOS`). macOS has no camera screen.
+- **Issue:** Record a take in Voice or Narration with the camera, then tap **Done** on the "Saved to your gallery" card. It returned to that script's editor, although the take is finished and nothing is left to edit.
+- **Root cause:** `onDone` on the saved card was `_close`, which pops one screen.
+- **Fix applied:** `_done()` calls `_home()` (`popUntil` the first route, the scripts list) on Android and iOS; other platforms keep `_close`. The X button and the "Done" on the "Recording stopped" card (nothing saved) still go back one screen, as before.
+- **Verified (Android emulator, API 37):** Voice + camera and Narration + camera, a take saved, Done: both show the scripts list; reopening the script and starting again works. `flutter analyze` is clean.
+- **Not tried:** iPhone and iPad (same code, to be checked later).
+- **Status:** Done on Android; iOS/iPadOS changed, not yet tested
+
 ### Checked, nothing pending
 - **Take ended by the system saved to the gallery** (call, app in the background, storage full): fixed on iOS and Android together; macOS does not record.
 - **Android crash when the app goes to the background mid-take** (video thread stopped under the encoder): Android only. iOS finishes its writer and was tested with the same interruption, so it is not affected.

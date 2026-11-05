@@ -19,6 +19,7 @@ import 'mode_chip.dart';
 import 'camera_state.dart';
 import '../prompter/section_end.dart';
 import '../../services/providers.dart';
+import '../prompter/cue_widgets.dart';
 import '../prompter/prompt_view.dart';
 import '../prompter/prompter_controller.dart';
 import '../read/reading_settings.dart';
@@ -250,6 +251,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _opening = false;
     }
   }
+
+  /// iPhone, iPad and Android: no cue strips over the small prompter panel. The "Next" heads-up goes into the panel's
+  /// status line, and while a cue holds, Continue takes the place of the pause button in the controls (Stop stays where
+  /// it is). This screen only exists on these platforms; the Mac's prompter keeps its own strips.
+  bool get _quietCues => Platform.isAndroid || Platform.isIOS;
 
   /// Voice mode's start-up is light, so its script can show before the camera is up. Voice only starts listening
   /// when the take does, so the script stays at the start until then.
@@ -857,6 +863,56 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
           )
         : ChromeButton(icon: Icons.more_horiz, tooltip: 'Camera options', size: 56, iconSize: 26, onPressed: _showOptions);
 
+    // Android, a hold cue holding the take: "Holding at cue" where the flip button is (it is off during a take
+    // anyway) and Continue where the pause button is. Stop stays in the middle.
+    final holdingCue = _quietCues && _recording && ref.watch(prompterProvider.select((p) => p.cueHolding >= 0));
+    const holdInk = Color(0xFF111214);
+    final Widget leftSlot = holdingCue
+        ? Semantics(
+            liveRegion: true,
+            child: Text(
+              landscape ? 'Holding\nat cue' : 'Holding at cue',
+              textAlign: landscape ? TextAlign.center : TextAlign.start,
+              maxLines: 2,
+              style: const TextStyle(color: cueQuietGrey, fontSize: 15, decoration: TextDecoration.none),
+            ),
+          )
+        : flip;
+    final Widget rightSlot = !holdingCue
+        ? rightButton
+        : landscape
+            ? SizedBox(
+                width: 56,
+                height: 56,
+                child: IconButton.filled(
+                  tooltip: 'Continue',
+                  onPressed: () => unawaited(_prompter.continueFromHold()),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                  style: IconButton.styleFrom(backgroundColor: cueQuietNext, foregroundColor: holdInk),
+                ),
+              )
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  height: 56,
+                  child: TextButton(
+                    onPressed: () => unawaited(_prompter.continueFromHold()),
+                    style: TextButton.styleFrom(
+                      backgroundColor: cueQuietNext,
+                      foregroundColor: holdInk,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('Continue', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                      SizedBox(width: 6),
+                      Icon(Icons.play_arrow_outlined, size: 20),
+                    ]),
+                  ),
+                ),
+              );
+
     // The main controls sit at the bottom, within reach of the thumb.
     final shutterBottom = media.padding.bottom + 16;
     final controls = landscape
@@ -866,7 +922,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             bottom: 0,
             width: 72,
             child: Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [flip, const SizedBox(height: 22), recordButton, const SizedBox(height: 22), rightButton]),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [leftSlot, const SizedBox(height: 22), recordButton, const SizedBox(height: 22), rightSlot]),
             ),
           )
         : Positioned(
@@ -876,9 +932,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
             height: 80,
             // Equal side slots keep the record button centred.
             child: Row(children: [
-              Expanded(child: Align(alignment: Alignment.centerLeft, child: flip)),
+              Expanded(child: Align(alignment: Alignment.centerLeft, child: leftSlot)),
               recordButton,
-              Expanded(child: Align(alignment: Alignment.centerRight, child: rightButton)),
+              Expanded(child: Align(alignment: Alignment.centerRight, child: rightSlot)),
             ]),
           );
     final hintBottom = landscape ? 16.0 : shutterBottom + 80 + 14;
@@ -920,6 +976,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               showProgress: true,
               // Portrait's drag handle sits over the panel's bottom 24.
               bottomInset: landscape ? 0 : 24,
+              quietCues: _quietCues,
             ),
           ),
           if (!landscape)

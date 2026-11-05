@@ -62,6 +62,7 @@ class PromptSurface extends ConsumerStatefulWidget {
     this.scriptOverride,
     this.coveredByDesktopChrome = false,
     this.cueFooterBottom,
+    this.quietCues = false,
   });
 
   final PromptLayoutStyle style;
@@ -92,6 +93,10 @@ class PromptSurface extends ConsumerStatefulWidget {
   /// above it. While a cue holds, the host hides its dock and the "Holding at cue" strip takes the bottom instead.
   /// Null elsewhere (camera overlay, previews): the strip sits at the bottom of the text.
   final double? cueFooterBottom;
+
+  /// The host shows neither the "Next" nor the "Holding at cue" strip (the camera screen on Android: its panel is
+  /// small, so the heads-up goes into the status line and Continue into the host's controls).
+  final bool quietCues;
 
   bool get isPreview => previewWordIndex != null;
 
@@ -512,7 +517,8 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
       }
       return Stack(children: [
         Positioned.fill(child: scroller),
-        if (banner && !(intoBar && pr.cueHolding < 0)) _cueBanner(pr, settings, notch, clearBottom),
+        // quietCues: the host shows no strips, so nothing is added (a zero-size child would shrink the Stack).
+        if (banner && !widget.quietCues && !(intoBar && pr.cueHolding < 0)) _cueBanner(pr, settings, notch, clearBottom),
       ]);
     });
 

@@ -23,6 +23,7 @@ class PromptView extends ConsumerWidget {
     this.showControls = true,
     this.showProgress = false,
     this.bottomInset = 0,
+    this.quietCues = false,
     this.onClose,
     this.trailing = const [],
   });
@@ -34,6 +35,10 @@ class PromptView extends ConsumerWidget {
   /// [bottomInset] keeps it clear of anything the host draws over the panel's bottom edge.
   final bool showProgress;
   final double bottomInset;
+
+  /// No cue strips in the panel: the "Next" heads-up takes the status line's place for a moment, and the host draws
+  /// Continue itself.
+  final bool quietCues;
 
   /// False when the host screen shows [PromptControlBar] itself.
   final bool showControls;
@@ -51,8 +56,8 @@ class PromptView extends ConsumerWidget {
       child: ColoredBox(
         color: bg,
         child: Column(children: [
-          Expanded(child: PromptSurface(style: style, onWordTap: true)),
-          if (showProgress && s.showProgress)
+          Expanded(child: PromptSurface(style: style, onWordTap: true, quietCues: quietCues)),
+          if (showProgress && (s.showProgress || quietCues))
             Padding(
               padding: EdgeInsets.fromLTRB(12, 4, 12, 8 + bottomInset),
               child: SizedBox(
@@ -60,7 +65,12 @@ class PromptView extends ConsumerWidget {
                 child: DefaultTextStyle.merge(
                   textAlign: TextAlign.center,
                   // The camera screen's top bar already shows the recording time.
-                  child: ProgressLine(showElapsed: false, style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: 12)),
+                  child: ProgressLine(
+                    showElapsed: false,
+                    headsUp: quietCues,
+                    hideProgress: !s.showProgress,
+                    style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: 12),
+                  ),
                 ),
               ),
             ),

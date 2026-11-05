@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/script/sections.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
+import 'cue_widgets.dart';
 import 'prompter_controller.dart';
 
 /// Whole-number percent read, from the word the presenter has reached.
@@ -28,8 +29,15 @@ String _clock(int seconds) => '${seconds ~/ 60}:${(seconds % 60).toString().padL
 /// rebuilds this line and never the script text. Elapsed counts only while the prompter is playing,
 /// and starts over with Restart and with each new session.
 class ProgressLine extends ConsumerStatefulWidget {
-  const ProgressLine({super.key, this.style, this.showElapsed = true});
+  const ProgressLine({super.key, this.style, this.showElapsed = true, this.headsUp = false, this.hideProgress = false});
   final TextStyle? style;
+
+  /// While an action cue is coming up, this line says so ("Next  Click Submit · Hold") in place of the progress, so the
+  /// host needs no strip over the script.
+  final bool headsUp;
+
+  /// With [headsUp]: the "Show progress" setting is off, so the line stays empty except for the heads-up.
+  final bool hideProgress;
 
   /// False where the host screen already shows the time elapsed (the camera screen's recording timer).
   final bool showElapsed;
@@ -146,6 +154,29 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
         final name = markers[at].name;
         section = '${name.length > 18 ? '${name.substring(0, 17)}…' : name} · ${at + 1} of ${markers.length}  ·  ';
       }
+    }
+    if (widget.headsUp) {
+      final cues = ctrl.cues;
+      final i = pr.cueNext;
+      if (i >= 0 && i < cues.length && pr.cueHolding < 0 && pr.cueNow < 0) {
+        final hold = cues[i].hold;
+        final color = hold ? cueQuietAmberNext : cueQuietNext;
+        final base = widget.style ?? const TextStyle();
+        return Text.rich(
+          TextSpan(style: base, children: [
+            const TextSpan(text: 'Next  '),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Icon(hold ? Icons.pause_rounded : Icons.subdirectory_arrow_right_rounded, size: 13, color: color),
+            ),
+            TextSpan(text: ' ${cues[i].text}', style: TextStyle(fontStyle: FontStyle.italic, color: color)),
+            if (hold) TextSpan(text: '  ·  Hold', style: TextStyle(color: color)),
+          ]),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
+      }
+      if (widget.hideProgress) return Text(' ', maxLines: 1, style: widget.style);
     }
     return Text(
       '$section$percent%  ·  ${widget.showElapsed ? '${_clock(elapsed.inSeconds)} elapsed  ·  ' : ''}${pr.finished ? '' : '~'}${_clock(shownLeft)} left',

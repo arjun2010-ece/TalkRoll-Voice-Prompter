@@ -468,8 +468,9 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Root cause:** `onDone` on the saved card was `_close`, which pops one screen.
 - **Fix applied:** `_done()` calls `_home()` (`popUntil` the first route, the scripts list) on Android and iOS; other platforms keep `_close`. The X button and the "Done" on the "Recording stopped" card (nothing saved) still go back one screen, as before.
 - **Verified (Android emulator, API 37):** Voice + camera and Narration + camera, a take saved, Done: both show the scripts list; reopening the script and starting again works. `flutter analyze` is clean.
-- **Not tried:** iPhone and iPad (same code, to be checked later).
-- **Status:** Done on Android; iOS/iPadOS changed, not yet tested
+- **Verified (iPhone 15 Pro Max, debug build):** Voice + camera, take saved, Done: scripts list. Narration + camera (9 s recording, hold cue): take saved, Record again, second take saved, Done: scripts list. Reopening the script and starting again worked, and X on the camera screen still goes back to the editor. No app errors were logged.
+- **Not tried:** iPad (none connected).
+- **Status:** Done on Android and iPhone (iPad not tried)
 
 ### Checked, nothing pending
 - **Take ended by the system saved to the gallery** (call, app in the background, storage full): fixed on iOS and Android together; macOS does not record.

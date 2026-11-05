@@ -880,7 +880,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
     // Android, a hold cue holding the take: "Holding at cue" where the flip button is (it is off during a take
     // anyway) and Continue where the pause button is. Stop stays in the middle.
-    final holdingCue = _quietCues && _recording && ref.watch(prompterProvider.select((p) => p.cueHolding >= 0));
+    // Voice starts reading at the tap, so a hold cue at the very start already holds during the 3-2-1 countdown.
+    final holdingCue = _quietCues && (_recording || _countdown != null) && ref.watch(prompterProvider.select((p) => p.cueHolding >= 0));
     const holdInk = Color(0xFF111214);
     final Widget leftSlot = holdingCue
         ? Semantics(

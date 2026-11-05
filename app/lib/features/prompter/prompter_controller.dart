@@ -309,7 +309,8 @@ class PrompterController extends Notifier<PrompterState> {
     final wasMode = _mode;
     await pause();
     _sectionClock.reset();
-    _resetCues(_script);
+    // The same script and recording: the cues start over, but where they fall in the narration has not changed.
+    _resetCues(_script, keepTimes: true);
     state = PrompterState(preparing: state.preparing, status: state.status, resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     if (wasMode == PromptControlMode.recordedAudio) await _clock?.seekToStart();
   }
@@ -434,9 +435,11 @@ class PrompterController extends Notifier<PrompterState> {
 
   // --- Action cues -------------------------------------------------------------
 
-  void _resetCues(String script) {
+  void _resetCues(String script, {bool keepTimes = false}) {
     _cues = actionCues(script);
-    _cueTimes = const [];
+    // Narration cue times come from the recording's alignment, which is only computed when the recording loads, so
+    // a restart of the same script must keep them (a new session or mode has to start without them).
+    if (!keepTimes) _cueTimes = const [];
     _cuesDone.clear();
     _pace.clear();
     _cueNowTimer?.cancel();

@@ -64,6 +64,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   Completer<bool>? _primer;
   // A take that ended: saved by the reader, or stopped by the system (call, full storage).
   RecordingResult? _saved;
+  // A take the gallery refused: kept on the device, with the way it ended, so the reader can try again or share it.
+  ({RecordingResult result, String reason, bool photosOff})? _unsaved;
+  bool _retrying = false;
   ({String title, String body, String? detail, RecordingResult? result})? _stopped;
 
   // Overlay height as a fraction of the screen, remembered per orientation.
@@ -429,25 +432,96 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     }
     _recordings++;
     a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
+    final saved = await _saveToGallery(r);
+    if (!mounted) return;
+    setState(() {
+      if (saved == _Save.saved) {
+        _showSaved(r, reason);
+      } else {
+        _unsaved = (result: r, reason: reason, photosOff: saved == _Save.photosOff);
+      }
+    });
+  }
+
+  /// Saves the take to the gallery. When the gallery refuses it, the file is kept and the result says why.
+  Future<_Save> _saveToGallery(RecordingResult r) async {
+    final a = ref.read(analyticsProvider);
     try {
       await EchoPrompterCamera.saveToGallery(r.path);
       a.log('video_saved', {'duration_s': r.duration.inSeconds});
-    } catch (_) {}
+      return _Save.saved;
+    } catch (e) {
+      a.log('video_save_failed', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
+      // iPhone and iPad report a refused Photos permission with the code 'permission'.
+      return e is PlatformException && e.code == 'permission' ? _Save.photosOff : _Save.failed;
+    }
+  }
+
+  /// The card for a take that is in the gallery: the reader's own stop, or one the system ended.
+  void _showSaved(RecordingResult r, String reason) {
+    _unsaved = null;
+    if (reason == 'user') {
+      _saved = r;
+    } else {
+      _stopped = (
+        title: reason == 'storage_full' ? 'Storage is full' : 'Recording stopped',
+        body: reason == 'storage_full'
+            ? 'There is no space left to keep recording. What you recorded was saved. Free up space to record again.'
+            : 'A call or another app interrupted the recording. What you recorded was saved.',
+        detail: 'Saved ${_fmt(r.duration)} to your gallery',
+        result: r,
+      );
+    }
+  }
+
+  /// Try again on the card shown when the gallery refused the take.
+  Future<void> _retrySave() async {
+    final u = _unsaved;
+    if (u == null || _retrying) return;
+    setState(() => _retrying = true);
+    final saved = await _saveToGallery(u.result);
     if (!mounted) return;
     setState(() {
-      if (reason == 'user') {
-        _saved = r;
-      } else {
-        _stopped = (
-          title: reason == 'storage_full' ? 'Storage is full' : 'Recording stopped',
-          body: reason == 'storage_full'
-              ? 'There is no space left to keep recording. What you recorded was saved. Free up space to record again.'
-              : 'A call or another app interrupted the recording. What you recorded was saved.',
-          detail: 'Saved ${_fmt(r.duration)} to your gallery',
-          result: r,
-        );
-      }
+      _retrying = false;
+      if (saved == _Save.saved) _showSaved(u.result, u.reason);
     });
+  }
+
+  static const _saveFailedTitle = "Couldn't save to your gallery";
+  static const _photosOffTitle = 'Photos access is off';
+
+  /// After a mode change ended the take: the file is kept, so the reader can try again or share it.
+  /// Without Photos access trying again can't work, so sharing is the way to keep the video.
+  void _showSaveFailedSnack(RecordingResult r, {bool retried = false, bool photosOff = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 10),
+        content: Text(photosOff
+            ? "EchoPrompter can't add videos to your Photos. Share this video to keep it, then turn on Photos access in Settings."
+            : retried
+                ? "Still couldn't save to your gallery. Your video is kept on this device."
+                : "Couldn't save to your gallery. Your video is kept on this device."),
+        action: retried || photosOff
+            ? SnackBarAction(label: 'Share', onPressed: () => _share(r))
+            : SnackBarAction(label: 'Try again', onPressed: () => _retrySnack(r)),
+      ));
+  }
+
+  Future<void> _retrySnack(RecordingResult r) async {
+    final saved = await _saveToGallery(r);
+    if (saved == _Save.saved) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: const Text('Saved to your gallery'),
+          action: SnackBarAction(label: 'Share', onPressed: () => _share(r)),
+        ));
+    } else {
+      _showSaveFailedSnack(r, retried: true, photosOff: saved == _Save.photosOff);
+    }
   }
 
   @override
@@ -533,6 +607,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       _micStart = null;
     }
     final narrationLost = save && r.narrationFailed;
+    var saveResult = _Save.saved;
     if (narrationLost) {
       a.log('video_narration_failed', {'duration_s': r.duration.inSeconds, 'reason': 'mode_change_saved'});
       try {
@@ -541,10 +616,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     } else if (save) {
       _recordings++;
       a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason});
-      try {
-        await EchoPrompterCamera.saveToGallery(r.path);
-        a.log('video_saved', {'duration_s': r.duration.inSeconds});
-      } catch (_) {}
+      saveResult = await _saveToGallery(r);
     } else {
       try {
         await File(r.path).delete();
@@ -560,6 +632,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(content: Text(_narrationFailedBody)));
+    } else if (saveResult != _Save.saved) {
+      _showSaveFailedSnack(r, photosOff: saveResult == _Save.photosOff);
     } else if (save) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -616,6 +690,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     setState(() {
       _saved = null;
       _stopped = null;
+      _unsaved = null;
       _elapsed = Duration.zero;
     });
   }
@@ -648,7 +723,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final p = _preview;
     final cardOnly = _perm == _Perm.primer || _perm == _Perm.denied || (_error != null && p == null);
     final showScript = !cardOnly && (p != null || (_promptReady && _error == null));
-    final ended = _saved != null || _stopped != null;
+    final ended = _saved != null || _stopped != null || _unsaved != null;
     final mode = ref.watch(settingsProvider.select((s) => s.mode));
     final audio = mode == PromptControlMode.recordedAudio;
 
@@ -875,6 +950,34 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               onDone: _close,
             ),
           ),
+        if (_unsaved != null)
+          Positioned(
+            left: landscape ? panelWidth + 28 : 12,
+            right: landscape ? 24 : 12,
+            bottom: media.padding.bottom + 12,
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              elevation: 8,
+              borderRadius: BorderRadius.circular(isApple ? 20 : 28),
+              child: CameraStateCard(
+                icon: Icons.warning_amber_rounded,
+                tone: CameraCardTone.error,
+                title: _unsaved!.photosOff ? _photosOffTitle : _saveFailedTitle,
+                body: _unsaved!.photosOff
+                    ? "EchoPrompter can't add videos to your Photos. Your video is kept in the app: share it to save it elsewhere. Turning Photos access on in Settings restarts the app, so share it first."
+                    : switch (_unsaved!.reason) {
+                      'storage_full' => 'There is no space left on this device, so the recording stopped and the video could not go to your gallery. It is kept in the app. Free up space and try again, or share it to save it elsewhere.',
+                      'user' => 'Your video is kept in the app. Check that your device has free space and try again, or share it to save it elsewhere.',
+                      _ => 'A call or another app interrupted the recording, and the video could not go to your gallery. It is kept in the app. Try again, or share it to save it elsewhere.',
+                    },
+                detail: '${_fmt(_unsaved!.result.duration)} recorded, not saved yet',
+                primaryLabel: _unsaved!.photosOff ? 'Share' : _retrying ? 'Saving…' : 'Try again',
+                onPrimary: _unsaved!.photosOff ? () => _share(_unsaved!.result) : _retrying ? () {} : _retrySave,
+                secondaryLabel: _unsaved!.photosOff ? 'Open Settings' : 'Share',
+                onSecondary: _unsaved!.photosOff ? openAppSettings : () => _share(_unsaved!.result),
+              ),
+            ),
+          ),
         if (_stopped != null)
           Positioned(
             left: landscape ? panelWidth + 28 : 12,
@@ -969,6 +1072,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 }
 
 enum _Perm { checking, primer, denied, ok }
+
+/// How a save to the gallery ended: it worked, Photos access is off (iPhone, iPad), or it failed for another reason.
+enum _Save { saved, photosOff, failed }
 
 /// A short explanation floating above the controls.
 class _Hint extends StatelessWidget {

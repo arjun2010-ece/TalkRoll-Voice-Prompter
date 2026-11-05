@@ -438,8 +438,16 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
             if (Build.VERSION.SDK_INT >= 29) put(MediaStore.Video.Media.RELATIVE_PATH, "DCIM/EchoPrompter")
         }
-        val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)!!
-        context.contentResolver.openOutputStream(uri)!!.use { out -> src.inputStream().use { it.copyTo(out) } }
+        val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            ?: throw IOException("The gallery could not create the video")
+        try {
+            val out = context.contentResolver.openOutputStream(uri) ?: throw IOException("The gallery could not open the video")
+            out.use { o -> src.inputStream().use { it.copyTo(o) } }
+        } catch (e: Exception) {
+            // Don't leave an empty or partial video in the gallery; the take itself stays in app storage.
+            try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+            throw e
+        }
     }
 
     private fun emit(m: Map<String, Any>) = main.post { eventSink?.success(m) }

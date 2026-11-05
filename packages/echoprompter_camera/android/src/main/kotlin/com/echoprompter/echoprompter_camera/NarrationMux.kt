@@ -68,13 +68,58 @@ internal object NarrationMux {
         (0 until x.trackCount).firstOrNull { x.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith(prefix) == true }
             ?: throw IOException("No $prefix track")
 
-    private fun copySamples(x: MediaExtractor, muxer: MediaMuxer, track: Int, offsetUs: Long) {
+    /**
+     * An interrupted take (the camera closed first, the microphone kept going) has more audio than video. Writes a copy
+     * of [file] over itself that ends its audio at [videoEndUs], the last video frame, without re-encoding anything.
+     * Returns without touching the file if the audio does not run past the video. On failure the file is left as it was.
+     */
+    fun trimAudioToVideo(file: File, videoEndUs: Long, orientationHint: Int) {
+        val temp = File(file.parentFile, file.name + ".trim.mp4")
+        val x = MediaExtractor()
+        var muxer: MediaMuxer? = null
+        try {
+            x.setDataSource(file.path)
+            val v = firstTrack(x, "video/")
+            val a = (0 until x.trackCount).firstOrNull { x.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true } ?: return
+            // The audio ends where its last sample starts, plus that sample's length (about 21 ms for AAC).
+            x.selectTrack(a)
+            var audioEndUs = 0L
+            var seen = false
+            val probe = ByteBuffer.allocate(4 * 1024 * 1024)
+            while (x.readSampleData(probe, 0) >= 0) { audioEndUs = x.sampleTime; seen = true; x.advance() }
+            if (!seen || audioEndUs <= videoEndUs + 50_000L) return
+            x.unselectTrack(a)
+            muxer = MediaMuxer(temp.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer.setOrientationHint(orientationHint)
+            val videoOut = muxer.addTrack(x.getTrackFormat(v))
+            val audioOut = muxer.addTrack(x.getTrackFormat(a))
+            muxer.start()
+            x.selectTrack(v)
+            x.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+            copySamples(x, muxer, videoOut, 0L)
+            x.unselectTrack(v)
+            x.selectTrack(a)
+            x.seekTo(0L, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+            copySamples(x, muxer, audioOut, 0L, videoEndUs)
+            muxer.stop()
+            muxer.release()
+            muxer = null
+            if (!temp.renameTo(file)) throw IOException("Could not replace ${file.name}")
+        } finally {
+            try { muxer?.release() } catch (_: Exception) {}
+            x.release()
+            temp.delete()
+        }
+    }
+
+    /** Copies the track's samples that start at or before [endUs] (all of them by default). */
+    private fun copySamples(x: MediaExtractor, muxer: MediaMuxer, track: Int, offsetUs: Long, endUs: Long = Long.MAX_VALUE) {
         val buf = ByteBuffer.allocate(4 * 1024 * 1024)
         val info = MediaCodec.BufferInfo()
         while (true) {
             buf.clear()
             val n = x.readSampleData(buf, 0)
-            if (n < 0) return
+            if (n < 0 || x.sampleTime > endUs) return
             info.set(0, n, x.sampleTime + offsetUs, if (x.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
             muxer.writeSampleData(track, buf, info)
             x.advance()

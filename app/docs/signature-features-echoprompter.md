@@ -450,11 +450,17 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Status:** Done on Android, macOS and iPhone (shared code; iPad not tried)
 
 #### Android: after an interrupted take the card shows the video length, not the file's
-- **Needs fixing on:** Android only (an iPhone take interrupted the same way came out 6.60 s of video and 6.5 s of audio, so iOS is fine)
-- **Issue:** Record in Voice mode with the camera, press Home after about 8 s and come back. The card says "Saved 00:06 to your gallery", but the saved file has 8.6 s of audio and only 6.65 s of video, so the video ends before the sound does.
-- **Root cause:** When the app goes to the background the camera closes first, so video frames stop while the audio keeps going until the take is stopped. `Recorder.stop()` in `EchoprompterCameraPlugin.kt` reports `lastPtsUs`, the last video frame, as the take's length.
-- **Suggested fix:** Decide what an interrupted take should be. Either report the file's real length (the longer of the two tracks), or end the audio at the last video frame so the file is consistent. Then the card and the file agree.
-- **Status:** Pending on Android
+- **Fixed on:** Android only (`packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `NarrationMux.kt`). An iPhone take interrupted the same way came out 6.60 s of video and 6.5 s of audio, so iOS is fine.
+- **Issue:** Record in Voice mode with the camera, press Home after about 8 s and come back. The card said "Saved 00:07 to your gallery", but the saved file had 8.73 s of audio and only 7.81 s of video, so the video ended before the sound did.
+- **Root cause:** When the app goes to the background the camera closes first, so video frames stop while the audio keeps going until the take is stopped. `Recorder.stop()` reports `lastPtsUs`, the last video frame, as the take's length.
+- **Fix applied (decision: end the audio at the last video frame):** Only a take that did not end with the Stop button (`reason != "user"`: interrupted, storage full) is touched. Voice: after `Recorder.stop()`, `NarrationMux.trimAudioToVideo` runs on a background thread. If the audio runs more than 50 ms past the last video frame (`Recorder.videoEndUs`), it copies the file over itself, every video sample and the audio samples up to that frame, without re-encoding; on any failure the file is left as recorded. Narration: `narrationSegments(videoEndUs)` also cuts the narration segments at the last video frame (before this they were only bounded by when the app was told to stop). A normal Stop is unchanged: the new code is skipped.
+- **Verified (Android emulator, API 37), track lengths from the pulled gallery files:**
+  - Voice + camera, Home after about 8 s: **before** video 7.809 s, audio 8.731 s (card 00:07). **After** video 7.034 s, audio 6.958 s (card 00:06). The two tracks now agree to within one audio frame and the card to within a second (the card floors the last frame's start time; the container adds that frame's own length).
+  - Narration + camera, Home 3 s after Continue: **before** video 7.274 s, audio 5.152 s. **After** video 3.915 s, audio 3.759 s. The narration is present (level about 2600 to 3600 RMS, silent during the hold, same as before) and is cut at the picture's end. In Narration the audio was already never longer than the video, because its segments stop when the app is told to stop, so the cut there is a safeguard and changed no measured value.
+  - Normal Stop, Voice + camera, about 8 s: card 00:08, video 8.865 s, audio 8.847 s. The trim code did not run.
+  - `flutter analyze` is clean and the debug APK builds.
+- **Not tried:** a take interrupted by storage full, a take with pauses before the interruption, a take longer than a minute.
+- **Status:** Done on Android (iOS not affected)
 
 ### Checked, nothing pending
 - **Take ended by the system saved to the gallery** (call, app in the background, storage full): fixed on iOS and Android together; macOS does not record.

@@ -405,14 +405,25 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
             reply?.invoke(mapOf("path" to finalPath, "durationMs" to durationMs.toInt(), "reason" to reason, "narrationFailed" to narrationFailed))
         }
         if (narration == null) {
-            done(path, false)
+            if (reason == "user") { done(path, false); return }
+            // An interrupted take: the camera closed before the microphone stopped, so the audio ends where the last video
+            // frame does (a normal stop is left exactly as recorded).
+            Thread {
+                try {
+                    NarrationMux.trimAudioToVideo(File(path), r.videoEndUs, r.orientationHint)
+                } catch (e: Exception) {
+                    Log.e("EchoPrompterCamera", "Could not end the audio at the last video frame", e)
+                }
+                main.post { done(path, false) }
+            }.start()
             return
         }
         Thread {
             // If the narration cannot be added (or never played) the file stays the take as filmed, and the app is told.
             var finalPath = path
             var failed = false
-            val segments = r.narrationSegments()
+            // An interrupted take ends its narration at the last video frame too.
+            val segments = r.narrationSegments(if (reason == "user") Long.MAX_VALUE else r.videoEndUs)
             if (segments.isEmpty()) {
                 failed = true
             } else {
@@ -654,13 +665,19 @@ private class Recorder(
      * The stretches heard, timed from the file's first video frame. What played before that frame is cut off, and ones
      * too short to matter are left out.
      */
-    fun narrationSegments(): List<NarrationSegment> = synchronized(narrationHeard) {
+    fun narrationSegments(videoEndUs: Long = Long.MAX_VALUE): List<NarrationSegment> = synchronized(narrationHeard) {
         val origin = maxOf(firstVideoUs, 0L)
+        // [videoEndUs] (the last video frame, on the take's timeline) cuts off what played after the picture ended.
+        val end = if (videoEndUs == Long.MAX_VALUE) Long.MAX_VALUE else videoEndUs - origin
         narrationHeard.map {
             val cut = maxOf(origin - it.videoStartUs, 0L)
-            NarrationSegment(it.videoStartUs + cut - origin, it.audioStartUs + cut, it.lengthUs - cut)
+            val start = it.videoStartUs + cut - origin
+            NarrationSegment(start, it.audioStartUs + cut, minOf(it.lengthUs - cut, end - start))
         }.filter { it.lengthUs > 50_000L }
     }
+
+    /** Timeline time of the last video frame written. */
+    val videoEndUs: Long get() = lastPtsUs
 
     /** Recording-timeline timestamp for a raw one, or -1 if it falls inside a pause. */
     private fun timeline(rawUs: Long): Long {

@@ -63,6 +63,7 @@ class PromptSurface extends ConsumerStatefulWidget {
     this.coveredByDesktopChrome = false,
     this.cueFooterBottom,
     this.quietCues = false,
+    this.bottomFade = 0,
   });
 
   final PromptLayoutStyle style;
@@ -97,6 +98,10 @@ class PromptSurface extends ConsumerStatefulWidget {
   /// The host shows neither the "Next" nor the "Holding at cue" strip (the camera screen on Android: its panel is
   /// small, so the heads-up goes into the status line and Continue into the host's controls).
   final bool quietCues;
+
+  /// Height in logical pixels over which the text fades out at the bottom edge, so it never ends in a hard cut above a
+  /// footer the host draws (the camera screen's panel on iPhone, iPad and Android). 0 leaves the edge as it was.
+  final double bottomFade;
 
   bool get isPreview => previewWordIndex != null;
 
@@ -526,12 +531,24 @@ class _PromptSurfaceState extends ConsumerState<PromptSurface> with SingleTicker
     // the full layout's header already covers that edge.
     return ShaderMask(
       blendMode: BlendMode.dstIn,
-      shaderCallback: (r) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        stops: [0, style == PromptLayoutStyle.full ? 0.0001 : 0.22, 1],
-        colors: const [Color(0x00000000), Colors.black, Colors.black],
-      ).createShader(r),
+      shaderCallback: (r) {
+        final top = style == PromptLayoutStyle.full ? 0.0001 : 0.22;
+        if (widget.bottomFade <= 0 || r.height <= 0) {
+          return LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: [0, top, 1],
+            colors: const [Color(0x00000000), Colors.black, Colors.black],
+          ).createShader(r);
+        }
+        final bottom = (1 - widget.bottomFade / r.height).clamp(top + 0.01, 0.999);
+        return LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: [0, top, bottom, 1],
+          colors: const [Color(0x00000000), Colors.black, Colors.black, Color(0x00000000)],
+        ).createShader(r);
+      },
       child: ClipRect(child: body),
     );
   }

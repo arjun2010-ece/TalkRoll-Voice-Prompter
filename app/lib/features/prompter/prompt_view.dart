@@ -24,6 +24,7 @@ class PromptView extends ConsumerWidget {
     this.showProgress = false,
     this.bottomInset = 0,
     this.quietCues = false,
+    this.splitFooter = false,
     this.onClose,
     this.trailing = const [],
   });
@@ -39,6 +40,10 @@ class PromptView extends ConsumerWidget {
   /// No cue strips in the panel: the "Next" heads-up takes the status line's place for a moment, and the host draws
   /// Continue itself.
   final bool quietCues;
+
+  /// The footer under the text as two sides (section on the left, progress and time left on the right), lined up with
+  /// the text's edges, with the text fading out above it instead of being cut off.
+  final bool splitFooter;
 
   /// False when the host screen shows [PromptControlBar] itself.
   final bool showControls;
@@ -56,10 +61,10 @@ class PromptView extends ConsumerWidget {
       child: ColoredBox(
         color: bg,
         child: Column(children: [
-          Expanded(child: PromptSurface(style: style, onWordTap: true, quietCues: quietCues)),
+          Expanded(child: PromptSurface(style: style, onWordTap: true, quietCues: quietCues, bottomFade: splitFooter ? 44 : 0)),
           if (showProgress && (s.showProgress || quietCues))
             Padding(
-              padding: EdgeInsets.fromLTRB(12, 4, 12, 8 + bottomInset),
+              padding: EdgeInsets.fromLTRB(splitFooter ? 28 * s.margins.scale : 12, 4, splitFooter ? 28 * s.margins.scale : 12, 8 + bottomInset),
               child: SizedBox(
                 width: double.infinity,
                 child: DefaultTextStyle.merge(
@@ -69,7 +74,8 @@ class PromptView extends ConsumerWidget {
                     showElapsed: false,
                     headsUp: quietCues,
                     hideProgress: !s.showProgress,
-                    style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: 12),
+                    split: splitFooter,
+                    style: TextStyle(color: promptText.withValues(alpha: 0.65), fontSize: splitFooter ? 13 : 12),
                   ),
                 ),
               ),

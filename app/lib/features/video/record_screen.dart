@@ -257,6 +257,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   /// it is). This screen only exists on these platforms; the Mac's prompter keeps its own strips.
   bool get _quietCues => Platform.isAndroid || Platform.isIOS;
 
+  /// iPhone, iPad and Android: the panel's footer is split into two sides with the text fading out above it.
+  bool get _splitFooter => Platform.isAndroid || Platform.isIOS;
+
   /// Voice mode's start-up is light, so its script can show before the camera is up. Voice only starts listening
   /// when the take does, so the script stays at the start until then.
   bool get _scriptFirst => isMobile && ref.read(settingsProvider).mode == PromptControlMode.voice;
@@ -977,6 +980,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               // Portrait's drag handle sits over the panel's bottom 24.
               bottomInset: landscape ? 0 : 24,
               quietCues: _quietCues,
+              splitFooter: _splitFooter,
             ),
           ),
           if (!landscape)

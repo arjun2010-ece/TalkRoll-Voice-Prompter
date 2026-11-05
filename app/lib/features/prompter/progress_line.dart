@@ -8,6 +8,7 @@ import '../../core/script/sections.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../services/providers.dart';
 import 'cue_widgets.dart';
+import 'prompt_surface.dart' show promptText;
 import 'prompter_controller.dart';
 
 /// Whole-number percent read, from the word the presenter has reached.
@@ -29,7 +30,7 @@ String _clock(int seconds) => '${seconds ~/ 60}:${(seconds % 60).toString().padL
 /// rebuilds this line and never the script text. Elapsed counts only while the prompter is playing,
 /// and starts over with Restart and with each new session.
 class ProgressLine extends ConsumerStatefulWidget {
-  const ProgressLine({super.key, this.style, this.showElapsed = true, this.headsUp = false, this.hideProgress = false});
+  const ProgressLine({super.key, this.style, this.showElapsed = true, this.headsUp = false, this.hideProgress = false, this.split = false});
   final TextStyle? style;
 
   /// While an action cue is coming up, this line says so ("Next  Click Submit · Hold") in place of the progress, so the
@@ -38,6 +39,10 @@ class ProgressLine extends ConsumerStatefulWidget {
 
   /// With [headsUp]: the "Show progress" setting is off, so the line stays empty except for the heads-up.
   final bool hideProgress;
+
+  /// Two sides instead of one centred line: the section on the left, the progress and time left on the right (the
+  /// camera screen's footer on iPhone, iPad and Android). The heads-up then starts at the left edge.
+  final bool split;
 
   /// False where the host screen already shows the time elapsed (the camera screen's recording timer).
   final bool showElapsed;
@@ -141,20 +146,25 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
     // Rounded to 5 seconds so the number doesn't flicker.
     final shownLeft = pr.finished ? 0 : (left / 5).round() * 5;
 
-    var section = '';
+    // The section being read, as its name and where it is among the others (empty without sections).
+    var sectionName = '';
+    var sectionOf = '';
     final run = ctrl.currentSection;
     if (run != null && s.showSections) {
       // Section by section: the section being run, as the prompter itself counts them.
       final name = run.label;
-      section = '${name.length > 18 ? '${name.substring(0, 17)}…' : name} · ${run.index + 1} of ${ctrl.sections.length}  ·  ';
+      sectionName = name.length > 18 ? '${name.substring(0, 17)}…' : name;
+      sectionOf = '${run.index + 1} of ${ctrl.sections.length}';
     } else if (s.showSections) {
       final markers = sectionMarkers(script);
       final at = sectionIndexForWord(markers, index);
       if (at >= 0) {
         final name = markers[at].name;
-        section = '${name.length > 18 ? '${name.substring(0, 17)}…' : name} · ${at + 1} of ${markers.length}  ·  ';
+        sectionName = name.length > 18 ? '${name.substring(0, 17)}…' : name;
+        sectionOf = '${at + 1} of ${markers.length}';
       }
     }
+    final section = sectionName.isEmpty ? '' : '$sectionName · $sectionOf  ·  ';
     if (widget.headsUp) {
       final cues = ctrl.cues;
       final i = pr.cueNext;
@@ -174,9 +184,37 @@ class _ProgressLineState extends ConsumerState<ProgressLine> {
           ]),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: widget.split ? TextAlign.start : null,
         );
       }
       if (widget.hideProgress) return Text(' ', maxLines: 1, style: widget.style);
+    }
+    if (widget.split) {
+      final base = (widget.style ?? const TextStyle()).copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+      final strong = base.copyWith(color: promptText.withValues(alpha: 0.88));
+      final rest = '${widget.showElapsed ? '${_clock(elapsed.inSeconds)} elapsed  ·  ' : ''}${pr.finished ? '' : '~'}${_clock(shownLeft)} left';
+      return Row(children: [
+        Expanded(
+          child: sectionName.isEmpty
+              ? const SizedBox.shrink()
+              : Text.rich(
+                  TextSpan(style: base, children: [TextSpan(text: sectionName, style: strong), TextSpan(text: ' · $sectionOf')]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.start,
+                ),
+        ),
+        const SizedBox(width: 12),
+        // Flexible, so a very large system font shortens this side instead of overflowing the row.
+        Flexible(
+          child: Text.rich(
+            TextSpan(style: base, children: [TextSpan(text: '$percent%', style: strong), TextSpan(text: '  ·  $rest')]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ]);
     }
     return Text(
       '$section$percent%  ·  ${widget.showElapsed ? '${_clock(elapsed.inSeconds)} elapsed  ·  ' : ''}${pr.finished ? '' : '~'}${_clock(shownLeft)} left',

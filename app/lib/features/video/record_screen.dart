@@ -124,6 +124,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     if (!mounted) return;
     if (!await _ensurePermissions()) return;
     if (!mounted) return;
+    await _continueInit();
+  }
+
+  /// What follows the permissions: the reference route, the camera's events, the preview and the prompter.
+  Future<void> _continueInit() async {
     // Audio mode's video must contain the audio file, so it plays out loud and
     // the microphone records it; other modes pace silently or into headphones.
     _route = ref.read(settingsProvider).mode == PromptControlMode.recordedAudio
@@ -290,7 +295,46 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       EchoPrompterCamera.stopPreview();
       setState(() => _preview = null);
     } else if (state == AppLifecycleState.resumed) {
+      // Android: back from Settings with a permission refused. Look again (without asking) instead of opening the camera.
+      if (Platform.isAndroid && _perm == _Perm.denied) {
+        _recheckPermissions();
+        return;
+      }
       if (_preview == null && _error == null && !_opening) _startPreview();
+    }
+  }
+
+  bool _rechecking = false;
+
+  /// Reads the camera and microphone status again, without asking. Carries on to the preview once both are granted,
+  /// and keeps the "access is off" card (naming what is still off) otherwise.
+  Future<void> _recheckPermissions() async {
+    if (_rechecking) return;
+    _rechecking = true;
+    try {
+      final needMic = _needsMic(ref.read(settingsProvider).mode);
+      final cam = await Permission.camera.status;
+      final mic = await Permission.microphone.status;
+      if (!mounted || _perm != _Perm.denied) return;
+      if (!(cam.isGranted && (!needMic || mic.isGranted))) {
+        setState(() {
+          _deniedCam = !cam.isGranted;
+          _deniedMic = needMic && !mic.isGranted;
+        });
+        return;
+      }
+      setState(() {
+        _perm = _Perm.ok;
+        _error = null;
+      });
+      // The screen never got past the permissions: start the rest of its set-up. Otherwise only the preview is missing.
+      if (_events == null) {
+        await _continueInit();
+      } else if (_preview == null && !_opening) {
+        await _startPreview();
+      }
+    } finally {
+      _rechecking = false;
     }
   }
 

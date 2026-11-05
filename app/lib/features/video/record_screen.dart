@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:echoprompter_camera/echoprompter_camera.dart';
 import 'package:flutter/material.dart';
@@ -71,8 +72,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   ({String title, String body, String? detail, RecordingResult? result})? _stopped;
 
   // Overlay height as a fraction of the screen, remembered per orientation.
-  double _fractionFor(bool landscape) =>
-      ref.read(prefsProvider).getDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}') ?? (landscape ? 0.4 : 0.3);
+  double _fractionFor(bool landscape, Size screen, CameraPreviewInfo? preview) =>
+      ref.read(prefsProvider).getDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}') ??
+      _defaultFraction(landscape, screen, preview);
+
+  /// iPhone, iPad and Android in portrait: the prompter covers 60% of the camera picture, which leaves the script more
+  /// room. In landscape the panel already runs the full height, so it keeps the usual share of the screen.
+  double _defaultFraction(bool landscape, Size screen, CameraPreviewInfo? preview) {
+    if (landscape || !(Platform.isAndroid || Platform.isIOS)) return landscape ? 0.4 : 0.3;
+    // The picture is upright and as wide as the screen, 16:9 until the camera reports its own shape.
+    final aspect = preview == null ? 9 / 16 : (preview.aspectRatio >= 1 ? 1 / preview.aspectRatio : preview.aspectRatio);
+    final pictureHeight = math.min(screen.height, screen.width / aspect);
+    return 0.6 * pictureHeight / screen.height;
+  }
   void _saveFraction(bool landscape, double v) =>
       ref.read(prefsProvider).setDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}', v);
   final _dragFractions = <bool, double>{};
@@ -772,7 +784,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final scheme = Theme.of(context).colorScheme;
     final landscape = media.orientation == Orientation.landscape;
     final tablet = size.shortestSide >= tabletMinWidth;
-    final fraction = _dragFractions[landscape] ?? _fractionFor(landscape);
+    final fraction = _dragFractions[landscape] ?? _fractionFor(landscape, size, _preview);
     final p = _preview;
     final cardOnly = _perm == _Perm.primer || _perm == _Perm.denied || (_error != null && p == null);
     final showScript = !cardOnly && (p != null || (_promptReady && _error == null));

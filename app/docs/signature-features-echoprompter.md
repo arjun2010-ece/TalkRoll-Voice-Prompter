@@ -476,3 +476,12 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Take ended by the system saved to the gallery** (call, app in the background, storage full): fixed on iOS and Android together; macOS does not record.
 - **Android crash when the app goes to the background mid-take** (video thread stopped under the encoder): Android only. iOS finishes its writer and was tested with the same interruption, so it is not affected.
 - **Record again restarts a Narration that played to its end:** fixed in shared Dart, so it applies to every platform.
+
+### Camera screen: prompter panel under the camera cut-out in landscape
+- **Fixed on:** iPhone (`app/lib/features/video/record_screen.dart`)
+- **Also affects:** Android phones with a camera cut-out (not checked), iPad (no cut-out, probably not affected)
+- **Issue:** Open the camera screen (Voice or Narration, camera on) on an iPhone with a Dynamic Island and turn it to landscape. The prompter panel starts at the left screen edge, so the first letter of each line and the section labels are hidden under the island.
+- **Root cause:** The camera screen is full-bleed (immersive) and positioned the panel at a fixed 12 px from the left, without the safe-area inset.
+- **Fix applied:** On iOS in landscape, `left: 12 + media.padding.left` for the panel with its width reduced by the same amount (right edge unchanged), and the right control rail at `16 + media.padding.right`.
+- **Status:** Fixed on iPhone, pending on Android (check a phone with a cut-out in landscape)
+

@@ -262,6 +262,79 @@ Continue and Play resumed the run in every case, and every run reached "End of s
 - **Unit tests:** the spec asks for a script dense with cues to be tested for voice following and alignment. It was tested by hand (above); no automated tests were written, because CLAUDE.md says not to create tests.
 - The "Next up" heads-up in Voice is estimated from reading pace; its timing was seen working but not measured.
 
-## §4 onward
+## §4: Mobile recording, section clips and export
 
-Not started.
+Built and tested on the Android emulator and on the iPhone (see "iPhone run" at the end of this section). iPad was not run.
+
+### What was built
+
+- **Run style on the camera.** The existing "Run: Section by section" choice in *How to read* now also drives the camera screen (Voice and Narration, front or back camera). Whole script is untouched: one file, as before.
+- **One clip per section** (`app/lib/features/video/record_screen.dart`, `recording_session.dart`). Record starts the 3-2-1 countdown and the section's take; when the prompter reaches the end of the section (`sectionDone`) the take stops by itself after 0.4 s, and the end card appears. Every take starts at the section's first word.
+  - **Retake** and **Next** on the end card (`SectionEndCard` got `onRetake`, `onNext`, `onFinish`) go to the section and start a take with the countdown. **Jump** is "Sections…" on the end card, or *Camera options → Jump to a section*; after a jump the section waits and Record starts its take.
+  - `RecordingSession` / `Clip` hold the data model (id, session, section, file, duration, attempt, keeper flag). A new take of a section becomes the keeper and the older ones stay as attempts. `keepers` are always sorted by section, whatever order they were recorded in. `missingSectionsMessage` builds "Sections 2 and 4 have no take".
+  - Stopping the take in the middle of a section (Stop, close, or changing the mode) drops that half take, keeps the other clips and puts the section back at its start. A take ended by the system (call, full storage) is dropped the same way, with the existing "Recording stopped" / "Storage is full" card, and the section is ready to record again.
+- **Export** (`clip_export_sheet.dart`). "Export" on the end card (or "Export" when leaving the screen with clips) opens *Your clips*: every section with its length and number of takes, "No take" in red, and the warning "Section 3 has no take". **Finished video** joins the keepers in section order (with missing sections it asks first: "Go back" / "Export without them"). **Separate clips** copies each keeper as `EchoPrompter 02 Setup.mp4`. Both go to the gallery and then show the usual saved card with Share (all files). If the gallery refuses, the card says so and Share still works. After an export the clips are deleted; leaving with clips asks Stay / Discard clips / Export.
+- **Native join.** New channel method `joinClips(paths)` in `packages/echoprompter_camera`.
+  - **Android:** `ClipJoin.kt`, Media3 Transformer 1.4.1 (`media3-transformer`, `media3-effect`, `media3-common`; no FFmpeg). Clips of the same size are joined as filmed (no re-encode); a clip of another size is fitted into the first clip's frame.
+  - **iOS:** `ClipJoin.swift`, `AVMutableComposition` + `AVAssetExportSession`. Same size and rotation: passthrough preset (no re-encode); otherwise a video composition fits each clip into the first clip's frame. Not run yet.
+- **Narration with the camera.** Already needed camera only (no microphone permission, no microphone in the file, narration put into each take from its file). Each section's clip therefore carries its own part of the narration. Nothing changed here.
+
+### Tested on the Android emulator (Pixel 6, API 37, back/front scene camera, Narration mode with a generated 10 s narration, 3 sections)
+
+- Record section 1, Next, record section 2, Retake section 2, Next, section 3: three clips, the retake replaced only section 2's keeper (export sheet shows "Setup · 2 takes"), earlier take kept until export.
+- Finished video: 11.1 s, one video and one audio track, no black frame (sampled every 0.5 s) and no break in the audio at the joins (the only quiet stretches are the narration's own pauses at the end of sections 1 and 2). Saved to `DCIM/EchoPrompter`.
+- Missing section: with sections 1 and 2 only, the sheet shows "Section 3 has no take", Finished video asks first, and "Export without them" gave a 7.8 s video with both sections in order.
+- Separate clips: two files saved, named after their sections.
+- Stop in the middle of a section: "Take discarded", prompter back at the section start, the other clips kept. Leaving with clips: "Leave without exporting?" with the right count. Record again after an export starts a fresh run from section 1.
+
+### Bugs found and fixed while testing (Android)
+
+- The section number in the top pill never updated because nothing rebuilt the screen once the prompter knew its sections. The pill idea was dropped (the panel footer already says "Intro · 1 of 3"), so nothing is left of it.
+- The last section's end card cut "Finish & export" short, so the button is just "Export".
+- The first join re-encoded the picture (35 s for 11 s of video on the emulator) because a size effect was always added. It is now added only to a clip of another size, so same-size clips are no longer re-encoded.
+
+### Differences from the spec / not covered
+
+- **Not run:** iOS and iPadOS (code only, `swiftc -typecheck` is clean), a real Android phone, tablet, landscape, front camera for section clips, Voice mode with a real voice, storage-full and call interruptions during a section clip (the code path was written, the system events were not triggered), and a Whole script run after this change (that path was not edited, but it was not re-run).
+- **Data model:** there is no `scriptId` because scripts have no stable id in the app today, and clips only live while the camera screen is open (they are deleted when it closes). Because of that "Deleting a script asks whether to delete its recordings too" has nothing to ask yet.
+- **Undo:** earlier attempts are kept until export or discard, as asked, but there is no screen to bring one back as the keeper.
+- **Edits during a session:** editing the script from the camera options deletes the clips (the sections may no longer line up). Changing the mode to one without the camera also leaves the screen and loses unexported clips.
+- **Tests:** the spec asks for tests of keeper selection, section order and the missing-sections warning. None were written, because CLAUDE.md says not to create tests. The logic is isolated in `recording_session.dart` so it is easy to test.
+- Joins show as jump cuts, as intended. The audio of a clip ends after the narration's pause that follows the section, so a clip can end with a short silence.
+
+### iPhone run (2026-11-06, iPhone 15 Pro Max, iOS 26.6.2, debug build over USB)
+
+Same driver as the earlier iPhone rounds (`flutter run`, VM-service taps, `devicectl` screenshots). The script (3 sections) and a 10 s generated narration were put in place by evaluating the providers, since the Files picker cannot be driven. Narration mode, Section by section, back camera.
+
+**Passed**
+- Record section 1 (3-2-1 countdown, stops by itself at the section end, end card "Section 1 done · Intro · 0:03"), Next, section 2, Retake section 2, Next, section 3. The export sheet showed "Setup · 2 takes" and the last section's end card had Retake, Sections… and the primary **Export**.
+- **Finished video** (native `AVMutableComposition` + `AVAssetExportSession`, passthrough): 10.8 s, 1080x1920 upright, one video and one audio track, no black frame (sampled every 0.5 s), the narration continuous across both joins (only its own pauses are quiet), saved to Photos ("Saved to your gallery · Finished video · 00:10").
+- **Separate clips**: `EchoPrompter 01 Intro.mp4` was written and saved ("1 clip · 00:03"); that clip is 3.2 s with the narration for section 1.
+- Stop in the middle of section 2: the take was dropped, the section waited at its start (Setup · 2 of 3, 38%), section 1's clip was kept.
+- Close with a clip: native "Leave without exporting?" (Stay / Discard clips / Export). Export then showed "Sections 2 and 3 have no take", and Finished video asked "Go back / Export without them".
+- **Whole script** (regression): one 10 s take, saved to the gallery ("00:10 · 1080p"), no section UI.
+- No new bug was found on the iPhone, so no iOS code changed in this round.
+
+**Not covered on the iPhone**
+- iPad, front camera and Voice mode with section clips.
+- A single keeper exported as "Finished video" (it uses the clip file itself, no join; the Android run covered this path).
+- Interruptions (a call) and a full disk during a section clip.
+- The test script "Section clips test" is left in the scripts list on the iPhone and on the Android emulator.
+
+### iPhone landscape run (2026-11-06, same phone)
+
+The phone was not turned by hand: the screen was forced to landscape with `SystemChrome.setPreferredOrientations` (the app locks the orientation itself during a take and releases it afterwards, so it was forced again after each take, as a person holding the phone sideways would stay sideways). Same script, narration and driver as above.
+
+**Passed**
+- Landscape layout of the camera screen (prompter panel on the left, controls in a rail on the right, end card in the middle): record, end of section, Retake, Next, section 3, Export, all worked. The end card shows Retake, Next, Sections… and Finish in one row; on the last section Retake, Sections… and Finish.
+- The export sheet in landscape is scrollable (the list shows about one and a half sections above the buttons, which stay visible).
+- **Finished video, all clips landscape:** 10.8 s, 1920x1080, one video and one audio track, no black frame, narration continuous across the joins (only its own pauses are quiet).
+- **Finished video, mixed orientations** (section 1 portrait, section 2 landscape): 7.2 s, 1080x1920 (the first clip's frame). The landscape clip is upright and fitted inside it with black bars above and below, the narration continues without a break. This is the re-encoding path of `ClipJoin.swift`; it worked first time.
+
+**Bug found and fixed (iPhone landscape, shared code)**
+- The landscape end card (compact layout) holds four buttons once Finish is there, and "Sections…" was cut to "Secti…". `SectionEndCard` now uses less horizontal padding for its buttons in that layout, only when the camera passes `onFinish` (so the Mac's compact cards are unchanged). After the change "Sections…" shows in full. Re-checked on the phone.
+
+**Fixed afterwards (iPhone only): prompter panel under the Dynamic Island in landscape**
+- In landscape on the iPhone the panel started at the very left edge, so the Dynamic Island hid the first letter of lines ("Hello", "the") and the "01 Intro" labels. `record_screen.dart` now moves the panel in by the left safe-area inset (`media.padding.left`) and the right-hand control rail by the right inset, only on iOS and only in landscape. The panel keeps its right edge (it just gets narrower, so lines wrap a little earlier), so the top bar is not squeezed; the status pill reads "Camera rea…" as it already does in portrait.
+- Checked on the iPhone in landscape: all prompter text is visible, and recording a section and the end card still work.
+- Android and iPad landscape were not looked at (see "Cross-platform fixes pending" in `signature-features-echoprompter.md`).

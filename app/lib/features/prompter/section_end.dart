@@ -61,6 +61,10 @@ class SectionEndCard extends ConsumerWidget {
     final last = i >= sections.length - 1;
     final detail = sectionDoneDetail(sections[i], pr.sectionSeconds);
 
+    // The camera's landscape card holds four buttons in a row: less padding so "Sections…" is not cut short.
+    final tight = compact && onFinish != null;
+    const tightPadding = EdgeInsets.symmetric(horizontal: 8);
+
     Widget button(String id, String text, IconData icon, VoidCallback? onTap, {bool primary = false, bool quiet = false}) {
       // The small layouts have no room for a shortcut beside the name; the tray menu and Settings list them.
       final hint = compact ? null : hints[id];
@@ -77,14 +81,14 @@ class SectionEndCard extends ConsumerWidget {
       if (primary) {
         return FilledButton(
           onPressed: onTap,
-          style: FilledButton.styleFrom(backgroundColor: _action, foregroundColor: Colors.white, minimumSize: size),
+          style: FilledButton.styleFrom(backgroundColor: _action, foregroundColor: Colors.white, minimumSize: size, padding: tight ? tightPadding : null),
           child: label,
         );
       }
       if (quiet) {
         return TextButton(
           onPressed: onTap,
-          style: TextButton.styleFrom(foregroundColor: Colors.white, minimumSize: size),
+          style: TextButton.styleFrom(foregroundColor: Colors.white, minimumSize: size, padding: tight ? tightPadding : null),
           child: label,
         );
       }
@@ -96,6 +100,7 @@ class SectionEndCard extends ConsumerWidget {
           backgroundColor: Colors.transparent,
           side: BorderSide(color: Colors.white.withValues(alpha: 0.28)),
           minimumSize: size,
+          padding: tight ? tightPadding : null,
         ),
         child: label,
       );

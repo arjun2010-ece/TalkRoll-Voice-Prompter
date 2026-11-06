@@ -1115,6 +1115,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // Layout: a phone or portrait tablet stacks the prompter over the picture; in landscape the prompter is a panel
     // on the left and the controls sit in a rail on the right edge, within reach of the thumb.
     final panelWidth = size.width * (tablet ? 0.4 : 0.44);
+    // iPhone in landscape: the screen is full-bleed, so the Dynamic Island / sensor housing sits over whatever is at the
+    // left edge and the rounded corners and home bar on the right. The prompter panel and the controls on the right move in.
+    final insetL = Platform.isIOS && landscape ? media.padding.left : 0.0;
+    final insetR = Platform.isIOS && landscape ? media.padding.right : 0.0;
     final side = tablet && !landscape ? 64.0 : 12.0;
     final overlayTop = media.padding.top + 58;
     final pill = _countdown != null
@@ -1129,7 +1133,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
     final topBar = Positioned(
       left: landscape ? panelWidth + 24 : 8,
-      right: 8,
+      right: 8 + insetR,
       top: landscape ? 12 : media.padding.top + 4,
       height: 52,
       child: Row(children: [
@@ -1258,7 +1262,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final shutterBottom = media.padding.bottom + 16;
     final controls = landscape
         ? Positioned(
-            right: 16,
+            right: 16 + insetR,
             top: 0,
             bottom: 0,
             width: 72,
@@ -1282,7 +1286,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final pausedHint = _paused
         ? Positioned(
             left: landscape ? panelWidth + 24 : 24,
-            right: landscape ? 120 : 24,
+            right: landscape ? 120 + insetR : 24,
             bottom: hintBottom,
             child: const _Hint("The camera can't change during a take. Stop the recording to switch it."),
           )
@@ -1290,16 +1294,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final audioHint = audio && !_recording && p != null
         ? Positioned(
             left: landscape ? panelWidth + 24 : 24,
-            right: landscape ? 120 : 24,
+            right: landscape ? 120 + insetR : 24,
             bottom: hintBottom,
             child: const _Hint('Your narration is added to the video from its file, however you listen.', icon: Icons.volume_up_outlined),
           )
         : null;
 
     final overlay = Positioned(
-      left: landscape ? 12 : side,
+      left: landscape ? 12 + insetL : side,
       right: landscape ? null : side,
-      width: landscape ? panelWidth : null,
+      // The panel keeps its right edge: it only loses the width the inset took at its left.
+      width: landscape ? panelWidth - insetL : null,
       top: landscape ? 12 : overlayTop,
       bottom: landscape ? 12 : null,
       height: landscape ? null : size.height * fraction,
@@ -1390,7 +1395,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         if (_saved != null)
           Positioned(
             left: landscape ? panelWidth + 28 : 12,
-            right: landscape ? 24 : 12,
+            right: landscape ? 24 + insetR : 12,
             bottom: media.padding.bottom + 12,
             child: CameraResultSheet(
               title: 'Saved to your gallery',
@@ -1403,7 +1408,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         if (_exported != null)
           Positioned(
             left: landscape ? panelWidth + 28 : 12,
-            right: landscape ? 24 : 12,
+            right: landscape ? 24 + insetR : 12,
             bottom: media.padding.bottom + 12,
             child: CameraResultSheet(
               title: _exported!.title,
@@ -1432,7 +1437,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         if (_unsaved != null)
           Positioned(
             left: landscape ? panelWidth + 28 : 12,
-            right: landscape ? 24 : 12,
+            right: landscape ? 24 + insetR : 12,
             bottom: media.padding.bottom + 12,
             child: Material(
               color: scheme.surfaceContainerHigh,
@@ -1460,7 +1465,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         if (_stopped != null)
           Positioned(
             left: landscape ? panelWidth + 28 : 12,
-            right: landscape ? 24 : 12,
+            right: landscape ? 24 + insetR : 12,
             bottom: media.padding.bottom + 12,
             child: Material(
               color: scheme.surfaceContainerHigh,

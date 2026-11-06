@@ -113,6 +113,17 @@ public class EchoprompterCameraPlugin: NSObject, FlutterPlugin, FlutterTexture, 
             let ms = a["positionMs"] as? Int ?? 0, playing = a["playing"] as? Bool ?? false
             queue.async { self.narrationTick(positionMs: ms, playing: playing); DispatchQueue.main.async { result(nil) } }
         case "stopRecording": finishRecording(reason: a["reason"] as? String ?? "user", result: result)
+        case "joinClips":
+            let urls = (a["paths"] as? [String] ?? []).map { URL(fileURLWithPath: $0) }
+            let output = FileManager.default.temporaryDirectory.appendingPathComponent("echoprompter_joined_\(Int(Date().timeIntervalSince1970 * 1000)).mp4")
+            Task {
+                do {
+                    try await ClipJoin.join(urls, to: output)
+                    DispatchQueue.main.async { result(output.path) }
+                } catch {
+                    DispatchQueue.main.async { result(FlutterError(code: "join", message: "\(error)", details: nil)) }
+                }
+            }
         case "saveToGallery": saveToGallery(a["path"] as? String ?? "", result: result)
         case "headphonesConnected":
             let outs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)

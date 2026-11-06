@@ -27,9 +27,25 @@ String sectionUpNext(List<RunSection> sections, int index) =>
 ///
 /// [compact] is for the small macOS layouts (notch and corner). [hints] puts a keyboard shortcut on each button.
 class SectionEndCard extends ConsumerWidget {
-  const SectionEndCard({super.key, required this.onSections, this.compact = false, this.hints = const {}});
+  const SectionEndCard({
+    super.key,
+    required this.onSections,
+    this.compact = false,
+    this.hints = const {},
+    this.onRetake,
+    this.onNext,
+    this.onFinish,
+  });
 
   final VoidCallback onSections;
+
+  /// The camera screen records each section as a clip, so Retake and Next start a take (with its countdown) instead of
+  /// just playing. They default to the prompter's own.
+  final VoidCallback? onRetake;
+  final VoidCallback? onNext;
+
+  /// The camera screen: ends the run and exports the clips. Hidden when null.
+  final VoidCallback? onFinish;
   final bool compact;
 
   /// Shortcut text by button: `retake`, `next`, `sections`.
@@ -85,9 +101,12 @@ class SectionEndCard extends ConsumerWidget {
       );
     }
 
-    final retake = button('retake', 'Retake', Icons.replay, controller.retakeSection);
-    final next = last ? null : button('next', 'Next', Icons.skip_next_rounded, controller.nextSection, primary: true);
+    final retake = button('retake', 'Retake', Icons.replay, onRetake ?? controller.retakeSection);
+    final next = last ? null : button('next', 'Next', Icons.skip_next_rounded, onNext ?? controller.nextSection, primary: true);
     final list = button('sections', 'Sections…', Icons.format_list_bulleted, onSections, quiet: !compact);
+    final finish = onFinish == null
+        ? null
+        : button('finish', compact ? 'Finish' : 'Export', Icons.movie_creation_outlined, onFinish, primary: last, quiet: !last && !compact);
 
     final title = Text(
       sectionDoneTitle(sections, i),
@@ -105,7 +124,7 @@ class SectionEndCard extends ConsumerWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      label: '${sectionDoneTitle(sections, i)}. Retake, ${last ? '' : 'Next, '}or open the sections.',
+      label: '${sectionDoneTitle(sections, i)}. Retake, ${last ? '' : 'Next, '}${onFinish != null ? 'export, ' : ''}or open the sections.',
       child: Container(
         constraints: BoxConstraints(maxWidth: compact ? 520 : 420),
         padding: EdgeInsets.fromLTRB(compact ? 14 : 18, compact ? 10 : 22, compact ? 14 : 18, compact ? 10 : 18),
@@ -130,6 +149,7 @@ class SectionEndCard extends ConsumerWidget {
               const SizedBox(width: 8),
               if (next != null) ...[Expanded(child: next), const SizedBox(width: 8)],
               Expanded(child: list),
+              if (finish != null) ...[const SizedBox(width: 8), Expanded(child: finish)],
             ])
           else ...[
             Row(children: [
@@ -137,7 +157,10 @@ class SectionEndCard extends ConsumerWidget {
               if (next != null) ...[const SizedBox(width: 10), Expanded(child: next)],
             ]),
             const SizedBox(height: 6),
-            list,
+            if (finish != null)
+              Row(children: [Expanded(child: list), const SizedBox(width: 10), Expanded(child: finish)])
+            else
+              list,
             if (detail.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(sectionUpNext(sections, i), textAlign: TextAlign.center, style: const TextStyle(color: _muted, fontSize: 13)),

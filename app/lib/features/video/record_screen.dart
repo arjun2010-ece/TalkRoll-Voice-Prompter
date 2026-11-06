@@ -19,6 +19,8 @@ import '../studio/start_options.dart';
 import 'mode_chip.dart';
 import 'camera_state.dart';
 import '../prompter/section_end.dart';
+import 'clip_export_sheet.dart';
+import 'recording_session.dart';
 import '../../services/providers.dart';
 import '../prompter/cue_widgets.dart';
 import '../prompter/prompt_view.dart';
@@ -70,6 +72,22 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   ({RecordingResult result, String reason, bool photosOff})? _unsaved;
   bool _retrying = false;
   ({String title, String body, String? detail, RecordingResult? result})? _stopped;
+
+  // Section by section: each section is its own clip. The session holds every take until it is exported or discarded.
+  RecordingSession? _session;
+  int _sessionCount = 0;
+  // The section being filmed, or null when the take is the whole script.
+  int? _takeSection;
+  bool _finishingTake = false;
+  bool _exporting = false;
+  // The export that just ended: files to share, and whether the gallery took them.
+  ({String title, String subtitle, List<String> files, bool warning})? _exported;
+  // Files made by an export, removed with the screen.
+  final _exportFiles = <String>[];
+  static const _sectionTail = Duration(milliseconds: 400);
+
+  /// Whether each section is recorded as its own clip (Run: Section by section).
+  bool get _sectionClips => _prompter.sectionRun;
 
   // Overlay height as a fraction of the screen, remembered per orientation.
   double _fractionFor(bool landscape, Size screen, CameraPreviewInfo? preview) =>
@@ -293,7 +311,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   }
 
   Future<void> _edit() async {
-    if (await showScriptEditor(context, ref)) _beginPrompter();
+    if (await showScriptEditor(context, ref)) {
+      // The sections may have changed, so the clips no longer line up with them.
+      await _discardSession();
+      _beginPrompter();
+    }
   }
 
   Future<void> _flip() async {
@@ -434,11 +456,27 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final prompter = ref.read(prompterProvider.notifier);
     final analytics = ref.read(analyticsProvider);
     if (_recording) {
+      if (_takeSection != null) {
+        // Stopping inside a section leaves a half take: it is dropped and the section waits at its start.
+        final section = _takeSection!;
+        await _abortTake();
+        if (!mounted) return;
+        await prompter.goToSection(section);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(duration: Duration(seconds: 2), content: Text('Take discarded. The section is ready to record again.')));
+        return;
+      }
       await prompter.pause();
       final r = await EchoPrompterCamera.stopRecording();
       await _onStopped(r, 'user');
       return;
     }
+    if (_exporting || _finishingTake) return;
+    // Section by section: every take starts at the section's first word, whether it is the first take, a retake or a jump.
+    final section = _sectionClips ? ref.read(prompterProvider).sectionIndex : null;
+    if (section != null) await prompter.goToSection(section);
     // Voice mode listens from the tap, so the recogniser is up for the first words; the other modes start with the take.
     if (ref.read(settingsProvider).mode == PromptControlMode.voice) await prompter.play();
     if (_useCountdown) {
@@ -458,12 +496,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // iPhone, iPad and Android Narration: the video gets the narration file itself, not what the microphone hears of it.
     final narrationFile = (Platform.isIOS || Platform.isAndroid) && mode == PromptControlMode.recordedAudio ? ref.read(audioPathProvider) : null;
     await EchoPrompterCamera.startRecording(landscape: landscape, narrationPath: narrationFile);
+    if (section != null) {
+      _session ??= RecordingSession(id: ++_sessionCount, mode: mode, camera: _facing);
+      _takeSection = section;
+    }
     if (narrationFile != null) _startNarrationTicks();
     analytics.log('video_record_start', {
       'orientation': landscape ? 'landscape' : 'portrait',
       'camera': _facing.name,
       'prompter_mode': mode.name,
       'resolution': '1080p',
+      'section': ?section,
     });
     setState(() {
       _recording = true;
@@ -477,6 +520,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   }
 
   Future<void> _onStopped(RecordingResult? r, String reason) async {
+    if (_takeSection != null) return _onSectionTakeCut(r, reason);
     _timer?.cancel();
     await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     final a = ref.read(analyticsProvider);
@@ -509,6 +553,206 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       } else {
         _unsaved = (result: r, reason: reason, photosOff: saved == _Save.photosOff);
       }
+    });
+  }
+
+  // --- Section clips -------------------------------------------------------------
+
+  /// The section ended while filming: the take stops after a short tail, becomes the section's keeper, and the end card
+  /// offers Retake, Next or Finish.
+  Future<void> _finishSectionTake() async {
+    final section = _takeSection;
+    if (section == null || _finishingTake) return;
+    _finishingTake = true;
+    try {
+      await Future<void>.delayed(_sectionTail);
+      if (!mounted || !_recording || _takeSection != section) return;
+      final r = await EchoPrompterCamera.stopRecording();
+      await _endSectionTake(section);
+      if (!mounted) return;
+      final a = ref.read(analyticsProvider);
+      if (r.narrationFailed) {
+        a.log('video_narration_failed', {'duration_s': r.duration.inSeconds, 'reason': r.reason, 'section': section});
+        await _deleteFile(r.path);
+        if (mounted) setState(() => _stopped = (title: _narrationFailedTitle, body: _narrationFailedBody, detail: null, result: null));
+        return;
+      }
+      _recordings++;
+      a.log('video_record_stop', {'duration_s': r.duration.inSeconds, 'reason': r.reason, 'section': section});
+      setState(() => _session!.add(section: section, path: r.path, duration: r.duration));
+    } finally {
+      _finishingTake = false;
+    }
+  }
+
+  /// Common clean-up after a section take stopped, whatever happened to its file.
+  Future<void> _endSectionTake(int section) async {
+    _timer?.cancel();
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    if (_micStart != null) {
+      ref.read(analyticsProvider).log('mic_stop', {'duration_s': DateTime.now().difference(_micStart!).inSeconds, 'reason': 'section_end'});
+      _micStart = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _paused = false;
+      _takeSection = null;
+    });
+  }
+
+  /// Stops the take in progress and throws it away. The earlier clips are untouched.
+  Future<void> _abortTake() async {
+    final section = _takeSection;
+    if (section == null) return;
+    await _prompter.pause();
+    final r = await EchoPrompterCamera.stopRecording();
+    await _deleteFile(r.path);
+    await _endSectionTake(section);
+    if (mounted) setState(() => _elapsed = Duration.zero);
+  }
+
+  /// The system ended a section take (a call, full storage) or it was cut short another way. The part that was filmed
+  /// is not a take of the whole section, so it is dropped; the other clips stay.
+  Future<void> _onSectionTakeCut(RecordingResult? r, String reason) async {
+    final section = _takeSection;
+    if (section == null) return;
+    if (r != null) await _deleteFile(r.path);
+    await _endSectionTake(section);
+    if (!mounted) return;
+    await _prompter.goToSection(section);
+    if (!mounted) return;
+    setState(() => _stopped = (
+      title: reason == 'storage_full' ? 'Storage is full' : 'Recording stopped',
+      body: reason == 'storage_full'
+          ? 'There is no space left to keep recording, so this section was not kept. Your other clips are safe. Free up space and record the section again.'
+          : 'A call or another app interrupted the recording, so this section was not kept. Your other clips are safe. Record the section again.',
+      detail: null,
+      result: null,
+    ));
+  }
+
+  Future<void> _deleteFile(String path) async {
+    try {
+      await File(path).delete();
+    } catch (_) {}
+  }
+
+  /// Retake or Next on the end card: the prompter goes to the section and the take starts with the countdown.
+  Future<void> _takeSectionAt(int index, bool landscape) async {
+    if (_recording || _countdown != null || _exporting) return;
+    await _prompter.goToSection(index);
+    if (mounted) await _toggleRecord(landscape);
+  }
+
+  /// Deletes every clip and starts a fresh session.
+  Future<void> _discardSession() async {
+    final s = _session;
+    _session = null;
+    if (s == null) return;
+    for (final c in s.clips) {
+      await _deleteFile(c.path);
+    }
+  }
+
+  /// Leaving with clips that were not exported asks what to do with them.
+  Future<void> _leave() async {
+    if (_exporting) return;
+    final s = _session;
+    if (s == null || s.clips.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final choice = await showAdaptiveDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog.adaptive(
+        title: const Text('Leave without exporting?'),
+        content: Text('You have ${s.keepers.length == 1 ? '1 section clip' : '${s.keepers.length} section clips'} that ${s.keepers.length == 1 ? "isn't" : "aren't"} exported yet.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Stay')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Discard clips'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'export'), child: const Text('Export')),
+        ],
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'export') {
+      await _finishRun();
+      return;
+    }
+    await _discardSession();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Finish on the end card: choose between the finished video and separate clips.
+  Future<void> _finishRun() async {
+    final s = _session;
+    if (s == null || _exporting) return;
+    final choice = await showClipExport(context, session: s, sections: _prompter.sections);
+    if (!mounted || choice == null) return;
+    if (choice == ClipExportChoice.discard) {
+      await _discardSession();
+      if (!mounted) return;
+      await _prompter.goToSection(0);
+      if (mounted) setState(() {});
+      return;
+    }
+    await _exportClips(s, joined: choice == ClipExportChoice.video);
+  }
+
+  /// Joins the keeper clips (or copies each one under its section's name), saves them to the gallery and offers Share.
+  Future<void> _exportClips(RecordingSession s, {required bool joined}) async {
+    final keepers = s.keepers;
+    if (keepers.isEmpty) return;
+    setState(() => _exporting = true);
+    final a = ref.read(analyticsProvider);
+    final files = <String>[];
+    try {
+      if (joined) {
+        files.add(keepers.length == 1 ? keepers.first.path : await EchoPrompterCamera.joinClips([for (final c in keepers) c.path]));
+      } else {
+        final dir = await Directory.systemTemp.createTemp('echoprompter_clips_');
+        for (final c in keepers) {
+          final label = _prompter.sections[c.sectionIndex].label.replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '').trim();
+          final name = 'EchoPrompter ${(c.sectionIndex + 1).toString().padLeft(2, '0')}${label.isEmpty ? '' : ' $label'}.mp4';
+          files.add((await File(c.path).copy('${dir.path}/$name')).path);
+        }
+      }
+    } catch (e) {
+      a.log('video_export_failed', {'joined': joined, 'clips': keepers.length});
+      if (!mounted) return;
+      setState(() => _exporting = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text("Couldn't prepare the video. Your clips are kept; try again.")));
+      return;
+    }
+    var allSaved = true;
+    for (final f in files) {
+      if (await _saveToGallery(RecordingResult(f, s.keepersDuration, 'user')) != _Save.saved) allSaved = false;
+    }
+    a.log('video_export', {'joined': joined, 'clips': keepers.length, 'sections': _prompter.sections.length, 'saved': allSaved});
+    _exportFiles.addAll(files);
+    // The session is over: the clips go (a single clip that is itself the export stays until the screen closes).
+    final done = s.clips.map((c) => c.path).where((p) => !files.contains(p)).toList();
+    _session = null;
+    for (final p in done) {
+      await _deleteFile(p);
+    }
+    if (!mounted) return;
+    final what = joined ? 'Finished video' : (files.length == 1 ? '1 clip' : '${files.length} clips');
+    setState(() {
+      _exporting = false;
+      _exported = (
+        title: allSaved ? 'Saved to your gallery' : "Couldn't save to your gallery",
+        subtitle: allSaved ? '$what · ${_fmt(s.keepersDuration)}' : '$what is kept on this device. Share it to keep it.',
+        files: files,
+        warning: !allSaved,
+      );
     });
   }
 
@@ -604,6 +848,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // Mobile: the play button alone switches the microphone here, so leaving the screen must switch it off.
     if (isMobile) Future.microtask(_prompter.pause);
     _analytics.log('video_mode_exit', {'recordings_count': _recordings});
+    // Clips that were never exported, and the files an export made, only lived for this screen.
+    for (final c in _session?.clips ?? const <Clip>[]) {
+      File(c.path).delete().ignore();
+    }
+    for (final f in _exportFiles) {
+      File(f).delete().ignore();
+    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
@@ -632,6 +883,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
                   (ctx as Element).markNeedsBuild();
                 },
               ),
+              if (_sectionClips)
+                Row(children: [
+                  const Expanded(child: Text('Jump to a section')),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      showSectionsSheet(context);
+                    },
+                    child: const Text('Open'),
+                  ),
+                ]),
               Row(children: [
                 const Expanded(child: Text('Edit script')),
                 TextButton(
@@ -662,10 +924,45 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     );
   }
 
-  void _close() => _recording ? _confirmClose() : Navigator.of(context).pop();
+  void _close() {
+    if (_exporting) return;
+    if (_recording && _takeSection != null) {
+      _confirmDiscardTake();
+    } else if (_recording) {
+      _confirmClose();
+    } else {
+      _leave();
+    }
+  }
+
+  /// Close while filming a section: the unfinished take goes, the other clips are offered for export.
+  Future<void> _confirmDiscardTake() async {
+    final discard = await showAdaptiveDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog.adaptive(
+        title: const Text('Discard this take?'),
+        content: const Text('You are recording a section. Leaving now discards this take. Your other section clips are kept.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep recording')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Discard take'),
+          ),
+        ],
+      ),
+    );
+    if (discard != true || !_recording || !mounted) return;
+    await _abortTake();
+    if (mounted) await _leave();
+  }
 
   /// Ends the open take: saved to the gallery or thrown away, without leaving the screen.
   Future<void> _endTake({required bool save}) async {
+    if (_takeSection != null) {
+      await _abortTake();
+      return;
+    }
     await ref.read(prompterProvider.notifier).pause();
     final r = await EchoPrompterCamera.stopRecording();
     _timer?.cancel();
@@ -722,15 +1019,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         context: context,
         builder: (ctx) => AlertDialog.adaptive(
           title: const Text('Finish this recording?'),
-          content: Text('To change how you read, this recording has to end first. You have recorded ${_fmt(_elapsed)}.'),
+          content: Text(_takeSection != null
+              ? 'To change how you read, this take has to end first, so it will be discarded. Your other section clips are kept.'
+              : 'To change how you read, this recording has to end first. You have recorded ${_fmt(_elapsed)}.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep recording')),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'discard'),
               style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
-              child: const Text('Discard and continue'),
+              child: Text(_takeSection != null ? 'Discard take and continue' : 'Discard and continue'),
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save and continue')),
+            if (_takeSection == null) TextButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save and continue')),
           ],
         ),
       );
@@ -754,6 +1053,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
   /// Ready for another take after a saved or stopped one.
   void _recordAgain() {
+    if (_exported != null) {
+      // A new run: the shared files can go, and the script starts over from its first section.
+      for (final f in _exportFiles) {
+        _deleteFile(f);
+      }
+      _exportFiles.clear();
+      _exported = null;
+      if (_sectionClips) _prompter.goToSection(0);
+    } else if (_sectionClips && _stopped != null) {
+      _prompter.goToSection(ref.read(prompterProvider).sectionIndex);
+    }
     // A narration that played to its end would otherwise stay there, and the next take would film in silence.
     if (ref.read(settingsProvider).mode == PromptControlMode.recordedAudio) _prompter.restart();
     setState(() {
@@ -772,6 +1082,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       if (_recording) return;
       if (mode == PromptControlMode.recordedAudio) _route = ReferenceRoute.speaker;
       _beginPrompter();
+    });
+    // Section by section: the end of the section ends its clip.
+    ref.listen(prompterProvider.select((p) => p.sectionDone), (_, done) {
+      if (done && _recording && _takeSection != null) _finishSectionTake();
     });
     ref.listen(prompterProvider.select((p) => p.voiceNeedsPack), (_, needs) async {
       if (!needs) return;
@@ -792,7 +1106,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final p = _preview;
     final cardOnly = _perm == _Perm.primer || _perm == _Perm.denied || (_error != null && p == null);
     final showScript = !cardOnly && (p != null || (_promptReady && _error == null));
-    final ended = _saved != null || _stopped != null || _unsaved != null;
+    final ended = _saved != null || _stopped != null || _unsaved != null || _exported != null;
     final mode = ref.watch(settingsProvider.select((s) => s.mode));
     final audio = mode == PromptControlMode.recordedAudio;
 
@@ -1059,7 +1373,14 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
                 alignment: const Alignment(0, -0.1),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: SectionEndCard(compact: MediaQuery.sizeOf(context).height < 500, onSections: () => showSectionsSheet(context)),
+                  child: SectionEndCard(
+                    compact: MediaQuery.sizeOf(context).height < 500,
+                    onSections: () => showSectionsSheet(context),
+                    // Each section is a clip: Retake and Next start a take, Finish exports what was recorded.
+                    onRetake: () => _takeSectionAt(ref.read(prompterProvider).sectionIndex, landscape),
+                    onNext: () => _takeSectionAt(ref.read(prompterProvider).sectionIndex + 1, landscape),
+                    onFinish: _session == null ? null : _finishRun,
+                  ),
                 ),
               ),
             ),
@@ -1077,6 +1398,35 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
               onShare: () => _share(_saved!),
               onRecordAgain: _recordAgain,
               onDone: _done,
+            ),
+          ),
+        if (_exported != null)
+          Positioned(
+            left: landscape ? panelWidth + 28 : 12,
+            right: landscape ? 24 : 12,
+            bottom: media.padding.bottom + 12,
+            child: CameraResultSheet(
+              title: _exported!.title,
+              subtitle: _exported!.subtitle,
+              warning: _exported!.warning,
+              onShare: () => SharePlus.instance.share(ShareParams(files: [for (final f in _exported!.files) XFile(f)])),
+              onRecordAgain: _recordAgain,
+              onDone: _done,
+            ),
+          ),
+        if (_exporting)
+          Positioned.fill(
+            child: AbsorbPointer(
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.6),
+                child: const Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text('Preparing your video…', style: TextStyle(color: Colors.white, fontSize: 16, decoration: TextDecoration.none)),
+                  ]),
+                ),
+              ),
             ),
           ),
         if (_unsaved != null)

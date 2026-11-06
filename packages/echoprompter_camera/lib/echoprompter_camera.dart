@@ -132,6 +132,11 @@ class EchoPrompterCamera {
     );
   }
 
+  /// Joins video files, in the order given, into one video and returns its path (Android: Media3 Transformer; iOS:
+  /// AVMutableComposition and AVAssetExportSession). The files are left as they are.
+  static Future<String> joinClips(List<String> paths) async =>
+      (await _channel.invokeMethod<String>('joinClips', {'paths': paths}))!;
+
   /// Saves to Photos (iOS, add-only) or MediaStore DCIM/EchoPrompter (Android).
   static Future<void> saveToGallery(String path) =>
       _channel.invokeMethod('saveToGallery', {'path': path});

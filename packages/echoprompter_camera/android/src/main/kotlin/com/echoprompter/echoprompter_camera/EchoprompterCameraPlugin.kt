@@ -130,6 +130,7 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
                 "pauseRecording" -> { recorder?.pause(); result.success(null) }
                 "resumeRecording" -> { recorder?.resume(); result.success(null) }
                 "stopRecording" -> finishRecording(call.argument<String>("reason") ?: "user") { result.success(it) }
+                "joinClips" -> joinClips(call.argument<List<String>>("paths") ?: emptyList(), result)
                 "saveToGallery" -> { saveToGallery(call.argument<String>("path")!!); result.success(null) }
                 "headphonesConnected" -> result.success(headphones())
                 "setReferenceRoute" -> result.success(null) // reference audio always plays on the speaker
@@ -440,6 +441,25 @@ class EchoprompterCameraPlugin : FlutterPlugin, ActivityAware, MethodChannel.Met
             }
             main.post { done(finalPath, failed) }
         }.start()
+    }
+
+    private var joiner: androidx.media3.transformer.Transformer? = null
+
+    /** Joins the clips (in the order given) into one video in the cache folder and replies with its path. */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun joinClips(paths: List<String>, result: MethodChannel.Result) {
+        if (paths.isEmpty() || joiner != null) { result.error("join", "Nothing to join", null); return }
+        val out = File(context.cacheDir, "echoprompter_joined_${System.currentTimeMillis()}.mp4")
+        try {
+            joiner = ClipJoin.join(context, paths.map { File(it) }, out) { error ->
+                joiner = null
+                if (error == null) result.success(out.path) else { out.delete(); result.error("join", error, null) }
+            }
+        } catch (e: Exception) {
+            joiner = null
+            out.delete()
+            result.error("join", e.message, null)
+        }
     }
 
     private fun saveToGallery(path: String) {

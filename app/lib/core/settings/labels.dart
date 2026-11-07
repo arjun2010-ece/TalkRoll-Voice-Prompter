@@ -77,6 +77,15 @@ extension PromptCornerLabel on PromptCorner {
   };
 }
 
+extension RetakeClapLabel on RetakeClap {
+  String get label => switch (this) {
+    RetakeClap.both => 'Both',
+    RetakeClap.sound => 'Sound',
+    RetakeClap.flash => 'Flash',
+    RetakeClap.off => 'Off',
+  };
+}
+
 extension PromptPlacementLabel on PromptPlacement {
   /// [hasNotch] is true on a Mac whose display has a camera notch; everywhere
   /// else the top-centre position is called "Top center".

@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:echoprompter_window/echoprompter_window.dart' show EchoPrompterWindow, WindowCorner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/matching/script_tracker.dart';
@@ -167,6 +168,11 @@ class PrompterController extends Notifier<PrompterState> {
   List<RunSection> _sections = const [];
   final _sectionClock = Stopwatch();
 
+  // macOS retake clap and take list. A take starts when play begins at the start of a section (or of the script):
+  // [_takePending] is set by every start and retake and used up by the first play that actually runs.
+  bool _takePending = true;
+  final _takes = <int, int>{};
+
   // Action cues. A cue is "done" once it has been shown (or, for a hold cue, continued past); a Retake, a jump back or
   // a restart makes the cues after that point fire again.
   List<ActionCue> _cues = const [];
@@ -190,6 +196,9 @@ class PrompterController extends Notifier<PrompterState> {
 
   /// The script's sections, for Section by section.
   List<RunSection> get sections => _sections;
+
+  /// macOS, Section by section: how many takes each section (by index) has had in this run.
+  Map<int, int> get takeCounts => Map.unmodifiable(_takes);
 
   /// Whether the script is being run one section at a time (Run: Section by section, and the script has words).
   bool get sectionRun => ref.read(settingsProvider).runStyle == RunStyle.sections && _sections.isNotEmpty;
@@ -230,6 +239,8 @@ class PrompterController extends Notifier<PrompterState> {
     _tracker = ScriptTracker(scriptWords(script));
     _sections = runSections(script);
     _sectionClock.reset();
+    _takePending = true;
+    _takes.clear();
     _resetCues(script);
     state = PrompterState(resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
     _externalSamples = externalSamples;
@@ -266,8 +277,10 @@ class PrompterController extends Notifier<PrompterState> {
     switch (_mode) {
       case PromptControlMode.normal:
         state = state.copyWith(playing: true, finished: false);
+        _beginTake();
       case PromptControlMode.voice:
         await _startVoice();
+        if (state.playing) _beginTake();
         _voiceCues();
       case PromptControlMode.recordedAudio:
         // Narration scrolls by the playback position alone: no microphone, no recogniser.
@@ -282,7 +295,23 @@ class PrompterController extends Notifier<PrompterState> {
         // just_audio's play() future only completes on pause/end, so don't await it.
         unawaited(clock.play());
         _startNarrationTicker();
+        _beginTake();
     }
+  }
+
+  /// macOS: a take has just started (the section's first play, or a retake): count it and give the retake clap.
+  /// Resuming after a pause is not a new take.
+  void _beginTake() {
+    if (!_takePending) return;
+    _takePending = false;
+    if (!Platform.isMacOS) return;
+    final section = currentSection;
+    if (section != null) _takes[section.index] = (_takes[section.index] ?? 0) + 1;
+    final s = ref.read(settingsProvider);
+    final sound = s.retakeClap == RetakeClap.both || s.retakeClap == RetakeClap.sound;
+    final flash = s.retakeClap == RetakeClap.both || s.retakeClap == RetakeClap.flash;
+    if (!sound && !flash) return;
+    unawaited(EchoPrompterWindow.retakeClap(sound: sound, flash: flash, corner: WindowCorner.values.byName(s.retakeFlashCorner.name)));
   }
 
   Future<void> pause() async {
@@ -309,6 +338,7 @@ class PrompterController extends Notifier<PrompterState> {
     final wasMode = _mode;
     await pause();
     _sectionClock.reset();
+    _takePending = true;
     // The same script and recording: the cues start over, but where they fall in the narration has not changed.
     _resetCues(_script, keepTimes: true);
     state = PrompterState(preparing: state.preparing, status: state.status, resetToken: state.resetToken + 1, jumpToken: state.jumpToken);
@@ -375,6 +405,7 @@ class PrompterController extends Notifier<PrompterState> {
     final section = _sections[i];
     await pause();
     _sectionClock.reset();
+    _takePending = true;
     _clearLost();
     final word = section.startWord;
     final map = _alignment;

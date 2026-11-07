@@ -42,6 +42,9 @@ enum PromptFont {
 
 enum PromptCorner { topLeft, topRight, bottomLeft, bottomRight }
 
+/// macOS: what marks the start of each take in a recording, so retakes are easy to find when editing.
+enum RetakeClap { both, sound, flash, off }
+
 /// Valid ranges, shared by every slider and by loading saved settings, so a
 /// value saved by an older build can never push the prompter out of range.
 class PromptLimits {
@@ -81,6 +84,8 @@ class PromptSettings {
     this.speechLanguage = 'auto',
     this.narrationOffsetMs = 0,
     this.cueLeadSeconds = 3,
+    this.retakeClap = RetakeClap.both,
+    this.retakeFlashCorner = PromptCorner.topLeft,
     this.notchSize = const Size(560, 150),
     this.cornerSize = const Size(420, 240),
   });
@@ -123,6 +128,10 @@ class PromptSettings {
   /// Action cues: seconds of warning before a cue (1–5).
   final int cueLeadSeconds;
 
+  /// macOS: the beep and/or flash at the start of each section and on every Retake, and where the flash appears.
+  final RetakeClap retakeClap;
+  final PromptCorner retakeFlashCorner;
+
   /// Whether every option under "Text" is at its default, so Reset has nothing to do.
   bool get isTextDefault {
     const d = PromptSettings();
@@ -161,6 +170,8 @@ class PromptSettings {
     String? speechLanguage,
     int? narrationOffsetMs,
     int? cueLeadSeconds,
+    RetakeClap? retakeClap,
+    PromptCorner? retakeFlashCorner,
     Size? notchSize,
     Size? cornerSize,
   }) => PromptSettings(
@@ -184,6 +195,8 @@ class PromptSettings {
     speechLanguage: speechLanguage ?? this.speechLanguage,
     narrationOffsetMs: (narrationOffsetMs ?? this.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
     cueLeadSeconds: (cueLeadSeconds ?? this.cueLeadSeconds).clamp(minCueLeadSeconds, maxCueLeadSeconds),
+    retakeClap: retakeClap ?? this.retakeClap,
+    retakeFlashCorner: retakeFlashCorner ?? this.retakeFlashCorner,
     notchSize: notchSize ?? this.notchSize,
     cornerSize: cornerSize ?? this.cornerSize,
   );
@@ -210,6 +223,8 @@ class PromptSettings {
     'speechLanguage': speechLanguage,
     'narrationOffsetMs': narrationOffsetMs,
     'cueLeadSeconds': cueLeadSeconds,
+    'retakeClap': retakeClap.name,
+    'retakeFlashCorner': retakeFlashCorner.name,
     'notchW': notchSize.width,
     'notchH': notchSize.height,
     'cornerW': cornerSize.width,
@@ -244,6 +259,8 @@ class PromptSettings {
       speechLanguage: j['speechLanguage'] as String? ?? d.speechLanguage,
       narrationOffsetMs: ((j['narrationOffsetMs'] as num?)?.round() ?? d.narrationOffsetMs).clamp(-maxNarrationOffsetMs, maxNarrationOffsetMs),
       cueLeadSeconds: ((j['cueLeadSeconds'] as num?)?.round() ?? d.cueLeadSeconds).clamp(minCueLeadSeconds, maxCueLeadSeconds),
+      retakeClap: e(RetakeClap.values, j['retakeClap'], d.retakeClap),
+      retakeFlashCorner: e(PromptCorner.values, j['retakeFlashCorner'], d.retakeFlashCorner),
       notchSize: Size(
         (j['notchW'] as num?)?.toDouble() ?? d.notchSize.width,
         (j['notchH'] as num?)?.toDouble() ?? d.notchSize.height,

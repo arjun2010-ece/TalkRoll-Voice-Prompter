@@ -232,6 +232,42 @@ class _GeneralTab extends ConsumerWidget {
           onChanged: (v) => set((c) => c.copyWith(hideFromCapture: !v)),
         ),
       ]),
+      if (isMacOS)
+        _Group(title: 'Retake clap', children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Beep and flash'),
+                  Text(
+                    'Helps you find retakes when editing your recording.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ]),
+              ),
+              SegmentedButton<RetakeClap>(
+                showSelectedIcon: false,
+                segments: [for (final c in RetakeClap.values) ButtonSegment(value: c, label: Text(c.label))],
+                selected: {s.retakeClap},
+                onSelectionChanged: (v) => set((c) => c.copyWith(retakeClap: v.first)),
+              ),
+            ]),
+          ),
+          if (s.retakeClap == RetakeClap.both || s.retakeClap == RetakeClap.flash)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(children: [
+                const Expanded(child: Text('Flash position')),
+                DropdownButton<PromptCorner>(
+                  value: s.retakeFlashCorner,
+                  underline: const SizedBox.shrink(),
+                  items: [for (final c in PromptCorner.values) DropdownMenuItem(value: c, child: Text(c.label))],
+                  onChanged: (v) => v == null ? null : set((c) => c.copyWith(retakeFlashCorner: v)),
+                ),
+              ]),
+            ),
+        ]),
       const _Group(title: 'Voice', children: [SpeechLanguageRow()]),
       const _CaptureSupportNote(),
       _Group(title: 'Diagnostics', children: [_CrashReportsSwitch(prefs: prefs)]),

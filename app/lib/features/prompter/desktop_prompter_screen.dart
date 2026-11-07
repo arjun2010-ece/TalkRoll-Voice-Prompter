@@ -8,7 +8,9 @@ import 'package:echoprompter_window/echoprompter_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../core/script/run_sections.dart' show takeListText;
 import '../../core/script/sections.dart' show actionCues;
 import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
@@ -1264,7 +1266,70 @@ class _SectionsPanel extends StatelessWidget {
           ),
         ]),
         Flexible(child: SectionsList(compact: true, onPicked: onClose)),
+        const _TakeListActions(),
       ]),
     );
+  }
+}
+
+/// The take list (sections and attempts so far, the last attempt of each being the keeper), to copy or share as text.
+class _TakeListActions extends ConsumerStatefulWidget {
+  const _TakeListActions();
+
+  @override
+  ConsumerState<_TakeListActions> createState() => _TakeListActionsState();
+}
+
+class _TakeListActionsState extends ConsumerState<_TakeListActions> {
+  bool _copied = false;
+  Timer? _copiedTimer;
+
+  @override
+  void dispose() {
+    _copiedTimer?.cancel();
+    super.dispose();
+  }
+
+  String _text() {
+    final c = ref.read(prompterProvider.notifier);
+    return takeListText(c.sections, c.takeCounts);
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _text()));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    _copiedTimer?.cancel();
+    _copiedTimer = Timer(const Duration(seconds: 2), () => mounted ? setState(() => _copied = false) : null);
+  }
+
+  Future<void> _share(BuildContext button) async {
+    final box = button.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(ShareParams(
+      text: _text(),
+      sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(String label, IconData icon, VoidCallback onTap) => TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: TextButton.styleFrom(foregroundColor: Colors.white, minimumSize: const Size.fromHeight(36)),
+    );
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Divider(height: 9, color: Color(0xFF48484A)),
+      Row(children: [
+        Expanded(child: action(_copied ? 'Copied' : 'Copy take list', _copied ? Icons.check : Icons.copy_rounded, _copy)),
+        const SizedBox(width: 8),
+        Expanded(child: Builder(builder: (b) => action('Share', Icons.ios_share, () => _share(b)))),
+      ]),
+      const Padding(
+        padding: EdgeInsets.only(top: 2),
+        child: Text('The last attempt of each section is the keeper.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF8E8E93))),
+      ),
+    ]);
   }
 }

@@ -48,3 +48,19 @@ int runSectionIndexForWord(List<RunSection> sections, int word) {
   }
   return found;
 }
+
+/// macOS take list as plain text, one line per section with its number of attempts [takes] (by section index). The
+/// last attempt of a section is the keeper, so a section with several says so.
+String takeListText(List<RunSection> sections, Map<int, int> takes) {
+  final names = [
+    for (final s in sections) 'Section ${s.index + 1}${s.name.isEmpty ? '' : ' · ${s.name}'}',
+  ];
+  final width = names.fold<int>(0, (m, n) => n.length > m ? n.length : m);
+  final lines = <String>[];
+  for (var i = 0; i < sections.length; i++) {
+    final n = takes[sections[i].index] ?? 0;
+    final count = n == 0 ? 'no take' : '$n ${n == 1 ? 'attempt' : 'attempts'}${n > 1 ? ' (keep the last)' : ''}';
+    lines.add('${names[i]} ${'.' * (width - names[i].length + 4)} $count');
+  }
+  return lines.join('\n');
+}

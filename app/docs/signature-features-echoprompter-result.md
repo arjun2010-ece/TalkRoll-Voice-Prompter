@@ -338,3 +338,29 @@ The phone was not turned by hand: the screen was forced to landscape with `Syste
 - In landscape on the iPhone the panel started at the very left edge, so the Dynamic Island hid the first letter of lines ("Hello", "the") and the "01 Intro" labels. `record_screen.dart` now moves the panel in by the left safe-area inset (`media.padding.left`) and the right-hand control rail by the right inset, only on iOS and only in landscape. The panel keeps its right edge (it just gets narrower, so lines wrap a little earlier), so the top bar is not squeezed; the status pill reads "Camera rea…" as it already does in portrait.
 - Checked on the iPhone in landscape: all prompter text is visible, and recording a section and the end card still work.
 - Android and iPad landscape were not looked at (see "Cross-platform fixes pending" in `signature-features-echoprompter.md`).
+
+## §5: macOS retake clap and take list
+
+Commits: `f7a7ace` (native window plugin), `9f95a77` (clap, settings, take list), `0acb195` (close button on the section-done card). macOS only; Auto-scroll, Voice and Narration.
+
+### What was built
+
+- **Retake clap.** A beep, a flash, both or neither fires when a take starts: at the start of each section in a section-by-section run, on every Retake, and once at the start of a whole-script run. Resuming after a pause, or tapping a word and pressing play mid-section, is not a take. The hook is `_beginTake()` in `prompter_controller.dart`, guarded by `Platform.isMacOS`. For Narration it waits until playback really starts (not while the recording is loading), and for Voice until listening has started.
+- **Native** (`packages/echoprompter_window/macos/.../RetakeClap.swift`, channel method `retakeClap`). The beep is a 0.12 s tone at 1760 Hz generated in code, with a hard start so it is easy to see in a waveform. The flash is a separate white borderless window (160 × 100 pt, 200 ms) in a screen corner, with `sharingType = .readOnly`, so recorders capture it while the prompter stays hidden. It is dismissed when the prompter exits.
+- **Settings** (macOS only, General > "Retake clap"): Both / Sound / Flash / Off (default Both), a flash position (default top left), and the line "Helps you find retakes when editing your recording." Saved in `PromptSettings` (`retakeClap`, `retakeFlashCorner`); older saved settings load with the defaults.
+- **Take list.** The controller counts attempts per section for the current run (reset on a new run). The Sections panel of the Mac prompter has "Copy take list" and "Share", with the note that the last attempt of each section is the keeper. Format (`takeListText` in `core/script/run_sections.dart`): `Section 2 · Setup ..... 3 attempts (keep the last)`; a section with no attempt reads "no take". Attempts are counted even when the clap is Off.
+- **Close button on the section-done card** (not in the spec): a "×" in the card's corner that goes back to Script Studio, like Esc. It is opt-in (`onClose` on `SectionEndCard`), so the camera and Read screens are unchanged.
+
+### Tested
+
+- `flutter analyze` clean; `flutter build macos --debug` builds.
+- Automated (`test/retake_clap_test.dart`, `test/section_end_close_test.dart`): take list text, settings round-trip and defaults, clap at each section start and each Retake (not on resume), whole-script run claps once, Sound/Flash/Off, attempts counted, take list resets on a new run, and the close button in the full and compact layouts.
+- Native flash: a small harness running the real `RetakeClap.swift`, with `screencapture`, showed the white flash in the top-left corner during the 200 ms and nothing after.
+- A test caught a real bug in the first close button (outside its parent's bounds, so not clickable); fixed before the commit.
+
+### Not tested / open
+
+- **Not run:** QuickTime and OBS recordings (the acceptance criterion), the beep by ear or in a waveform, and the full app by hand (settings rows, Sections panel Copy and Share, the "×" on the card, the three layouts). The take list text and the Share sheet were not checked in the running app.
+- **Not covered by the spec's wording:** the flash position is a corner picker, not tied to the prompter's own corner; the flash is on the prompter's display; a Voice beep may be heard by the microphone (no words, so no effect on following).
+- **Take list scope:** it covers the current run and is available from the Sections panel only. It is lost when the prompter closes; there is no export after the run.
+- **Existing failures:** two tests in `test/prompter_controller_test.dart` fail on the committed code before and after this work (`settingsProvider` throws `UnimplementedError` in that test's container).

@@ -251,7 +251,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     }
     // A 6th new script on the free plan opens the plans straight away: one click to buy.
     final studio = ref.read(studioProvider.notifier);
-    if (!ref.read(proProvider).canPresent(studio.currentId)) {
+    if (!studio.canPresentNow(ref.read(proProvider))) {
       if (mounted) await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
       return;
     }
@@ -842,7 +842,8 @@ class _Inspector extends ConsumerWidget {
         : null;
     // A script the free plan can't present: Start shows a lock and opens the plans.
     ref.watch(studioProvider.select((s) => s.scriptRevision));
-    final locked = !ref.watch(proProvider.select((p) => p.canPresent(ref.read(studioProvider.notifier).currentId)));
+    ref.watch(studioProvider.select((x) => x.script)); // the demo is told from other scripts by its text
+    final locked = !ref.read(studioProvider.notifier).canPresentNow(ref.watch(proProvider));
 
     return LayoutBuilder(
       builder: (context, constraints) {

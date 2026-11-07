@@ -147,6 +147,13 @@ class StudioNotifier extends Notifier<StudioState> {
   /// Id of the saved script being edited, if any.
   String? get currentId => _currentId;
 
+  /// Whether the open script is the built-in demo (never saved, so it never uses a free slot).
+  bool get isDemo => _currentId == null && state.script == welcome;
+
+  /// Whether the open script may be presented on the free plan. The demo always may on Android and macOS, so it still works when
+  /// the free scripts are used up.
+  bool canPresentNow(ProState pro) => ((Platform.isAndroid || Platform.isMacOS) && isDemo) || pro.canPresent(_currentId);
+
   Timer? _saveTimer;
   Future<void> _saving = Future.value();
 

@@ -180,7 +180,9 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
     final camera = _camera && _mode != PromptControlMode.normal;
     final blocker = _mode == PromptControlMode.recordedAudio ? narrationStartBlocker(ref.watch) : null;
     // A new script once the free ones are used: Start opens the plans.
-    final locked = start && !ref.watch(proProvider.select((p) => p.canPresent(ref.read(studioProvider.notifier).currentId)));
+    ref.watch(studioProvider.select((x) => x.script)); // the demo is told from other scripts by its text
+    final studioNotifier = ref.read(studioProvider.notifier);
+    final locked = start && !studioNotifier.canPresentNow(ref.watch(proProvider));
     final caption = start && empty
         ? 'Write or paste a script to start.'
         : blocker ?? (locked ? "Needs Pro. You've used your $freeScriptLimit free scripts." : start && widget.dirty ? 'Starting saves your changes.' : null);

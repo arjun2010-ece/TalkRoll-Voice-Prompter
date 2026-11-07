@@ -74,7 +74,7 @@ void _exportScript(WidgetRef ref) {
 Future<void> presentScript(BuildContext context, WidgetRef ref, {required bool record}) async {
   final studio = ref.read(studioProvider.notifier);
   // A new script on the free plan, once the free ones are used, opens the plans straight away.
-  if (!ref.read(proProvider).canPresent(studio.currentId)) {
+  if (!studio.canPresentNow(ref.read(proProvider))) {
     await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
     return;
   }

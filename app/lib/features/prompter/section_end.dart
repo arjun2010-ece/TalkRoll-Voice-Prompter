@@ -35,6 +35,7 @@ class SectionEndCard extends ConsumerWidget {
     this.onRetake,
     this.onNext,
     this.onFinish,
+    this.onClose,
   });
 
   final VoidCallback onSections;
@@ -46,6 +47,9 @@ class SectionEndCard extends ConsumerWidget {
 
   /// The camera screen: ends the run and exports the clips. Hidden when null.
   final VoidCallback? onFinish;
+
+  /// macOS: a close button in the card's corner that leaves the prompter for Script Studio. Hidden when null.
+  final VoidCallback? onClose;
   final bool compact;
 
   /// Shortcut text by button: `retake`, `next`, `sections`.
@@ -130,7 +134,8 @@ class SectionEndCard extends ConsumerWidget {
       container: true,
       liveRegion: true,
       label: '${sectionDoneTitle(sections, i)}. Retake, ${last ? '' : 'Next, '}${onFinish != null ? 'export, ' : ''}or open the sections.',
-      child: Container(
+      child: Stack(children: [
+      Container(
         constraints: BoxConstraints(maxWidth: compact ? 520 : 420),
         padding: EdgeInsets.fromLTRB(compact ? 14 : 18, compact ? 10 : 22, compact ? 14 : 18, compact ? 10 : 18),
         decoration: BoxDecoration(
@@ -173,6 +178,20 @@ class SectionEndCard extends ConsumerWidget {
           ],
         ]),
       ),
+      if (onClose != null)
+        Positioned(
+          top: 4,
+          right: 4,
+          child: Tooltip(
+            message: 'Close the prompter and return to Script Studio (Esc)',
+            child: InkWell(
+              onTap: onClose,
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close, size: 16, color: Colors.white70)),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

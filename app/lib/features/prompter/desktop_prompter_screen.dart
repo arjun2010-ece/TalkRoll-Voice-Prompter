@@ -460,6 +460,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
             : SectionEndCard(
                 compact: compact,
                 onSections: _toggleSections,
+                onClose: _backToStudio,
                 hints: {
                   'retake': key(ShortcutAction.retakeSection),
                   'next': key(ShortcutAction.nextSection),

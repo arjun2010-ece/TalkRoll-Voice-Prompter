@@ -33,7 +33,7 @@ class UpgradeCard extends ConsumerWidget {
     final lastOne = proEnforced && !limit && used == freeScriptLimit - 1;
 
     final button = FilledButton(
-      onPressed: () => showPaywall(context, source: 'card', reason: limit ? 'You\'ve used your $freeScriptLimit free scripts.' : null),
+      onPressed: () => showPaywall(context, source: 'card', reason: limit ? proLimitReason(pro) : null),
       style: FilledButton.styleFrom(
         backgroundColor: proAccent,
         foregroundColor: const Color(0xFF1A1A1A),
@@ -56,7 +56,7 @@ class UpgradeCard extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              limit ? 'All $freeScriptLimit free scripts used' : lastOne ? '1 free script left' : 'Free plan',
+              limit ? (pro.changesExhausted ? 'No free changes left' : 'All $freeScriptLimit free scripts used') : lastOne ? '1 free script left' : 'Free plan',
               style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
@@ -80,6 +80,10 @@ class UpgradeCard extends ConsumerWidget {
           backgroundColor: scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(2),
         ),
+        if (pro.changesStarted && !limit) ...[
+          const SizedBox(height: 8),
+          Text('${pro.changesLeft} of $freeChangeLimit free changes left. A new script takes one once all $freeScriptLimit slots were used.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
         if (limit) ...[
           const SizedBox(height: 8),
           Text('Upgrade to save and present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),

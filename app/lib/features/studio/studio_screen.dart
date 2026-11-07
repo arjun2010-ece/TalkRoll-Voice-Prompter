@@ -9,6 +9,7 @@ import '../../core/settings/prompt_settings.dart';
 import '../../services/platform.dart';
 import '../../core/entitlements/entitlements.dart';
 import '../../services/providers.dart';
+import '../pro/free_change_prompt.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 import '../pro/upgrade_card.dart';
@@ -51,9 +52,11 @@ class StudioScreen extends ConsumerWidget {
 // --- Actions shared by both layouts -----------------------------------------
 
 /// Imports a script into the editor; true if one was loaded.
-Future<bool> _importScript(WidgetRef ref) async {
+Future<bool> _importScript(BuildContext context, WidgetRef ref) async {
   // Checked before the file picker, so a user with no free scripts left is not asked to choose a file first.
   if (!ref.read(studioProvider.notifier).mayCreate()) return false;
+  if (!await confirmFreeChange(context, ref)) return false;
+  if (!context.mounted) return false;
   final text = await ScriptIO.importText(ref.read(prefsProvider), ref.read(libraryProvider).directory);
   if (text == null) return false;
   if (!await ref.read(studioProvider.notifier).importScript(text)) return false;
@@ -75,7 +78,7 @@ Future<void> presentScript(BuildContext context, WidgetRef ref, {required bool r
   final studio = ref.read(studioProvider.notifier);
   // A new script on the free plan, once the free ones are used, opens the plans straight away.
   if (!studio.canPresentNow(ref.read(proProvider))) {
-    await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
+    await showPaywall(context, reason: proLimitReason(ref.read(proProvider)));
     return;
   }
   await confirmSpeechLanguage(context, ref, ref.read(studioProvider).script);
@@ -163,7 +166,7 @@ class _LibraryPage extends ConsumerWidget {
               tooltip: 'Import script',
               icon: const Icon(Icons.file_open_outlined),
               onPressed: () async {
-                if (await _importScript(ref) && context.mounted) _openEditor(context);
+                if (await _importScript(context, ref) && context.mounted) _openEditor(context);
               },
             ),
             IconButton(
@@ -178,13 +181,14 @@ class _LibraryPage extends ConsumerWidget {
           SliverFillRemaining(
             hasScrollBody: false,
             child: _EmptyLibrary(
-              onNew: () {
+              onNew: () async {
+                if (!notifier.mayCreate() || !await confirmFreeChange(context, ref) || !context.mounted) return;
                 if (!notifier.newScript()) return;
                 _resetFollow(ref);
                 _openEditor(context);
               },
               onImport: () async {
-                if (await _importScript(ref) && context.mounted) _openEditor(context);
+                if (await _importScript(context, ref) && context.mounted) _openEditor(context);
               },
               onSample: () => _openEditor(context),
             ),
@@ -233,7 +237,8 @@ class _LibraryPage extends ConsumerWidget {
       floatingActionButton: history.isEmpty || selecting
           ? null
           : FloatingActionButton.extended(
-              onPressed: () {
+              onPressed: () async {
+                if (!notifier.mayCreate() || !await confirmFreeChange(context, ref) || !context.mounted) return;
                 if (!notifier.newScript()) return;
                 _resetFollow(ref);
                 _openEditor(context);
@@ -363,15 +368,16 @@ class _SplitStudioState extends ConsumerState<_SplitStudio> {
     final notifier = ref.read(studioProvider.notifier);
 
     Future<void> newScript() async {
-      if (!await _canReplaceDraft()) return;
+      if (!await _canReplaceDraft() || !context.mounted) return;
+      if (!notifier.mayCreate() || !await confirmFreeChange(context, ref) || !context.mounted) return;
       if (!notifier.newScript()) return;
       _resetFollow(ref);
       _edit();
     }
 
     Future<void> import() async {
-      if (!await _canReplaceDraft()) return;
-      if (await _importScript(ref)) _edit();
+      if (!await _canReplaceDraft() || !context.mounted) return;
+      if (await _importScript(context, ref)) _edit();
     }
 
     return Scaffold(

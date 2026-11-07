@@ -185,7 +185,7 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
     final locked = start && !studioNotifier.canPresentNow(ref.watch(proProvider));
     final caption = start && empty
         ? 'Write or paste a script to start.'
-        : blocker ?? (locked ? "Needs Pro. You've used your $freeScriptLimit free scripts." : start && widget.dirty ? 'Starting saves your changes.' : null);
+        : blocker ?? (locked ? 'Needs Pro. ${proLimitReason(ref.watch(proProvider))}' : start && widget.dirty ? 'Starting saves your changes.' : null);
     final canApply = !(start && empty) && blocker == null;
     final label = start ? (camera ? 'Start with camera' : 'Start') : 'Use ${_mode.label}${camera ? ' + camera' : ''}';
 
@@ -242,7 +242,7 @@ class _StartOptionsState extends ConsumerState<StartOptions> {
                 onPressed: !canApply
                     ? null
                     : locked
-                        ? () => showPaywall(context, reason: "You've used your $freeScriptLimit free scripts.")
+                        ? () => showPaywall(context, reason: proLimitReason(ref.read(proProvider)))
                         : _apply,
                 icon: Icon(locked ? Icons.lock_outline : camera ? Icons.videocam : start ? Icons.play_arrow_rounded : Icons.check),
                 label: Text(label),

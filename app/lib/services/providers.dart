@@ -214,6 +214,7 @@ class StudioNotifier extends Notifier<StudioState> {
     );
     final history = await ref.read(libraryProvider).save(state.history, script);
     state = state.copyWith(history: history);
+    ref.read(proProvider.notifier).refreshLive(history);
     // A new script takes one of the free slots as soon as it is saved, whether or not it is ever played.
     if (existing == null) ref.read(proProvider.notifier).recordStart(id);
   });
@@ -301,6 +302,7 @@ class StudioNotifier extends Notifier<StudioState> {
     final history = await ref.read(libraryProvider).delete(state.history, s);
     if (s.id == _currentId) _currentId = null;
     state = state.copyWith(history: history);
+    ref.read(proProvider.notifier).refreshLive(history);
   }
 
   Future<void> deleteMany(List<SavedScript> scripts) async {

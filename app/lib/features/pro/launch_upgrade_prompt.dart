@@ -27,14 +27,14 @@ class _LaunchUpgradePromptState extends ConsumerState<LaunchUpgradePrompt> {
     // Let the Studio draw first, so the sheet lands on top of the home screen, not instead of it.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (!mounted || !ref.read(proProvider.notifier).launchPromptDue()) return;
-    await showPaywall(context, source: 'launch', reason: 'You\'ve used your $freeScriptLimit free scripts.');
+    await showPaywall(context, source: 'launch', reason: proLimitReason(ref.read(proProvider)));
   }
 
   @override
   Widget build(BuildContext context) {
     // A new script was refused because the free scripts are used up: say why and offer Pro.
     ref.listen(saveBlockedProvider, (_, _) {
-      showPaywall(context, source: 'save', reason: 'You\'ve used your $freeScriptLimit free scripts, so a new one can\'t be saved.');
+      showPaywall(context, source: 'save', reason: '${proLimitReason(ref.read(proProvider))} A new one can\'t be saved.');
     });
     return widget.child;
   }

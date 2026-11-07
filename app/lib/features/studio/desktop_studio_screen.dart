@@ -22,6 +22,7 @@ import '../../ui/speech_language_prompt.dart';
 import '../../ui/prompt_text_controls.dart';
 import '../../ui/speech_language_row.dart';
 import '../settings/preferences_screen.dart';
+import '../pro/free_change_prompt.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 import '../pro/upgrade_card.dart';
@@ -104,9 +105,11 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
   }
 
   Future<void> _newScript() async {
-    if (!await _canReplaceDraft()) return;
+    if (!await _canReplaceDraft() || !mounted) return;
+    final studio = ref.read(studioProvider.notifier);
+    if (!studio.mayCreate() || !await confirmFreeChange(context, ref)) return;
     ref.read(libraryTabProvider.notifier).show(LibraryTab.scripts);
-    ref.read(studioProvider.notifier).newScript(); // opens the upgrade sheet instead when the free scripts are used
+    studio.newScript(); // opens the upgrade sheet instead when the free scripts are used
   }
 
   bool get _onNotes => ref.read(libraryTabProvider) == LibraryTab.notes;
@@ -204,8 +207,9 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
 
   Future<void> _import() async {
     if (_onNotes) return _importNote();
-    if (!await _canReplaceDraft()) return;
+    if (!await _canReplaceDraft() || !mounted) return;
     if (!ref.read(studioProvider.notifier).mayCreate()) return;
+    if (!await confirmFreeChange(context, ref) || !mounted) return;
     final file = await ScriptIO.importTextFile(
       ref.read(prefsProvider),
       ref.read(libraryProvider).directory,
@@ -252,7 +256,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     // A 6th new script on the free plan opens the plans straight away: one click to buy.
     final studio = ref.read(studioProvider.notifier);
     if (!studio.canPresentNow(ref.read(proProvider))) {
-      if (mounted) await showPaywall(context, reason: 'You\'ve used your $freeScriptLimit free scripts.');
+      if (mounted) await showPaywall(context, reason: proLimitReason(ref.read(proProvider)));
       return;
     }
     if (!await _speechSettingReady()) return;
@@ -539,7 +543,8 @@ class _ScriptList extends ConsumerWidget {
                 tooltip: 'New script',
                 icon: const Icon(Icons.add),
                 onPressed: () async {
-                  if (!await canReplace()) return;
+                  if (!await canReplace() || !context.mounted) return;
+                  if (!notifier.mayCreate() || !await confirmFreeChange(context, ref)) return;
                   if (notifier.newScript()) onNew();
                 },
               ),
@@ -580,7 +585,8 @@ class _ScriptList extends ConsumerWidget {
                     notifier.load(s);
                     onPicked();
                   case 'duplicate':
-                    if (!await canReplace()) return;
+                    if (!await canReplace() || !context.mounted) return;
+                    if (!notifier.mayCreate() || !await confirmFreeChange(context, ref)) return;
                     notifier.duplicate(s);
                   case 'reveal':
                     ScriptIO.reveal(ref.read(libraryProvider).directory);
@@ -976,7 +982,7 @@ class _Inspector extends ConsumerWidget {
                   if (locked && audioBlock == null) ...[
                     const SizedBox(height: 6),
                     Text(
-                      'Needs Pro. You\'ve used your $freeScriptLimit free scripts.',
+                      'Needs Pro. ${proLimitReason(ref.watch(proProvider))}',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: proText(context)),
                     ),

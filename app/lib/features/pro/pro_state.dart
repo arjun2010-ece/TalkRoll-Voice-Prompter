@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
+import '../../core/script/saved_script.dart';
 import '../../services/providers.dart';
 import '../../services/purchases/fake_purchase_service.dart';
 import '../../services/purchases/purchase_service.dart';
@@ -32,7 +33,11 @@ class ProNotifier extends Notifier<ProState> {
     final service = ref.read(purchaseServiceProvider);
     final updates = service.entitlement.listen(setPlan);
     ref.onDispose(updates.cancel);
-    return ProState(presented: _decode(ref.read(prefsProvider).getString(_proKey)), plan: _cachedPlan());
+    return ProState(
+      presented: _decode(ref.read(prefsProvider).getString(_proKey)),
+      plan: _cachedPlan(),
+      live: {for (final s in ref.read(libraryProvider).load()) s.id},
+    );
   }
 
   /// The plan last confirmed by the store. Only trusted where a store (real or the debug fake) can confirm it, so a
@@ -75,6 +80,9 @@ class ProNotifier extends Notifier<ProState> {
     ref.read(prefsProvider).setString(_proKey, _encoded);
     _store.write(_encoded);
   }
+
+  /// Tells the free changes which scripts exist now. Called whenever the library changes.
+  void refreshLive(Iterable<SavedScript> scripts) => state = state.copyWith(live: {for (final s in scripts) s.id});
 
   /// Counts the script with [id] as used, once. Called when a script is first saved and when it is presented, so a
   /// script that is written but never played still takes its slot.

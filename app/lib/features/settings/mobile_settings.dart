@@ -266,7 +266,7 @@ class _ProSummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pro = ref.watch(proProvider);
     return Text(switch (pro.plan) {
-      ProPlan.free => 'Free · ${pro.used.clamp(0, freeScriptLimit)} of $freeScriptLimit scripts used',
+      ProPlan.free => 'Free · ${pro.used.clamp(0, freeScriptLimit)} of $freeScriptLimit scripts used${pro.changesStarted ? ' · ${pro.changesLeft} free changes left' : ''}',
       ProPlan.monthly => 'Pro · Monthly',
       ProPlan.yearly => 'Pro · Yearly',
       ProPlan.lifetime => 'Pro · Lifetime',
@@ -309,7 +309,7 @@ class _ProContent extends ConsumerWidget {
           ]),
           const SizedBox(height: 10),
           if (!pro.isPro) ...[
-            Text('$used of $freeScriptLimit free scripts used. Pro lets you save and present as many as you like. Editing and exporting your scripts is always free.', style: muted),
+            Text('$used of $freeScriptLimit free scripts used${pro.changesStarted ? ', ${pro.changesLeft} of $freeChangeLimit free changes left' : ''}. Pro lets you save and present as many as you like. Editing and exporting your scripts is always free.', style: muted),
             const SizedBox(height: 12),
             LinearProgressIndicator(value: used / freeScriptLimit, minHeight: 4, color: proAccent, backgroundColor: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(2)),
             const SizedBox(height: 14),

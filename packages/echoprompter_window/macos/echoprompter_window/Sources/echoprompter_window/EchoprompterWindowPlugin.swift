@@ -20,6 +20,7 @@ public class EchoprompterWindowPlugin: NSObject, FlutterPlugin {
     private var gesture: (frame: NSRect, mouse: NSPoint, extra: CGFloat)?
     private var observers: [NSObjectProtocol] = []
     private var statusItem: NSStatusItem?
+    private let retakeClap = RetakeClap()
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var hotKeyNames: [UInt32: String] = [:]
     private var hotKeyHandler: EventHandlerRef?
@@ -78,6 +79,10 @@ public class EchoprompterWindowPlugin: NSObject, FlutterPlugin {
         case "setTrayMenu": result(setTrayMenu(args["items"] as? [[String: Any]]))
         case "registerHotkeys": result(registerHotkeys(args["bindings"] as? [[String: Any]] ?? []))
         case "unregisterHotkeys": unregisterHotkeys(); result(nil)
+        case "retakeClap":
+            retakeClap.fire(sound: args["sound"] as? Bool ?? false, flash: args["flash"] as? Bool ?? false,
+                            corner: args["corner"] as? String ?? "topLeft", on: screenForPrompter())
+            result(nil)
         case "setPrompterVisible":
             if let w = window, inPrompter {
                 if call.arguments as? Bool ?? true { w.orderFrontRegardless() } else { w.orderOut(nil) }
@@ -132,6 +137,7 @@ public class EchoprompterWindowPlugin: NSObject, FlutterPlugin {
     private func exit() {
         guard let w = window, inPrompter else { return }
         inPrompter = false
+        retakeClap.dismiss()
         stopObserving()
         w.sharingType = .readOnly
         w.styleMask = studioStyle ?? [.titled, .closable, .miniaturizable, .resizable]

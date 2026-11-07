@@ -221,6 +221,16 @@ class EchoPrompterWindow {
   static Future<void> setPrompterVisible(bool visible) =>
       _channel.invokeMethod('setPrompterVisible', visible);
 
+  /// macOS: the retake clap, a beep and/or a brief flash in a small window that screen recorders do capture.
+  /// [corner] is a [WindowCorner] name. A no-op where the native side has none.
+  static Future<void> retakeClap({required bool sound, required bool flash, required WindowCorner corner}) async {
+    try {
+      await _channel.invokeMethod('retakeClap', {'sound': sound, 'flash': flash, 'corner': corner.name});
+    } on MissingPluginException {
+      // No native side: nothing to play.
+    }
+  }
+
   /// Whether this OS build can hide the window from capture. False on
   /// Windows older than 10 version 2004.
   static Future<bool> get supportsCaptureHiding async =>

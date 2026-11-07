@@ -488,24 +488,24 @@ These were seen while testing the work above. None of them were part of it, so n
 
 ### Free plan: demo script locked at the script limit
 - **Fixed on:** Android and macOS (`app/lib/services/providers.dart` `canPresentNow`, `features/studio/studio_screen.dart`, `start_options.dart`, `desktop_studio_screen.dart`)
-- **Also affects:** iOS and iPadOS
+- **Also affects:** none left (iPadOS shares the iOS code, not run)
 - **Issue:** With all 5 free scripts used, open the bundled "Welcome to EchoPrompter" demo: Start shows a lock and "Needs Pro. You've used your 5 free scripts". §6 says the demo must stay within the limits.
 - **Root cause:** The demo has no saved id, and `ProState.canPresent(null)` treats an unsaved script as needing a free slot.
-- **Fix applied:** `StudioNotifier.canPresentNow(pro)` returns true for the demo (no saved id and the text equals the welcome text, the same rule the save path uses) before asking `canPresent`. It is gated to `Platform.isAndroid || Platform.isMacOS`; add `Platform.isIOS` to enable it on iOS.
-- **Status:** Pending (fixed on Android and macOS; macOS checked on screen only: Start unlocked at 5 of 5)
+- **Fix applied:** `StudioNotifier.canPresentNow(pro)` returns true for the demo (no saved id and the text equals the welcome text, the same rule the save path uses) before asking `canPresent`. It is gated to `Platform.isAndroid || Platform.isMacOS`; now also `Platform.isIOS`.
+- **Status:** Done on Android, macOS and iOS (iPhone checked through the controller: `canPresentNow` true for the demo at the limit; the demo's Start button was not tapped on the phone; iPad not run)
 
 ### Paywall had no Terms of Use or Privacy Policy links
 - **Fixed on:** Android and macOS (`app/lib/features/pro/paywall_dialog.dart`, `app/lib/services/external_links.dart`; pages in `web/app/terms`, `web/app/privacy`)
-- **Also affects:** iOS and iPadOS
+- **Also affects:** none left (iPadOS not run)
 - **Issue:** The paywall footer showed only a contact email, so there was no way to reach the Terms or the Privacy Policy (Guideline 3.1).
 - **Root cause:** The links and the pages did not exist, and `openExternal` only opened URLs on macOS and Windows.
 - **Fix applied:** "Terms of Use" and "Privacy Policy" buttons under the footer text, shown when `isAndroid || isMacOS`. `openExternal` opens URLs on Android with `url_launcher`. `websiteUrl` accepts `--dart-define=WEBSITE_URL=...` to point at a local `web/` server (`http://10.0.2.2:3000` from the Android emulator). The pages are `/terms` and `/privacy` on the website and must be deployed.
-- **Status:** Pending (fixed on Android, verified on the emulator against the local server; macOS not clicked; iOS needs the platform check widened and `openExternal` to open URLs there)
+- **Status:** Done on Android, macOS and iOS: Terms of Use opened the page from the paywall on the emulator and the Mac (local server), and Safari/Chrome on the iPhone (the live site is not deployed, so it showed "site can't be reached"). The pages must be deployed before App Review.
 
 ### Free plan: shared pool of 15 free changes (delete, then create)
 - **Fixed on:** Android and macOS (`app/lib/core/entitlements/entitlements.dart` `freeChangeLimit`, `freeChangesActive`, `ProState`; `features/pro/pro_state.dart` `refreshLive`; `features/pro/free_change_prompt.dart`; `services/providers.dart`; the Studio screens, upgrade card, Settings and launch prompt for the wording)
-- **Also affects:** iOS and iPadOS
+- **Also affects:** none left (iPadOS not run)
 - **Issue:** With the 5 free scripts used, delete one and tap New script: the paywall opens, because a deleted script kept its slot forever. §6 wants replacing a script to take one of 15 free changes shared by all scripts.
 - **Root cause:** `ProState.used` counted every script id ever counted, deleted or not, and nothing tracked which scripts still exist.
-- **Fix applied:** `ProState` also knows the ids that exist now (`live`, refreshed from the library after every save and delete). `used` = counted scripts that still exist. Every script counted after the first 5 spends one change (`changesUsed = presented - 5`, no new stored value, so the existing Keychain and backup copy of the counted ids carries the pool across reinstall). A new script is allowed while a slot is free and changes are left. `confirmFreeChange` asks before New, Import and Duplicate when that would take a change. The pool shows on the upgrade card and in Settings, and the paywall says "You've used your 15 free changes" when it is empty. Gated by `freeChangesActive` (`Platform.isAndroid || Platform.isMacOS`); where it is off, the old rules apply unchanged. Not included: the "big rewrite (more than 60% of words)" rule and the 800-word limit.
-- **Status:** Pending (fixed on Android and macOS; iOS: add `Platform.isIOS` to `freeChangesActive` and test the same steps)
+- **Fix applied:** `ProState` also knows the ids that exist now (`live`, refreshed from the library after every save and delete). `used` = counted scripts that still exist. Every script counted after the first 5 spends one change (`changesUsed = presented - 5`, no new stored value, so the existing Keychain and backup copy of the counted ids carries the pool across reinstall). A new script is allowed while a slot is free and changes are left. `confirmFreeChange` asks before New, Import and Duplicate when that would take a change. The pool shows on the upgrade card and in Settings, and the paywall says "You've used your 15 free changes" when it is empty. Gated by `freeChangesActive` (Android, macOS and iOS); where it is off, the old rules apply unchanged. Not included: the "big rewrite (more than 60% of words)" rule and the 800-word limit.
+- **Status:** Done on Android, macOS and iOS. Tested on the Android emulator and, through the real UI plus the controller, on macOS and the iPhone (card text, "Use a free change?" dialog with Cancel and Continue, 14 to 13 after a create, deleting did not refund, paywall "15 free changes"). On the iPhone the 4-live-plus-2-deleted state was set in memory (its 20 real scripts were not deleted). Note: the script library keeps at most 20 scripts, so saving a new one on a full phone drops the oldest.

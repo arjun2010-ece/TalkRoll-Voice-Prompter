@@ -261,6 +261,8 @@ export default function Home() {
             <nav className="footer-links" aria-label="Footer navigation">
               <a href="#modes">Modes</a>
               <a href="#faq">FAQ</a>
+              <a href="/privacy">Privacy</a>
+              <a href="/terms">Terms</a>
               <a href="#top">Back to top ↑</a>
             </nav>
             {/*

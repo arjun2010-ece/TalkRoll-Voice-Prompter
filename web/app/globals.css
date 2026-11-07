@@ -74,3 +74,46 @@ h1 em, h2 em { color: var(--lime); font-family: var(--serif); font-weight: 400; 
 @media (max-width: 470px) {
   .shell { width: min(100% - 28px, 640px); }.nav-cta { padding: 9px 11px; font-size: 11px; }.hero-copy { padding-top: 48px; }h1 { font-size: 54px; }.hero-description { font-size: 16px; }.button { width: 100%; }.availability { line-height: 1.5; }.prompt-stage { min-height: 380px; }.window-titlebar { font-size: 10px; }.window-status { font-size: 8px; }.window-reading p { font-size: 22px; }.window-controls { gap: 5px; }.control-pill, .control-play { padding: 0 8px; }.control-pill small, .control-play small { font-size: 9px; }.stage-caption { display: none; }.preview-settings { grid-template-columns: 1fr; }.footer-actions { align-items: flex-start; flex-direction: column; gap: 18px; }.footer-links { width: 100%; justify-content: space-between; }.footer-youtube-placeholder { align-self: flex-end; }
 }
+
+/* Legal pages (Privacy Policy, Terms of Use) */
+.legal { overflow: visible; }
+.legal-hero { position: relative; color: #f6f6f0; background: var(--night); isolation: isolate; }
+.legal-hero::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .38; background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px); background-size: 54px 54px; mask-image: linear-gradient(to bottom, black, transparent 90%); z-index: -1; }
+.legal-hero-copy { padding: 54px 0 84px; }
+.legal-hero h1 { max-width: 760px; margin: 21px 0 20px; font-size: clamp(44px, 6vw, 76px); }
+.legal-summary { max-width: 540px; margin-bottom: 18px; color: #afb7b8; font-size: 18px; line-height: 1.55; }
+.legal-updated { margin: 0; color: #879096; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.legal-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: clamp(40px, 7vw, 110px); padding: 72px 0 110px; align-items: start; }
+.legal-toc { position: sticky; top: 28px; }
+.legal-toc ol { margin: 14px 0 0; padding: 0; list-style: none; border-left: 1px solid var(--line); }
+.legal-toc li a { display: block; margin-left: -1px; padding: 7px 0 7px 16px; border-left: 2px solid transparent; color: var(--muted); font-size: 13.5px; transition: color .2s, border-color .2s; }
+.legal-toc li a:hover { color: var(--ink); border-left-color: var(--orange); }
+.legal-body { max-width: 720px; }
+.legal-highlights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 56px; }
+.legal-highlights div { padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fbfaf6; }
+.legal-highlights b { display: block; margin-bottom: 6px; color: var(--moss); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+.legal-highlights span { font-size: 14px; line-height: 1.4; }
+.legal-body section { padding: 4px 0 44px; scroll-margin-top: 24px; }
+.legal-body h2 { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; font-size: 26px; font-weight: 600; letter-spacing: -.04em; line-height: 1.15; }
+.legal-body h2 span { color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+.legal-body p, .legal-body li { color: #3a4148; font-size: 16px; line-height: 1.7; }
+.legal-body p { margin-bottom: 14px; }
+.legal-body ul { margin: 0 0 14px; padding-left: 20px; }
+.legal-body li { margin: 7px 0; padding-left: 4px; }
+.legal-body li::marker { color: var(--orange); }
+.legal-body b { color: var(--ink); font-weight: 680; }
+.legal-body a { color: var(--moss); border-bottom: 1px solid rgba(61,82,19,.35); }
+.legal-body a:hover { color: var(--orange); border-bottom-color: var(--orange); }
+.legal-body code { padding: 2px 6px; border-radius: 6px; background: #e9e8e0; font-size: 14px; }
+.legal-other { padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+.legal .footer-links { display: flex; gap: 22px; }
+.footer-legal { display: flex; gap: 19px; }
+
+@media (max-width: 820px) {
+  .legal-hero-copy { padding: 40px 0 56px; }
+  .legal-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 40px 0 72px; }
+  .legal-toc { position: static; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .legal-toc ol { display: flex; flex-wrap: wrap; gap: 4px 16px; border-left: 0; }
+  .legal-toc li a { margin: 0; padding: 4px 0; border: 0; }
+  .legal-highlights { grid-template-columns: 1fr; margin-bottom: 40px; }
+}

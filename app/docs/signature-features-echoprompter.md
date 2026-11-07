@@ -485,3 +485,19 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Fix applied:** On iOS in landscape, `left: 12 + media.padding.left` for the panel with its width reduced by the same amount (right edge unchanged), and the right control rail at `16 + media.padding.right`.
 - **Status:** Fixed on iPhone, pending on Android (check a phone with a cut-out in landscape)
 
+
+### Free plan: demo script locked at the script limit
+- **Fixed on:** Android and macOS (`app/lib/services/providers.dart` `canPresentNow`, `features/studio/studio_screen.dart`, `start_options.dart`, `desktop_studio_screen.dart`)
+- **Also affects:** iOS and iPadOS
+- **Issue:** With all 5 free scripts used, open the bundled "Welcome to EchoPrompter" demo: Start shows a lock and "Needs Pro. You've used your 5 free scripts". §6 says the demo must stay within the limits.
+- **Root cause:** The demo has no saved id, and `ProState.canPresent(null)` treats an unsaved script as needing a free slot.
+- **Fix applied:** `StudioNotifier.canPresentNow(pro)` returns true for the demo (no saved id and the text equals the welcome text, the same rule the save path uses) before asking `canPresent`. It is gated to `Platform.isAndroid || Platform.isMacOS`; add `Platform.isIOS` to enable it on iOS.
+- **Status:** Pending (fixed on Android and macOS; macOS checked on screen only: Start unlocked at 5 of 5)
+
+### Paywall had no Terms of Use or Privacy Policy links
+- **Fixed on:** Android and macOS (`app/lib/features/pro/paywall_dialog.dart`, `app/lib/services/external_links.dart`; pages in `web/app/terms`, `web/app/privacy`)
+- **Also affects:** iOS and iPadOS
+- **Issue:** The paywall footer showed only a contact email, so there was no way to reach the Terms or the Privacy Policy (Guideline 3.1).
+- **Root cause:** The links and the pages did not exist, and `openExternal` only opened URLs on macOS and Windows.
+- **Fix applied:** "Terms of Use" and "Privacy Policy" buttons under the footer text, shown when `isAndroid || isMacOS`. `openExternal` opens URLs on Android with `url_launcher`. `websiteUrl` accepts `--dart-define=WEBSITE_URL=...` to point at a local `web/` server (`http://10.0.2.2:3000` from the Android emulator). The pages are `/terms` and `/privacy` on the website and must be deployed.
+- **Status:** Pending (fixed on Android, verified on the emulator against the local server; macOS not clicked; iOS needs the platform check widened and `openExternal` to open URLs there)

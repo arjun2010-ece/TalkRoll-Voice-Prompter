@@ -49,7 +49,7 @@ const freeChangeLimit = 15;
 
 /// Whether the free changes are on for this platform. Switched on one platform at a time as each is tested; where it is
 /// off, a deleted script keeps its free slot as before.
-bool get freeChangesActive => Platform.isAndroid || Platform.isMacOS;
+bool get freeChangesActive => Platform.isAndroid || Platform.isMacOS || Platform.isIOS;
 
 enum ProPlan { free, monthly, yearly, lifetime }
 

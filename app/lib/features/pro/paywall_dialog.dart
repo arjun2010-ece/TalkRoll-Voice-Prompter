@@ -232,7 +232,7 @@ class _PaywallDialogState extends ConsumerState<PaywallDialog> {
               style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
             // The store requires links to the terms and the privacy policy next to the purchase.
-            if (isAndroid || isMacOS)
+            if (isAndroid || isMacOS || isMobile)
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 TextButton(onPressed: () => openExternal(Uri.parse(termsUrl)), child: const Text('Terms of Use')),
                 const SizedBox(width: 12),

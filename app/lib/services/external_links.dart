@@ -24,7 +24,7 @@ Uri feedbackMailto() => Uri(
 /// False if nothing could open it, for example a Mac with no mail app set up.
 Future<bool> openExternal(Uri url) async {
   try {
-    if (Platform.isAndroid) return await launchUrl(url, mode: LaunchMode.externalApplication);
+    if (Platform.isAndroid || Platform.isIOS) return await launchUrl(url, mode: LaunchMode.externalApplication);
     final result = Platform.isMacOS
         ? await Process.run('open', [url.toString()])
         : Platform.isWindows

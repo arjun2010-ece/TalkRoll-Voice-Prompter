@@ -364,3 +364,49 @@ Commits: `f7a7ace` (native window plugin), `9f95a77` (clap, settings, take list)
 - **Not covered by the spec's wording:** the flash position is a corner picker, not tied to the prompter's own corner; the flash is on the prompter's display; a Voice beep may be heard by the microphone (no words, so no effect on following).
 - **Take list scope:** it covers the current run and is available from the Sections panel only. It is lost when the prompter closes; there is no export after the run.
 - **Existing failures:** two tests in `test/prompter_controller_test.dart` fail on the committed code before and after this work (`settingsProvider` throws `UnimplementedError` in that test's container).
+
+## §6: Free tier and paywall
+
+Platforms: Android, macOS, iOS. Commits (branch `mobile-redesign`, not pushed): `435a9fb` (demo script presentable at the limit), `36e52e5` (Terms and Privacy links on the paywall), `542e322` (web Privacy and Terms pages), `44ee8c3` (shared pool of 15 free changes, Android and macOS), `20e07a7` (same for iOS), plus doc commits `23c6708`, `cd79397`, `427ece2`.
+
+### Already there before this round
+
+- Free plan of 5 scripts, enforced when `PAYMENTS_APPLE`, `PAYMENTS_ANDROID` or `ENFORCE_FREE_LIMIT` is set. Paywall dialog, upgrade card, debug fake store with `previewPlan(...)`.
+- The counter of scripts ever presented (`presented` ids, prefs key `EchoPrompter.proState.v1`) survives a reinstall through the iOS Keychain (`ReinstallStore`) and Android Auto Backup (`backup_rules.xml`). macOS keeps it in app data.
+
+### Built and tested
+
+- **Demo script stays presentable at the limit** (Android, macOS, iOS). `canPresentNow` in `services/providers.dart` lets the untouched welcome script start even when the limit is reached.
+- **Terms of Use and Privacy Policy links on the paywall** (Android, macOS, iOS). `openExternal` now uses `url_launcher` on Android and iOS; macOS uses `open`. URLs come from `WEBSITE_URL` (default `https://echoprompter.app`) in `services/external_links.dart`.
+- **Web pages** `web/app/privacy`, `web/app/terms` (shared `LegalPage` component, sticky table of contents, summary cards), linked from the site footer and added to the sitemap. Checked locally and at phone width.
+- **Shared pool of 15 free changes (delete, then create)** (Android, macOS, iOS; gate `freeChangesActive` in `core/entitlements/entitlements.dart`).
+  - `ProState.live` holds the ids that exist now, refreshed after every save and delete. `changesUsed = presented.length - 5`, capped at 15, so no new stored value and the existing reinstall persistence carries over.
+  - Creating a script while at 5 live and under the cap costs one change; deleting does not refund it. A "Use a free change?" dialog (`free_change_prompt.dart`) says "N left, N-1 after this one" with Cancel / Continue.
+  - The upgrade card, settings and launch prompt show "N of 15 free changes left" and "No free changes left". At the cap the paywall says "You've used your 15 free changes."
+- **Tested on each platform** before moving to the next:
+  - **Android emulator:** counters, dialog, Cancel and Continue, block at 5 live, exhausted state, Terms and Privacy open the browser.
+  - **macOS (clicked through the real UI, Mac unlocked):** card "4 of 5 scripts used / 14 of 15 free changes left"; "+" then Cancel changes nothing; Continue opens an empty editor; saving flips the card to "All 5 free scripts used"; "+" at 5 live opens the paywall with both links; Terms opened the local page; delete then "+" shows "13 left, 12 after this one", so the delete did not refund a change.
+  - **iPhone 15 Pro Max (VM-service touch driver):** card, dialog "14 left, 13 after this one", Cancel keeps the count, Continue moves 6 to 7 presented and the pool 14 to 13, block at 5 live, "No free changes left" at 20 counted, paywall text and links; Terms opened the browser.
+
+### Bugs found and fixed
+
+- The demo script was locked at the limit (fixed on all three).
+- The paywall had no Terms or Privacy links (fixed on all three).
+- Lint `use_build_context_synchronously` after the dialog changes: guarded with `mounted` checks.
+- A first commit wrongly included generated files (`project.pbxproj`, `next-env.d.ts`); it was reset and recommitted by path.
+
+### Not built from §6 (still pending)
+
+- 800-words-per-script limit and the "612 / 800 words" editor counter.
+- The >60% word-diff "big rewrite" rule. Typing over the demo script saves as a new script and takes a change without the warning dialog.
+- Android Block Store (reinstall persistence uses Auto Backup only).
+
+### Not tested / open
+
+- **Reinstall persistence** was not checked on any platform; iPad was not run.
+- On the iPhone only `canPresentNow` was checked for the demo; its Start button was not tapped.
+- **iPhone test state:** the 20-script library cap dropped the phone's oldest test script when the test script was saved. The phone's counter was rebuilt with 8 real ids plus filler (34 total) and the plan is Lifetime, so limits do not apply there.
+- **No migration:** users who deleted many scripts under the old rule start with fewer changes.
+- **Web pages are not deployed**, so the paywall links show "site can't be reached" (iOS) or 404 until `web/` is deployed.
+- **Legal text is a draft** (Arjun Sah as controller, Portuguese law, CNPD, liability cap of 12 months of payments) and needs the owner's review.
+- `ios/Runner.xcodeproj/project.pbxproj` was modified by Xcode (generated), left uncommitted.

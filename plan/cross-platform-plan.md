@@ -49,7 +49,7 @@ It must be ready for a paid release, with the paywall built in Stage 2.
 | Paywall (Stage 2) | 5 free scripts → **Yearly subscription (highlighted default)**, **Monthly subscription**, or **Lifetime**. One purchase unlocks all of the user's devices. Subscriptions are re-verified at least every 30 days, and **30 days offline at most**, after which the paywall shows (§10.4). |
 | Billing | RevenueCat as the single source of truth: App Store (iOS + Mac App Store, shared through Universal Purchase), Google Play, and Paddle (merchant of record) for Windows |
 | Backend | Supabase: auth, Postgres, Edge Functions. It signs entitlement tokens, keeps the free-script counter, and proxies analytics. |
-| Pricing (Stage 2) | **Yearly €55 / $55 (highlighted default)** · **Monthly €6.99 / $6.99** · **Lifetime €109.99 / $109.99**. Prices can be changed later in the store consoles without an app update (§10.4). |
+| Pricing (Stage 2) | **Yearly $45.99 (highlighted default)** · **Monthly $8.99** · **Lifetime $97.99**. Prices can be changed later in the store consoles without an app update (§10.4). |
 | Business | **Launch as an individual developer** (personal Apple, Google, and Microsoft accounts) to test monetisation first. Forming a Portuguese company and the wider legal set-up is **optional Phase 5**, done once revenue justifies it (§9.2). |
 | Analytics (Stage 2) | Google Analytics 4: Firebase on iOS, Android, and macOS; Measurement Protocol on Windows; gtag on the web site. Region-based consent. |
 | Desktop overlay (R1) | One floating, always-on-top, click-through-capable prompter window, hidden from capture by default; Normal / Voice / Audio (§7.1) |
@@ -701,7 +701,7 @@ See §9.5.
 |---|---|
 | **Free tier** | Free users may present **up to 5 different scripts**, each as often as they like, which allows retakes and rehearsals. A script counts the first time it is **presented** (Start / Read / Video), identified by its script ID. Deleting a script **does not** give the slot back. Rewriting a counted script into a different one (more than 50% of its words changed, detected by the content fingerprint) counts as a new script, which closes the "edit script #1 forever" loophole. **Decided:** re-runs are allowed (`freeScriptRerunsAllowed: true`). Retakes are central to video; blocking a second take feels punishing and hurts trust right before the paywall. The fingerprint rule prevents abuse. It can be tightened remotely later. |
 | **After the free limit** (answer 7) | **Start teleprompter, Read, and Record are blocked.** Pressing them opens the paywall. Still allowed: open the app, **read, write, edit, and export** scripts, settings, sign in, restore purchases. |
-| **Plans** (answer 1) | **Yearly: €55 / $55, highlighted and selected as the default.** **Monthly: €6.99 / $6.99.** **Lifetime (one-time purchase): €109.99 / $109.99.** All three are shown side by side. See "Pricing" below. |
+| **Plans** (answer 1) | **Yearly: $45.99, highlighted and selected as the default.** **Monthly: $8.99.** **Lifetime (one-time purchase): $97.99.** All three are shown side by side. See "Pricing" below. |
 | **Lifetime** | Unlocks everything permanently, and the paywall never shows again on that account. Online checks only catch refunds and chargebacks, and **it never needs to be online**. |
 | **Monthly and Yearly subscriptions** | Unlock everything while paid. Verified on every launch and once a day while online. **It must be verified at least once every 30 days.** |
 | **Offline limit** (answer 8) | A subscriber can stay offline for at most **30 days since the last successful verification**. After that, the paywall shows ("Connect to the internet to confirm your subscription"), even though the device is offline. The moment the device reconnects, the app checks automatically. Paid → unlocked again for 30 more days. Not paid → stays blocked with "Renew to continue". |
@@ -747,9 +747,9 @@ Implementation notes:
 
 | Plan | Price (EUR base / USD) | What you keep after store fees and VAT* | Why |
 |---|---|---|---|
-| **Yearly** (default, highlighted) | **€55 / $55** (about €4.58 a month, 34% less than 12 × Monthly) | about **€38** (App Store/Play) or **€42** (Paddle) per year | The best value for anyone who presents regularly, and it brings a year of revenue up front. Highlighted and selected by default. |
-| **Monthly** | **€6.99 / $6.99** | about **€4.80** per month | At the low end for pro teleprompter apps, so it's an easy "yes" for occasional creators. Low enough that the 5-script trial converts. |
-| **Lifetime** | **€109.99 / $109.99** (= 2 years of Yearly) | about **€76** (App Store/Play) or **€84** (Paddle) | Pays for itself after two years of Yearly, which suits heavy users and anyone who works offline a lot (they avoid the 30-day check). It is high enough that Yearly stays the natural default. |
+| **Yearly** (default, highlighted) | **$45.99** (about $3.83 a month, 57% less than 12 × Monthly) | about **$32** (App Store/Play) or **$35** (Paddle) per year | The best value for anyone who presents regularly, and it brings a year of revenue up front. Highlighted and selected by default. |
+| **Monthly** | **$8.99** | about **$6.20** per month | At the low end for pro teleprompter apps, so it's an easy "yes" for occasional creators. Low enough that the 5-script trial converts. |
+| **Lifetime** | **$97.99** (= a little over 2 years of Yearly) | about **$68** (App Store/Play) or **$75** (Paddle) | Pays for itself after a little over two years of Yearly, which suits heavy users and anyone who works offline a lot (they avoid the 30-day check). It is high enough that Yearly stays the natural default. |
 
 \* Rough figures: Portugal's 23% VAT, a 15% store commission (Apple Small Business Program / Google), and Paddle's 5% + $0.50. Net amounts vary by country because VAT rates differ.
 
@@ -847,7 +847,7 @@ A local counter alone resets on reinstall. Two layers fix that:
 
 | # | Question | Your answer | Applied in |
 |---|---|---|---|
-| 1 | Price points / default plan | **Yearly highlighted and selected as the default** (changed 2026-10-26; was Monthly). Prices (updated 2026-10-26) → **Yearly €55 / $55, Monthly €6.99 / $6.99, Lifetime €109.99 / $109.99** | §1, §10.4 Pricing |
+| 1 | Price points / default plan | **Yearly highlighted and selected as the default** (changed 2026-10-26; was Monthly). Prices (updated 2026-10-26) → **Yearly $45.99, Monthly $8.99, Lifetime $97.99** | §1, §10.4 Pricing |
 | 2 | Mac channel | **Mac App Store only** (no direct download) | §9.1, §8 Phase 1 |
 | 3 | Languages | **English at launch**, more languages in later months | §5, Phase 3 |
 | 4 | Mobile full-screen vs. camera | Asked how recording works if the prompter is full-screen → mobile has **Record** (camera + floating overlay, R2) and **Read** (text only) | §7.2, §10.2 |

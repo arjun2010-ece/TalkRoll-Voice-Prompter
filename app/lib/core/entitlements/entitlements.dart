@@ -56,10 +56,10 @@ enum ProPlan { free, monthly, yearly, lifetime }
 /// Prices shown on the paywall; the stores will supply them in the user's currency once purchases are connected.
 class ProPrices {
   const ProPrices._();
-  static const monthly = '€6.99';
-  static const yearly = '€55';
-  static const yearlyPerMonth = '€4.58';
-  static const lifetime = '€109.99';
+  static const monthly = '\$8.99';
+  static const yearly = '\$45.99';
+  static const yearlyPerMonth = '\$3.83';
+  static const lifetime = '\$97.99';
 }
 
 class ProState {

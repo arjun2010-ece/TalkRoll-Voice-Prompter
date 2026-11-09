@@ -127,7 +127,7 @@ because pricing moves.
    test on the simulator and a Mac build, then sandbox and TestFlight. Use **Universal Purchase** (one app record for
    iPhone, iPad and Mac) if you want one purchase to cover all three.
 6. **Android:** upload a signed build to Internal testing, add licence testers, test on a Play Store emulator image.
-7. **Replace placeholders:** `ProPrices`, the "SAVE 34%" badge and "From €4.58 a month" must come from the store;
+7. **Replace placeholders:** `ProPrices`, the "SAVE 57%" badge and "From $3.83 a month" must come from the store;
    add trial wording from the real intro offer; publish Terms and Privacy pages and link them on the sheet.
 8. **Handle the edge cases:** cancel, pending, refund, renewal, grace period, offline entitlement cache, the "check at
    least every 30 days" alert that already exists in `paywall_dialog.dart`.
@@ -161,8 +161,8 @@ Advice:
 ## 5. Open questions for you
 
 1. Do you have Apple Developer and Google Play Console accounts yet? Step 2 blocks steps 4 to 6.
-2. Is the product set right (monthly, yearly with trial, lifetime)? Prices are placeholders today (monthly €6.99, yearly
-   €55, lifetime €109.99).
+2. Is the product set right (monthly, yearly with trial, lifetime)? Prices are placeholders today (monthly $8.99, yearly
+   $45.99, lifetime $97.99).
 3. One app record for iPhone, iPad and Mac (Universal Purchase), or separate? The bundle ID is already shared
    (`com.talkroll.app`).
 4. Do you want Windows covered in this round? It would need the Microsoft Store's own purchase API.
@@ -225,7 +225,7 @@ Two extra dependencies were added: `in_app_purchase` and `url_launcher` (the Man
 ### 7.3 Tested
 
 Android emulator, debug builds:
-- Fake store: the sheet shows the placeholder prices and a computed "SAVE 34%"; Subscribe shows a spinner, then "Pro is on.
+- Fake store: the sheet shows the placeholder prices and a computed "SAVE 57%"; Subscribe shows a spinner, then "Pro is on.
   Thank you!", closes the sheet and removes the upgrade card; New script works again; Pro survives a restart with no
   card and no launch sheet.
 - `PAYMENTS_APPLE=true` on Android: nothing changes ("Free plan · 5 of 5", no lock, no sheet).

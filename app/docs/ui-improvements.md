@@ -192,10 +192,10 @@ The screens are moderate work: an upgrade card in the Studio sidebar, one settin
 - This replaces the earlier "Free limit reached" alert.
 
 **Paywall sheet**
-- Three plans, shown in this order: **Monthly €6.99**, **Yearly €55** (shown as about €4.58 a month, saving about 34% against 12 months of Monthly) and **Lifetime €109.99**, as a one-time purchase.
+- Three plans, shown in this order: **Monthly $8.99**, **Yearly $45.99** (shown as about $3.83 a month, saving about 57% against 12 months of Monthly) and **Lifetime $97.99**, as a one-time purchase.
 - **Decided (2026-10-26):** Yearly is highlighted and selected by default.
 - Prices come from the store, so they show in the user's currency.
-- The buy button names the selected plan and price, for example "Subscribe for €55 a year".
+- The buy button names the selected plan and price, for example "Subscribe for $45.99 a year".
 - Opened from a locked Start, the subtitle gives the reason: "You've used your 5 free scripts."
 - What Pro unlocks: unlimited scripts in the prompter, on all your devices.
 - Restore purchases, plus Terms and Privacy links.
@@ -417,5 +417,5 @@ Decided (2026-10-25):
 
 Decided (2026-10-26):
 - Audio mode: the prompter opens only with a ready recording (see E3).
-- Plans: Yearly €55 (the default), Monthly €6.99, Lifetime €109.99 (see E5).
+- Plans: Yearly $45.99 (the default), Monthly $8.99, Lifetime $97.99 (see E5).
 - Pro is offered from the Script Studio sidebar, and Start on a locked script opens the paywall directly (see E5).

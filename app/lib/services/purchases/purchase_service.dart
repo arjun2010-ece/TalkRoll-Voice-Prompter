@@ -71,9 +71,9 @@ abstract class PurchaseService {
 
 /// The placeholder prices used when no store is connected (the debug fake and builds with payments off).
 List<ProOffer> placeholderOffers() => const [
-  ProOffer(plan: ProPlan.monthly, price: ProPrices.monthly, amount: 6.99),
-  ProOffer(plan: ProPlan.yearly, price: ProPrices.yearly, amount: 55, perMonth: ProPrices.yearlyPerMonth),
-  ProOffer(plan: ProPlan.lifetime, price: ProPrices.lifetime, amount: 109.99),
+  ProOffer(plan: ProPlan.monthly, price: ProPrices.monthly, amount: 8.99),
+  ProOffer(plan: ProPlan.yearly, price: ProPrices.yearly, amount: 45.99, perMonth: ProPrices.yearlyPerMonth),
+  ProOffer(plan: ProPlan.lifetime, price: ProPrices.lifetime, amount: 97.99),
 ];
 
 /// Used by release builds whose store payments are off: buying says it is not available, as before.

@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace echoprompter_window {
+namespace talkroll_window {
 
 using flutter::EncodableMap;
 using flutter::EncodableValue;
@@ -48,13 +48,13 @@ class SpeechRecognizerChannel::Impl {
 
   explicit Impl(flutter::PluginRegistrarWindows *registrar) : registrar_(registrar) {
     method_ = std::make_unique<flutter::MethodChannel<EncodableValue>>(
-        registrar->messenger(), "com.echoprompter/speech",
+        registrar->messenger(), "com.talkroll/speech",
         &flutter::StandardMethodCodec::GetInstance());
     method_->SetMethodCallHandler([this](const auto &call, auto result) {
       HandleMethodCall(call, std::move(result));
     });
     events_ = std::make_unique<flutter::EventChannel<EncodableValue>>(
-        registrar->messenger(), "com.echoprompter/speech/events",
+        registrar->messenger(), "com.talkroll/speech/events",
         &flutter::StandardMethodCodec::GetInstance());
     events_->SetStreamHandler(std::make_unique<flutter::StreamHandlerFunctions<EncodableValue>>(
         [this](const EncodableValue *, std::unique_ptr<Sink> &&events) { return Listen(std::move(events)); },
@@ -375,4 +375,4 @@ SpeechRecognizerChannel::SpeechRecognizerChannel(flutter::PluginRegistrarWindows
 
 SpeechRecognizerChannel::~SpeechRecognizerChannel() = default;
 
-}  // namespace echoprompter_window
+}  // namespace talkroll_window

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.echoprompter" "\0"
-            VALUE "FileDescription", "echoprompter" "\0"
+            VALUE "CompanyName", "com.talkroll" "\0"
+            VALUE "FileDescription", "talkroll" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "echoprompter" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.echoprompter. All rights reserved." "\0"
-            VALUE "OriginalFilename", "echoprompter.exe" "\0"
-            VALUE "ProductName", "echoprompter" "\0"
+            VALUE "InternalName", "talkroll" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.talkroll. All rights reserved." "\0"
+            VALUE "OriginalFilename", "talkroll.exe" "\0"
+            VALUE "ProductName", "talkroll" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,5 +1,5 @@
-#ifndef FLUTTER_PLUGIN_ECHOPROMPTER_WINDOW_PLUGIN_H_
-#define FLUTTER_PLUGIN_ECHOPROMPTER_WINDOW_PLUGIN_H_
+#ifndef FLUTTER_PLUGIN_TALKROLL_WINDOW_PLUGIN_H_
+#define FLUTTER_PLUGIN_TALKROLL_WINDOW_PLUGIN_H_
 
 #include <flutter/encodable_value.h>
 #include <flutter/method_channel.h>
@@ -13,21 +13,21 @@
 #include <utility>
 #include <vector>
 
-namespace echoprompter_window {
+namespace talkroll_window {
 
 class SpeechRecognizerChannel;
 
 // Switches the single Flutter window between Studio and Prompter (top-most,
 // borderless, hidden from capture).
-class EchoprompterWindowPlugin : public flutter::Plugin {
+class TalkRollWindowPlugin : public flutter::Plugin {
  public:
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
 
-  explicit EchoprompterWindowPlugin(flutter::PluginRegistrarWindows *registrar);
-  virtual ~EchoprompterWindowPlugin();
+  explicit TalkRollWindowPlugin(flutter::PluginRegistrarWindows *registrar);
+  virtual ~TalkRollWindowPlugin();
 
-  EchoprompterWindowPlugin(const EchoprompterWindowPlugin &) = delete;
-  EchoprompterWindowPlugin &operator=(const EchoprompterWindowPlugin &) = delete;
+  TalkRollWindowPlugin(const TalkRollWindowPlugin &) = delete;
+  TalkRollWindowPlugin &operator=(const TalkRollWindowPlugin &) = delete;
 
   void HandleMethodCall(
       const flutter::MethodCall<flutter::EncodableValue> &call,
@@ -90,6 +90,6 @@ class EchoprompterWindowPlugin : public flutter::Plugin {
   std::unique_ptr<SpeechRecognizerChannel> speech_;   // Voice and Audio mode's recogniser
 };
 
-}  // namespace echoprompter_window
+}  // namespace talkroll_window
 
-#endif  // FLUTTER_PLUGIN_ECHOPROMPTER_WINDOW_PLUGIN_H_
+#endif  // FLUTTER_PLUGIN_TALKROLL_WINDOW_PLUGIN_H_

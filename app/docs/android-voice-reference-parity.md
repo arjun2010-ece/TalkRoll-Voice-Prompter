@@ -26,7 +26,7 @@ detection is not ported (the app is English only).
 
 ## What was changed
 
-### Recogniser engine: `android/app/src/main/kotlin/com/echoprompter/app/SpeechChannel.kt`
+### Recogniser engine: `android/app/src/main/kotlin/com/talkroll/app/SpeechChannel.kt`
 
 A line-by-line port of `ud` / `sd` / `qd`:
 
@@ -170,7 +170,7 @@ results and tracker updates; "lag" is the time from the end of a phrase's audio 
 * The scroll after the highlight: ours eases toward the line with a 0.25 s time constant, the reference runs an 850 ms
   animation with an ease-out curve (`ht2`, interpolator 0, 0, 0.2, 1). Neither is slower than the other, so nothing was
   changed.
-* The one stall: the product name "TalkRoll" in the first phrase. The recogniser writes "Echo prompter" (or "Echo Grant"
+* The one stall: the product name "TalkRoll" in the first phrase. The recogniser writes "TalkRoll" (or "Echo Grant"
   at 230 wpm), which never equals the script word, so the highlight waited 1.0 to 1.2 s on "to" until "replace" arrived.
   The reference does the same (its tokenizer also keeps "TalkRoll" as one word), so it was left alone.
 * Not tested: speech from a real microphone on a real phone, the video file's audio track, API levels below 33.

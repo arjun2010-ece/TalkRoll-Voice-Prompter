@@ -1,4 +1,4 @@
-#include "echoprompter_window_plugin.h"
+#include "talkroll_window_plugin.h"
 
 #include "speech_recognizer_channel.h"
 
@@ -18,7 +18,7 @@
 #define WDA_EXCLUDEFROMCAPTURE 0x00000011
 #endif
 
-namespace echoprompter_window {
+namespace talkroll_window {
 
 using flutter::EncodableList;
 using flutter::EncodableMap;
@@ -103,16 +103,16 @@ bool KeyToVirtualKey(const std::string &key, UINT *vk) {
 
 }  // namespace
 
-void EchoprompterWindowPlugin::RegisterWithRegistrar(
+void TalkRollWindowPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows *registrar) {
-  auto plugin = std::make_unique<EchoprompterWindowPlugin>(registrar);
+  auto plugin = std::make_unique<TalkRollWindowPlugin>(registrar);
   registrar->AddPlugin(std::move(plugin));
 }
 
-EchoprompterWindowPlugin::EchoprompterWindowPlugin(flutter::PluginRegistrarWindows *registrar)
+TalkRollWindowPlugin::TalkRollWindowPlugin(flutter::PluginRegistrarWindows *registrar)
     : registrar_(registrar) {
   channel_ = std::make_unique<flutter::MethodChannel<EncodableValue>>(
-      registrar->messenger(), "com.echoprompter/window",
+      registrar->messenger(), "com.talkroll/window",
       &flutter::StandardMethodCodec::GetInstance());
   channel_->SetMethodCallHandler([this](const auto &call, auto result) {
     HandleMethodCall(call, std::move(result));
@@ -124,18 +124,18 @@ EchoprompterWindowPlugin::EchoprompterWindowPlugin(flutter::PluginRegistrarWindo
   speech_ = std::make_unique<SpeechRecognizerChannel>(registrar);
 }
 
-EchoprompterWindowPlugin::~EchoprompterWindowPlugin() {
+TalkRollWindowPlugin::~TalkRollWindowPlugin() {
   UnregisterHotkeys();
   RemoveTray();
   registrar_->UnregisterTopLevelWindowProcDelegate(proc_id_);
 }
 
-HWND EchoprompterWindowPlugin::Hwnd() const {
+HWND TalkRollWindowPlugin::Hwnd() const {
   auto *view = registrar_->GetView();
   return view ? GetAncestor(view->GetNativeWindow(), GA_ROOT) : nullptr;
 }
 
-void EchoprompterWindowPlugin::ParseOptions(const EncodableValue *args) {
+void TalkRollWindowPlugin::ParseOptions(const EncodableValue *args) {
   const auto *m = args ? std::get_if<EncodableMap>(args) : nullptr;
   if (!m) return;
   auto get = [&](const char *k) -> const EncodableValue * {
@@ -161,7 +161,7 @@ void EchoprompterWindowPlugin::ParseOptions(const EncodableValue *args) {
   }
 }
 
-void EchoprompterWindowPlugin::HandleMethodCall(
+void TalkRollWindowPlugin::HandleMethodCall(
     const flutter::MethodCall<EncodableValue> &call,
     std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
   const auto &name = call.method_name();
@@ -227,7 +227,7 @@ void EchoprompterWindowPlugin::HandleMethodCall(
   }
 }
 
-void EchoprompterWindowPlugin::ResizeUpdate(const std::string &edge) {
+void TalkRollWindowPlugin::ResizeUpdate(const std::string &edge) {
   HWND hwnd = Hwnd();
   if (!hwnd || !gesture_active_) return;
   POINT m;
@@ -251,7 +251,7 @@ void EchoprompterWindowPlugin::ResizeUpdate(const std::string &edge) {
   applying_ = false;
 }
 
-void EchoprompterWindowPlugin::Enter() {
+void TalkRollWindowPlugin::Enter() {
   HWND hwnd = Hwnd();
   if (!hwnd) return;
   if (!in_prompter_) {
@@ -272,7 +272,7 @@ void EchoprompterWindowPlugin::Enter() {
   ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 }
 
-void EchoprompterWindowPlugin::Exit() {
+void TalkRollWindowPlugin::Exit() {
   HWND hwnd = Hwnd();
   if (!hwnd || !in_prompter_) return;
   in_prompter_ = false;
@@ -285,7 +285,7 @@ void EchoprompterWindowPlugin::Exit() {
   SetForegroundWindow(hwnd);
 }
 
-void EchoprompterWindowPlugin::ApplyCapture(HWND hwnd) {
+void TalkRollWindowPlugin::ApplyCapture(HWND hwnd) {
   // Best effort: older Windows 10 builds fall back to visible.
   if (opt_.hide_from_capture && SupportsExcludeFromCapture()) {
     SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
@@ -297,7 +297,7 @@ void EchoprompterWindowPlugin::ApplyCapture(HWND hwnd) {
   SetWindowLong(hwnd, GWL_EXSTYLE, ex);
 }
 
-void EchoprompterWindowPlugin::Apply() {
+void TalkRollWindowPlugin::Apply() {
   HWND hwnd = Hwnd();
   if (!hwnd) return;
   ApplyCapture(hwnd);
@@ -347,13 +347,13 @@ void EchoprompterWindowPlugin::Apply() {
   applying_ = false;
 }
 
-void EchoprompterWindowPlugin::SendToDart(const char *method, const std::string &value) {
+void TalkRollWindowPlugin::SendToDart(const char *method, const std::string &value) {
   channel_->InvokeMethod(method, std::make_unique<EncodableValue>(value));
 }
 
 // Shows the notification-area icon with [args].items, or removes it when there
 // are none. Returns whether the icon is showing.
-bool EchoprompterWindowPlugin::SetTrayMenu(const EncodableValue *args) {
+bool TalkRollWindowPlugin::SetTrayMenu(const EncodableValue *args) {
   const EncodableList *list = ListOf(args, "items");
   if (!list) {
     RemoveTray();
@@ -385,19 +385,19 @@ bool EchoprompterWindowPlugin::SetTrayMenu(const EncodableValue *args) {
     HICON icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(kAppIconResource));
     if (!icon) icon = LoadIconW(nullptr, IDI_APPLICATION);
     tray_data_.hIcon = icon;
-    wcscpy_s(tray_data_.szTip, L"EchoPrompter");
+    wcscpy_s(tray_data_.szTip, L"TalkRoll");
     tray_added_ = Shell_NotifyIconW(NIM_ADD, &tray_data_) == TRUE;
   }
   return tray_added_;
 }
 
-void EchoprompterWindowPlugin::RemoveTray() {
+void TalkRollWindowPlugin::RemoveTray() {
   if (tray_added_) Shell_NotifyIconW(NIM_DELETE, &tray_data_);
   tray_added_ = false;
   tray_items_.clear();
 }
 
-void EchoprompterWindowPlugin::ShowTrayMenu(HWND hwnd) {
+void TalkRollWindowPlugin::ShowTrayMenu(HWND hwnd) {
   HMENU menu = CreatePopupMenu();
   if (!menu) return;
   for (const auto &t : tray_items_) {
@@ -425,7 +425,7 @@ void EchoprompterWindowPlugin::ShowTrayMenu(HWND hwnd) {
 }
 
 // Registers system-wide shortcuts. Returns { id: registered }.
-EncodableMap EchoprompterWindowPlugin::RegisterHotkeys(const EncodableValue *args) {
+EncodableMap TalkRollWindowPlugin::RegisterHotkeys(const EncodableValue *args) {
   UnregisterHotkeys();
   EncodableMap outcome;
   const EncodableList *list = ListOf(args, "bindings");
@@ -461,7 +461,7 @@ EncodableMap EchoprompterWindowPlugin::RegisterHotkeys(const EncodableValue *arg
   return outcome;
 }
 
-void EchoprompterWindowPlugin::UnregisterHotkeys() {
+void TalkRollWindowPlugin::UnregisterHotkeys() {
   HWND hwnd = Hwnd();
   if (hwnd) {
     for (const auto &h : hotkeys_) UnregisterHotKey(hwnd, h.first);
@@ -469,7 +469,7 @@ void EchoprompterWindowPlugin::UnregisterHotkeys() {
   hotkeys_.clear();
 }
 
-std::optional<LRESULT> EchoprompterWindowPlugin::WindowProc(HWND hwnd, UINT message,
+std::optional<LRESULT> TalkRollWindowPlugin::WindowProc(HWND hwnd, UINT message,
                                                           WPARAM wparam, LPARAM lparam) {
   if (hwnd == Hwnd()) {
     if (message == kTrayMessage) {
@@ -495,7 +495,7 @@ std::optional<LRESULT> EchoprompterWindowPlugin::WindowProc(HWND hwnd, UINT mess
   return std::nullopt;
 }
 
-void EchoprompterWindowPlugin::OnExitSizeMove() {
+void TalkRollWindowPlugin::OnExitSizeMove() {
   HWND hwnd = Hwnd();
   if (!hwnd) return;
   if (opt_.placement == "notch") {
@@ -531,4 +531,4 @@ void EchoprompterWindowPlugin::OnExitSizeMove() {
   channel_->InvokeMethod("frameChanged", std::make_unique<EncodableValue>(payload));
 }
 
-}  // namespace echoprompter_window
+}  // namespace talkroll_window

@@ -2,7 +2,7 @@
 
 Paste the **full research and metadata prompt** when starting a new pass. Paste the **focused audit prompt** when reviewing a listing that already exists. Replace the bracketed scope before sending. Keep iOS output in `aso/ios/`; create a separate `aso/macos/` research set for Mac App Store work. Updated after the 2026-11-09 audit of all 39 iOS locales.
 
-The selected brand is **TalkRoll**. The chosen en-US name is **TalkRoll: Voice Prompter**. `App-Brief.md` and parts of the code still say EchoPrompter; treat the brief as feature context and `aso/ios/branding.md` as the current naming decision. Verify shipped features in code before making a claim.
+The selected brand is **TalkRoll**. The chosen en-US name is **TalkRoll: Voice Prompter**. `App-Brief.md` and parts of the code still say TalkRoll; treat the brief as feature context and `aso/ios/branding.md` as the current naming decision. Verify shipped features in code before making a claim.
 
 ## Full research and metadata prompt
 

@@ -1,6 +1,6 @@
 # Signature features: result tracker
 
-Compares what was built against `signature-features-echoprompter.md`, section by section, so we can see later what still needs a revisit. Update it as each section is done.
+Compares what was built against `signature-features-talkroll.md`, section by section, so we can see later what still needs a revisit. Update it as each section is done.
 
 ## §0 / 0.1: Read this first, rename the modes
 
@@ -337,7 +337,7 @@ The phone was not turned by hand: the screen was forced to landscape with `Syste
 **Fixed afterwards (iPhone only): prompter panel under the Dynamic Island in landscape**
 - In landscape on the iPhone the panel started at the very left edge, so the Dynamic Island hid the first letter of lines ("Hello", "the") and the "01 Intro" labels. `record_screen.dart` now moves the panel in by the left safe-area inset (`media.padding.left`) and the right-hand control rail by the right inset, only on iOS and only in landscape. The panel keeps its right edge (it just gets narrower, so lines wrap a little earlier), so the top bar is not squeezed; the status pill reads "Camera rea…" as it already does in portrait.
 - Checked on the iPhone in landscape: all prompter text is visible, and recording a section and the end card still work.
-- Android and iPad landscape were not looked at (see "Cross-platform fixes pending" in `signature-features-echoprompter.md`).
+- Android and iPad landscape were not looked at (see "Cross-platform fixes pending" in `signature-features-talkroll.md`).
 
 ## §5: macOS retake clap and take list
 

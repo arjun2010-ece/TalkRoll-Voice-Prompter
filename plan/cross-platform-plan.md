@@ -378,7 +378,7 @@ You test every platform, every mode, and match against the POC:
 - Voice mode: speech recognition latency, matching accuracy.
 - Recorded audio: transcription correctness, word timestamps, sync during playback.
 - Settings, themes, mirror, rotation.
-- Replace everywhere in the codebase from "Echo Prompter" to "Echo Prompter"
+- Replace everywhere in the codebase from "TalkRoll" to "TalkRoll"
 - Script import/export.
 - Identify and fix bugs discovered during testing.
 
@@ -685,7 +685,7 @@ Today's `LICENSE` is a *Personal Use* licence that **forbids commercial use**. I
 | Store EULA | Legal terms on the stores | **Apple:** use Apple's **standard EULA** (no upload needed), with `TERMS.md` linked from the paywall. **Google Play / Microsoft Store:** link `TERMS.md`. |
 
 v1 actions:
-- [ ] **Make the app source private.** The site links to a public GitHub repo (`arjun2010-ece/EchoPrompter`); anyone could otherwise build it without the paywall. Releases can still be hosted publicly. This costs nothing and protects revenue.
+- [ ] **Make the app source private.** The site links to a public GitHub repo (`arjun2010-ece/TalkRoll`); anyone could otherwise build it without the paywall. Releases can still be hosted publicly. This costs nothing and protects revenue.
 - [ ] Replace `LICENSE` and add `TERMS.md`, plus `THIRD_PARTY_NOTICES` (required by the BSD, Apache, and MIT licences we use).
 
 **Later (Phase 5, once it earns money):**

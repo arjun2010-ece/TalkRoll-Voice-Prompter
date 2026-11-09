@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleDisplayName</key><string>EchoPrompter</string>
-<key>CFBundleExecutable</key><string>EchoPrompter</string>
-<key>CFBundleIdentifier</key><string>com.echoprompter.app</string>
-<key>CFBundleIconFile</key><string>EchoPrompter.icns</string>
-<key>CFBundleName</key><string>EchoPrompter</string>
+<key>CFBundleDisplayName</key><string>TalkRoll</string>
+<key>CFBundleExecutable</key><string>TalkRoll</string>
+<key>CFBundleIdentifier</key><string>com.talkroll.app</string>
+<key>CFBundleIconFile</key><string>TalkRoll.icns</string>
+<key>CFBundleName</key><string>TalkRoll</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSMultipleInstancesProhibited</key><true/>
-<key>NSMicrophoneUsageDescription</key><string>EchoPrompter uses the microphone only to follow your spoken script in Voice mode.</string>
-<key>NSSpeechRecognitionUsageDescription</key><string>EchoPrompter uses speech recognition only to follow your spoken script in Voice mode.</string>
+<key>NSMicrophoneUsageDescription</key><string>TalkRoll uses the microphone only to follow your spoken script in Voice mode.</string>
+<key>NSSpeechRecognitionUsageDescription</key><string>TalkRoll uses speech recognition only to follow your spoken script in Voice mode.</string>
 </dict></plist>

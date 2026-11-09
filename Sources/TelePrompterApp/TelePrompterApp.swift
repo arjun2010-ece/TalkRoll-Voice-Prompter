@@ -6,16 +6,16 @@ import Speech
 import AVFoundation
 
 extension Notification.Name {
-    static let restoreEchoPrompterWorkspace = Notification.Name("restoreEchoPrompterWorkspace")
+    static let restoreTalkRollWorkspace = Notification.Name("restoreTalkRollWorkspace")
 }
 
 @main
-struct EchoPrompterApp: App {
+struct TalkRollApp: App {
     @StateObject private var model = PrompterModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("EchoPrompter") {
+        WindowGroup("TalkRoll") {
             EditorView(model: model)
                 .frame(minWidth: 660, minHeight: 520)
         }
@@ -23,7 +23,7 @@ struct EchoPrompterApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Open Script Studio") {
-                    NotificationCenter.default.post(name: .restoreEchoPrompterWorkspace, object: nil)
+                    NotificationCenter.default.post(name: .restoreTalkRollWorkspace, object: nil)
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
             }
@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Returning false prevents AppKit's default untitled-window action.
             return false
         }
-        NotificationCenter.default.post(name: .restoreEchoPrompterWorkspace, object: nil)
+        NotificationCenter.default.post(name: .restoreTalkRollWorkspace, object: nil)
         NSApp.activate(ignoringOtherApps: true)
         return false
     }
@@ -205,7 +205,7 @@ final class VoiceScrollController: NSObject, ObservableObject {
         // purpose strings, so fail safely with a useful development message.
         guard Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") != nil,
               Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else {
-            status = "Voice mode requires the packaged EchoPrompter.app"
+            status = "Voice mode requires the packaged TalkRoll.app"
             return
         }
         guard recognizer?.isAvailable == true else {
@@ -238,7 +238,7 @@ final class VoiceScrollController: NSObject, ObservableObject {
         guard !isListening, !isStarting else { return }
         guard Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") != nil,
               Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else {
-            status = "Voice mode requires the packaged EchoPrompter.app"
+            status = "Voice mode requires the packaged TalkRoll.app"
             return
         }
         isStarting = true
@@ -467,7 +467,7 @@ final class RecordedAudioController: NSObject, ObservableObject, AVAudioPlayerDe
     func preparePermissions() {
         guard !isPreparing else { return }
         guard Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else {
-            status = "Audio synchronization requires the packaged EchoPrompter.app"
+            status = "Audio synchronization requires the packaged TalkRoll.app"
             return
         }
         switch SFSpeechRecognizer.authorizationStatus() {
@@ -494,7 +494,7 @@ final class RecordedAudioController: NSObject, ObservableObject, AVAudioPlayerDe
         let newPreparationID = UUID()
         preparationID = newPreparationID
         guard Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else {
-            status = "Audio synchronization requires the packaged EchoPrompter.app"
+            status = "Audio synchronization requires the packaged TalkRoll.app"
             return
         }
         guard let audioURL else {
@@ -826,7 +826,7 @@ extension View {
 
 @MainActor
 final class PrompterModel: ObservableObject {
-    @Published var script = "Welcome to EchoPrompter.\n\nPaste your script here, then start EchoPrompter when you are ready."
+    @Published var script = "Welcome to TalkRoll.\n\nPaste your script here, then start TalkRoll when you are ready."
     @Published var fontSize: Double = 25
     @Published var speed: Double = 24
     @Published var lineSpacing: Double = 1.0
@@ -896,7 +896,7 @@ final class PrompterModel: ObservableObject {
     private var panel: PromptPanel?
     private let panelDelegate = PromptPanelDelegate()
     private weak var workspaceWindow: NSWindow?
-    private let historyKey = "EchoPrompter.scriptHistory.v1"
+    private let historyKey = "TalkRoll.scriptHistory.v1"
     private var activeHistoryID: UUID?
     /// Floating frames per display, stored relative to that display's origin.
     private var floatingFrames: [String: NSRect] = [:]
@@ -907,22 +907,22 @@ final class PrompterModel: ObservableObject {
     private var notchResizeStart: (height: CGFloat, mouseY: CGFloat)?
 
     private enum DefaultsKey {
-        static let hideFromCapture = "EchoPrompter.hideFromCapture.v1"
-        static let placement = "EchoPrompter.placement.v1"
-        static let corner = "EchoPrompter.corner.v1"
-        static let cornerSize = "EchoPrompter.cornerSize.v1"
-        static let notchSize = "EchoPrompter.notchSize.v1"
-        static let floatingFrames = "EchoPrompter.floatingFrames.v1"
-        static let targetDisplay = "EchoPrompter.targetDisplay.v1"
-        static let notchTipDismissed = "EchoPrompter.notchTipDismissed.v1"
-        static let clickThroughHintShown = "EchoPrompter.clickThroughHintShown.v1"
+        static let hideFromCapture = "TalkRoll.hideFromCapture.v1"
+        static let placement = "TalkRoll.placement.v1"
+        static let corner = "TalkRoll.corner.v1"
+        static let cornerSize = "TalkRoll.cornerSize.v1"
+        static let notchSize = "TalkRoll.notchSize.v1"
+        static let floatingFrames = "TalkRoll.floatingFrames.v1"
+        static let targetDisplay = "TalkRoll.targetDisplay.v1"
+        static let notchTipDismissed = "TalkRoll.notchTipDismissed.v1"
+        static let clickThroughHintShown = "TalkRoll.clickThroughHintShown.v1"
     }
 
     var promptBackground: Color { promptTheme.background }
     var promptText: Color { promptTheme.text }
     var scriptLibraryURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("EchoPrompter Scripts", isDirectory: true)
+            .appendingPathComponent("TalkRoll Scripts", isDirectory: true)
     }
 
     private func fileURL(for item: SavedScript) -> URL {
@@ -938,7 +938,7 @@ final class PrompterModel: ObservableObject {
         let invalid = CharacterSet.alphanumerics.union(.whitespaces).inverted
         let safe = heading.components(separatedBy: invalid).joined()
             .split(whereSeparator: { $0.isWhitespace }).joined(separator: "-")
-        let stem = String(safe.prefix(60)).isEmpty ? "EchoPrompter-script" : String(safe.prefix(60))
+        let stem = String(safe.prefix(60)).isEmpty ? "TalkRoll-script" : String(safe.prefix(60))
         var candidate = "\(stem).txt"
         var number = 2
         let used = Set(history.filter { $0.id != itemID }.compactMap(\.fileName))
@@ -1021,7 +1021,7 @@ final class PrompterModel: ObservableObject {
     func chooseAudioFile() {
         let panel = NSOpenPanel()
         panel.title = "Choose recorded audio"
-        panel.message = "Choose the recorded audio that EchoPrompter should synchronize with this script."
+        panel.message = "Choose the recorded audio that TalkRoll should synchronize with this script."
         panel.allowedContentTypes = [.audio]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -1067,7 +1067,7 @@ final class PrompterModel: ObservableObject {
             backing: .buffered,
             defer: false
         )
-        panel.title = "EchoPrompter"
+        panel.title = "TalkRoll"
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.isReleasedWhenClosed = false
@@ -1451,7 +1451,7 @@ struct EditorView: View {
                             .frame(width: 38, height: 38)
                             .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 11))
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("EchoPrompter").font(.title2.weight(.bold))
+                            Text("TalkRoll").font(.title2.weight(.bold))
                             Text("Script studio").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
@@ -1461,7 +1461,7 @@ struct EditorView: View {
                         .popover(isPresented: $showSavedScripts, arrowEdge: .bottom) {
                             SavedScriptsPopover(model: model)
                         }
-                    Button { model.openPrompter() } label: { Label("Start EchoPrompter", systemImage: "play.fill") }
+                    Button { model.openPrompter() } label: { Label("Start TalkRoll", systemImage: "play.fill") }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .keyboardShortcut(.return, modifiers: [.command])
@@ -1490,7 +1490,7 @@ struct EditorView: View {
                         SmoothSlider(value: $model.speed, range: 5...100)
                     }
                     EditorCard(title: "Prompt behaviour", icon: "sparkles") {
-                        Text("Choose how EchoPrompter follows your script.")
+                        Text("Choose how TalkRoll follows your script.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Picker("Follow mode", selection: $model.controlMode) {
@@ -1526,11 +1526,11 @@ struct EditorView: View {
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 11))
                             .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.primary.opacity(0.08)))
 
-                            Label("EchoPrompter transcribes the recording once, then follows its playback word by word.", systemImage: "checkmark.circle.fill")
+                            Label("TalkRoll transcribes the recording once, then follows its playback word by word.", systemImage: "checkmark.circle.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if model.controlMode == .voice {
-                            Label("Voice access is requested here. EchoPrompter listens only after you start presenting.", systemImage: "lock.fill")
+                            Label("Voice access is requested here. TalkRoll listens only after you start presenting.", systemImage: "lock.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -1602,7 +1602,7 @@ struct EditorView: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "command").foregroundStyle(.secondary)
-                    Text("Press ⌘↩ to start EchoPrompter in your chosen placement.")
+                    Text("Press ⌘↩ to start TalkRoll in your chosen placement.")
                 }.font(.subheadline).foregroundStyle(.secondary)
 
                 if model.anyScreenHasNotch && model.placement != .notch && !model.notchTipDismissed {
@@ -1624,7 +1624,7 @@ struct EditorView: View {
                     HStack(alignment: .center, spacing: 10) {
                         Image(systemName: "video.badge.checkmark").foregroundStyle(.tint)
                         Text(model.hideFromScreenCapture
-                             ? "EchoPrompter is hidden from screen sharing. Do a 10-second test recording in your meeting app before going live."
+                             ? "TalkRoll is hidden from screen sharing. Do a 10-second test recording in your meeting app before going live."
                              : "For recordings, capture your browser or app window—not the floating prompter.")
                             .font(.subheadline)
                         Spacer()
@@ -1637,7 +1637,7 @@ struct EditorView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .preferredColorScheme(model.studioAppearance.colorScheme)
-        .onReceive(NotificationCenter.default.publisher(for: .restoreEchoPrompterWorkspace)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .restoreTalkRollWorkspace)) { _ in
             model.restoreWorkspace()
         }
         .onChange(of: model.controlMode) { mode in
@@ -1712,10 +1712,10 @@ struct SavedScriptsPopover: View {
                 Spacer()
                 Button("Reveal in Finder") { model.revealScriptLibrary() }.buttonStyle(.bordered)
             }
-            Text("Saved as .txt files in Documents/EchoPrompter Scripts")
+            Text("Saved as .txt files in Documents/TalkRoll Scripts")
                 .font(.caption).foregroundStyle(.secondary)
             if model.history.isEmpty {
-                Text("Scripts appear here after you start EchoPrompter.")
+                Text("Scripts appear here after you start TalkRoll.")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
                 ScrollView {
@@ -2330,7 +2330,7 @@ struct PromptView: View {
                 Label("Edit script", systemImage: "pencil")
                     .font(.subheadline.weight(.semibold))
             }
-            .help("Return to the EchoPrompter Script Studio")
+            .help("Return to the TalkRoll Script Studio")
             Spacer()
             VStack(spacing: 2) {
                 Text(model.controlMode.name.uppercased())

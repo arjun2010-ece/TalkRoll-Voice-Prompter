@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 # Project-level configuration.
-set(PROJECT_NAME "echoprompter_window")
+set(PROJECT_NAME "talkroll_window")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
@@ -14,12 +14,12 @@ cmake_policy(VERSION 3.14...3.25)
 
 # This value is used when generating builds using this plugin, so it must
 # not be changed
-set(PLUGIN_NAME "echoprompter_window_plugin")
+set(PLUGIN_NAME "talkroll_window_plugin")
 
 # Any new source files that you add to the plugin should be added here.
 list(APPEND PLUGIN_SOURCES
-  "echoprompter_window_plugin.cpp"
-  "echoprompter_window_plugin.h"
+  "talkroll_window_plugin.cpp"
+  "talkroll_window_plugin.h"
   "speech_recognizer_channel.cpp"
   "speech_recognizer_channel.h"
 )
@@ -27,8 +27,8 @@ list(APPEND PLUGIN_SOURCES
 # Define the plugin library target. Its name must not be changed (see comment
 # on PLUGIN_NAME above).
 add_library(${PLUGIN_NAME} SHARED
-  "include/echoprompter_window/echoprompter_window_plugin_c_api.h"
-  "echoprompter_window_plugin_c_api.cpp"
+  "include/talkroll_window/talkroll_window_plugin_c_api.h"
+  "talkroll_window_plugin_c_api.cpp"
   ${PLUGIN_SOURCES}
 )
 
@@ -53,7 +53,7 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin shel
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
-set(echoprompter_window_bundled_libraries
+set(talkroll_window_bundled_libraries
   ""
   PARENT_SCOPE
 )
@@ -83,7 +83,7 @@ FetchContent_MakeAvailable(googletest)
 # The plugin's C API is not very useful for unit testing, so build the sources
 # directly into the test binary rather than using the DLL.
 add_executable(${TEST_RUNNER}
-  test/echoprompter_window_plugin_test.cpp
+  test/talkroll_window_plugin_test.cpp
   ${PLUGIN_SOURCES}
 )
 apply_standard_settings(${TEST_RUNNER})

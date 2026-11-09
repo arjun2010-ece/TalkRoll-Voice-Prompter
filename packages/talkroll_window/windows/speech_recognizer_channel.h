@@ -1,11 +1,11 @@
-#ifndef FLUTTER_PLUGIN_ECHOPROMPTER_SPEECH_RECOGNIZER_CHANNEL_H_
-#define FLUTTER_PLUGIN_ECHOPROMPTER_SPEECH_RECOGNIZER_CHANNEL_H_
+#ifndef FLUTTER_PLUGIN_TALKROLL_SPEECH_RECOGNIZER_CHANNEL_H_
+#define FLUTTER_PLUGIN_TALKROLL_SPEECH_RECOGNIZER_CHANNEL_H_
 
 #include <flutter/plugin_registrar_windows.h>
 
 #include <memory>
 
-namespace echoprompter_window {
+namespace talkroll_window {
 
 // Voice and Audio mode's recogniser on Windows: the on-device SAPI dictation recogniser, streaming partial
 // hypotheses to Dart while the event stream is listened to. It is the counterpart of the Android, iOS and
@@ -28,6 +28,6 @@ class SpeechRecognizerChannel {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace echoprompter_window
+}  // namespace talkroll_window
 
-#endif  // FLUTTER_PLUGIN_ECHOPROMPTER_SPEECH_RECOGNIZER_CHANNEL_H_
+#endif  // FLUTTER_PLUGIN_TALKROLL_SPEECH_RECOGNIZER_CHANNEL_H_

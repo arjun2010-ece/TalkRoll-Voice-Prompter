@@ -1,4 +1,4 @@
-# EchoPrompter's website is a server-rendered Next.js application located in
+# TalkRoll's website is a server-rendered Next.js application located in
 # web/. Keeping this in version control prevents a Netlify UI default from
 # accidentally publishing the source directory instead of the Next.js output.
 [build]

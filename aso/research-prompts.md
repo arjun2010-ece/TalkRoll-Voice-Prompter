@@ -1,0 +1,55 @@
+# Reusable ASO research prompts for TalkRoll
+
+Paste the **full research and metadata prompt** when starting a new pass. Paste the **focused audit prompt** when reviewing a listing that already exists. Replace the bracketed scope before sending. Keep iOS output in `aso/ios/`; create a separate `aso/macos/` research set for Mac App Store work.
+
+The selected brand is **TalkRoll**. The chosen en-US name is **TalkRoll: Voice Prompter**. `App-Brief.md` and parts of the code still say EchoPrompter; treat the brief as feature context and `aso/ios/branding.md` as the current naming decision. Verify shipped features in code before making a claim.
+
+## Full research and metadata prompt
+
+```text
+Do a fresh, evidence-led ASO pass for TalkRoll on [iOS iPhone/iPad / macOS] in [storefronts/locales]. Use the Astro MCP at http://127.0.0.1:8089/mcp. Read App-Brief.md, relevant code, aso/ios/branding.md, and existing research before proposing metadata. Keep iOS and macOS research separate; do not transfer iPhone scores, rankings, or competitor conclusions to Mac.
+
+1. Start with the product and audience. Confirm what the current build actually does: voice-following script prompting, steady auto-scroll, prerecorded narration follow/playback, script editing, rehearsal, sections/cues, mirror mode, and platform-specific video/floating behavior. On iOS, floating notes are inside the app's camera preview, not a system-wide overlay. The camera is not available in Auto-scroll mode. Do not claim automatic captions, AI script writing, voice commands, a universal iOS overlay, or other unsupported features. Do not treat a related feature as permission to claim a broader one.
+
+2. In Astro, create or reuse a temporary research app to organize tracked queries. First search the relevant storefront and device platform for teleprompter/voice-prompter seeds. Inspect the high-ranking apps, their titles/subtitles/categories, and their actual positions. Extract competitor keyword ideas where Astro supports it. Do not mistake extracted-word popularity or a competitor's presence in a search result for proof that a specific metadata word caused its rank.
+
+3. Measure exact queries in each storefront: popularity, difficulty, and date. Prefer relevant queries with popularity >20 and difficulty <60. Explore close variants, subniches, and long-tail phrases when results are thin; record lower-popularity or out-of-range terms explicitly rather than silently discarding them. A score of 5 is weak or low-data evidence, not a count of searches and not a ranking probability. A score for a phrase never becomes the score of one component word.
+
+4. Check search intent before choosing any word for metadata. For EVERY proposed keyword-field word, search the standalone term and its intended combination with a word in the name, subtitle, or keyword field. Inspect at least the top 10 results, and more when mixed. Record which results are teleprompters, which are adjacent script/presentation tools, and which are unrelated. A broad word may be useful when its specific combination returns teleprompter apps (for example, teleprompter camera); a high-scoring phrase may still be a poor fit when its results are screenwriting, transcription, auto-clicker, LED-sign, makeup-mirror, or voice-recorder apps. Check competitor names and trademarks separately; never include competitor brands as keywords.
+
+5. Iterate on promising clusters and weak storefronts. Test stronger combinations found in ranked app metadata, search suggestions, and competitor extraction. Stop only when each researched locale has a useful shortlist or its low-data limitation is documented. Do not copy an English keyword set across locales or assume a locale's language is the only language searched in its storefront. If English terms have stronger measured demand in a non-English storefront, prioritize those relevant terms and use remaining space for highly relevant native terms. Respect native word boundaries and compounds. Distinguish Spain Spanish from Catalan and from Mexico Spanish.
+
+6. For each locale, provide a keyword shortlist with: exact query, popularity, difficulty, storefront/platform, snapshot date, top relevant and unrelated ranked apps, intent assessment, product-feature fit, and decision (use, test later, or reject). Distinguish directly measured phrases from unmeasured close variants. Do not claim a likely rank or downloads from popularity/difficulty alone.
+
+7. Draft metadata only after the intent audit. Preserve TalkRoll branding unless I explicitly change it. Name <=30 characters: strongest relevant category/query in natural app copy. Subtitle <=30 characters: next strong intent, natural and readable; do not waste space on filler such as “Your” when a useful word fits. The en-US name is TalkRoll: Voice Prompter. Compare singular/plural queries in Astro when the exact form matters (for example script versus scripts); Apple advises against duplicating singular/plural variants in the keyword field, but that does not prove equal ranking for every query. Name and subtitle must not read like disconnected keyword fragments.
+
+8. Keywords <=100 characters AND <=100 UTF-8 bytes, comma-separated without spaces after commas. Use unique, relevant content words; omit words already in that locale's name/subtitle, including obvious plural or inflection waste. Do not add connector/query words, generic filler, pricing claims, competitor names, or unsupported features. Put strongest useful terms first. Aim for 90–100 characters where the byte limit allows it, but leave space unused rather than add a word with unrelated search intent. For CJK, Hindi, Arabic, Hebrew, Thai, and other multibyte scripts, count bytes as well as characters; do not pad visible text.
+
+9. Preserve the existing es-MX English indexing experiment only if it is still requested: its name mirrors the en-US subtitle, its subtitle targets another English intent, and its keyword field minimizes overlap with all en-US fields. Mark this as an experiment, not guaranteed cross-locale indexing. Keep the Mexican-customer display-language tradeoff explicit. If en-US changes, update and revalidate dependent es-MX copy.
+
+10. Validate every locale: name/subtitle character counts; keyword character and UTF-8 byte counts; comma format; exact and morphological repetition across fields; connector/query words; native readability; category context; product truth; promotional pricing claims; and relevant Astro search results for every chosen keyword. Show a per-locale validation table and explain any keyword field below 90 characters. Search-result presence shows intent, not causation or a guaranteed future TalkRoll rank. Cite official Apple rules when stating platform limits or indexing advice.
+
+11. Write the research and decisions to aso/[platform]/en-keywords.md and aso/[platform]/localized-keywords.md, and the final metadata plus validation to aso/[platform]/app-store-listings.md. Keep an audit trail for rejected high-score terms and for changes made after an intent check. Print the shortlist and final fields in chat; do not rely on a file-only answer. Do not submit metadata to App Store Connect or rename application code as part of this research task.
+```
+
+For a complete iOS localization pass, use these **39 locales**: `en-US, en-GB, en-CA, en-AU, es-MX, ca, cs, da, de-DE, el, es-ES, fi, fr-FR, hi, hr, hu, id, it, ja, ko, ms, nl-NL, no, pl, pt-BR, pt-PT, ro, ru, sk, sv, th, tr, uk, vi, zh-Hans, zh-Hant, ar-SA, he, sl-SI`. Verify current App Store Connect locale availability before publishing.
+
+## Focused audit prompt for an existing listing
+
+```text
+Audit the [locale] listing in aso/ios/app-store-listings.md against fresh Astro results for its actual storefront and iPhone platform. Read App-Brief.md and relevant code first.
+
+1. List every word currently in the name, subtitle, and keyword field. For each keyword-field word, identify the exact search query it is intended to help match across fields. Measure that full query's popularity/difficulty and inspect its top 10–20 ranked apps. Also inspect the standalone word's results so broad, off-target intent is visible.
+2. Classify each word as keep, replace, or remove. Give the actual competitor examples and rankings. Flag screenwriting, AI captions, transcription, auto-clickers, LED signs, unrelated notes, makeup mirrors, generic cameras, and other misleading intents. A relevant combined query can justify a broad standalone word; explain the combination and its limits.
+3. Research replacements in the same semantic clusters. Measure them and inspect their results before adding them. Prefer teleprompter searches, then directly adjacent script rehearsal/presentation searches that the current app genuinely serves. A popularity-5 term is optional secondary coverage, not proven demand.
+4. Revise the listing only after this audit. Preserve natural visible copy, selected TalkRoll branding, the 30-character name/subtitle limits, and the 100-character/100-byte keyword limits. Avoid repetitions, connectors, promotional prices, competitor names, unsupported features, and unrelated filler. If en-US changes, update the dependent es-MX English slot and keep overlap minimal.
+5. Save a word-by-word evidence table and rejected-term reasons in aso/ios/en-keywords.md or the corresponding locale research file. Update aso/ios/app-store-listings.md with counts and selection rationale. Report the old versus new fields, what changed, what remains uncertain, and the actual Astro evidence in chat.
+```
+
+## What the recent US audit taught us
+
+- The previous US field had words selected from phrase scores or feature relevance without checking every standalone search result. That was insufficient.
+- `script reader` (36/45), `script rehearser` (33/15), `auto scroll` (33/17), and `floating notes` (25/13) have measured US demand, but their result pages differ in intent. Script rehearsal is adjacent to teleprompting; auto-scroll includes many auto-clickers. The [word-by-word audit](ios/en-keywords.md) records examples.
+- `writing`, `speech`, `narration`, `record`, and `sections` looked plausible in isolation but mainly returned unrelated apps. They were removed or replaced. `camera` and `mirror` stayed because their teleprompter combinations returned teleprompter apps.
+- Low-data queries can still be worth including when their results closely match TalkRoll, such as `voice follow`, `teleprompter recording`, `vlog teleprompter`, and `teleprompter filming`. Their scores do not establish traffic or ranking probability.
+- The current [iOS listing](ios/app-store-listings.md) is the working draft. Recheck Astro and the shipped build before publication; scores and search results are snapshots.

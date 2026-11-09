@@ -124,7 +124,7 @@ Always verify a short recording before publishing it.
 ├── Info.plist                                     # App metadata and permission strings
 ├── Package.swift                                  # Swift Package definition
 ├── build-app.sh                                   # Release app-bundle build script
-└── App-Description.md                             # Product planning notes
+└── App-Brief.md                                   # Product overview
 ```
 
 ## Development notes

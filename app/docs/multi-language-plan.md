@@ -102,8 +102,7 @@ Vosk/sherpa model downloads, so no app-size or hosting cost.
 * Reuse the `tools/voice_latency` harness with one recorded script per language group (Latin, Cyrillic, RTL, CJK) and
   compare against the platform recogniser's own transcript, as in the English runs.
 * Tests only when you ask for them (project rule).
-* Store listing and website: the "English only" statements (`App-Description.md` is slated for removal; check `web/`
-  copy and store text) change when a language ships.
+* Store listing and website: check `web/` copy and store text for outdated "English only" statements when a language ships.
 
 ### Decisions (follow the reference app)
 

@@ -19,11 +19,11 @@ import UIKit
   /// A small text value in the Keychain, which iOS keeps when the app is deleted. The free-script count uses it so
   /// reinstalling does not hand back the free scripts. It stays on this device (never synced to iCloud).
   private func registerReinstallStore(_ messenger: FlutterBinaryMessenger) {
-    let channel = FlutterMethodChannel(name: "echoprompter/reinstall_store", binaryMessenger: messenger)
+    let channel = FlutterMethodChannel(name: "talkroll/reinstall_store", binaryMessenger: messenger)
     channel.setMethodCallHandler { call, result in
       var query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "app.echoprompter.freeScripts",
+        kSecAttrService as String: "app.talkroll.freeScripts",
         kSecAttrAccount as String: "presented",
       ]
       switch call.method {

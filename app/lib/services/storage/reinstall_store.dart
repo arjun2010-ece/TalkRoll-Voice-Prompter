@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 class ReinstallStore {
   const ReinstallStore();
 
-  static const _channel = MethodChannel('echoprompter/reinstall_store');
+  static const _channel = MethodChannel('talkroll/reinstall_store');
 
   Future<String?> read() async {
     if (!Platform.isIOS) return null;

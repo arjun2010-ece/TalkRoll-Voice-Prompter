@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Where feedback goes; the one place the address is written down.
-const supportEmail = 'arjun@echoprompter.app';
+const supportEmail = 'arjun@talkroll.app';
 /// `--dart-define=WEBSITE_URL=http://10.0.2.2:3000` points the app at a local `web/` dev server (10.0.2.2 is the host
 /// machine seen from the Android emulator).
-const websiteUrl = String.fromEnvironment('WEBSITE_URL', defaultValue: 'https://echoprompter.app');
+const websiteUrl = String.fromEnvironment('WEBSITE_URL', defaultValue: 'https://talkroll.app');
 const termsUrl = '$websiteUrl/terms';
 const privacyUrl = '$websiteUrl/privacy';
 
@@ -15,8 +15,8 @@ Uri feedbackMailto() => Uri(
   scheme: 'mailto',
   path: supportEmail,
   query: [
-    'subject=${Uri.encodeComponent('EchoPrompter feedback')}',
-    'body=${Uri.encodeComponent('\n\n\n---\nEchoPrompter on ${Platform.operatingSystem} ${Platform.operatingSystemVersion}')}',
+    'subject=${Uri.encodeComponent('TalkRoll feedback')}',
+    'body=${Uri.encodeComponent('\n\n\n---\nTalkRoll on ${Platform.operatingSystem} ${Platform.operatingSystemVersion}')}',
   ].join('&'),
 );
 

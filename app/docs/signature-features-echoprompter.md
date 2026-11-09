@@ -1,6 +1,6 @@
-# EchoPrompter: Feature Handover
+# TalkRoll: Feature Handover
 
-**For:** Claude Code, working in the existing EchoPrompter Flutter codebase
+**For:** Claude Code, working in the existing TalkRoll Flutter codebase
 **From:** Arjun (product owner)
 **Last updated:** 2026-11-01.
 
@@ -8,13 +8,13 @@
 
 ## 0. Read this first
 
-EchoPrompter is an existing Flutter teleprompter app. It targets macOS first, plus iOS, iPadOS and Android from the same codebase. Today it has three reading modes:
+TalkRoll is an existing Flutter teleprompter app. It targets macOS first, plus iOS, iPadOS and Android from the same codebase. Today it has three reading modes:
 
 - **Normal** (renamed **Auto-scroll**, see section 0.1): constant-speed scrolling. Never uses the camera or microphone.
 - **Voice:** follows the reader's live speech through the microphone.
 - **Audio** (renamed **Narration**, see section 0.1): follows a pre-recorded audio file. Today the file plays on speakers and the microphone listens to it.
 
-Mobile and tablet add **camera recording** (front or back) in Voice and Narration modes. **macOS does not record anything:** users record their screen with other tools (OBS, QuickTime, ScreenFlow) while EchoPrompter prompts them. The macOS prompter (notch/corner) is hidden from screen sharing and recording. The app already has a script library with sections ("Insert Section", already shown as cues in the prompter), reading settings, settings, and a Pro paywall with existing paywall popups.
+Mobile and tablet add **camera recording** (front or back) in Voice and Narration modes. **macOS does not record anything:** users record their screen with other tools (OBS, QuickTime, ScreenFlow) while TalkRoll prompts them. The macOS prompter (notch/corner) is hidden from screen sharing and recording. The app already has a script library with sections ("Insert Section", already shown as cues in the prompter), reading settings, settings, and a Pro paywall with existing paywall popups.
 
 ### What we're building, in one picture
 
@@ -31,7 +31,7 @@ Platform differences:
 - **Mobile/tablet** records the camera. Section by section produces one clip per section, and the export joins the final clips.
 - **macOS** doesn't record. Section by section plays a **retake "clap"** (sound and/or flash) that the user's screen recorder captures, and keeps a simple **take list**.
 
-**Positioning:** most teleprompters are one long scroll that follows your voice. EchoPrompter directs the recording: what to say, what to do, and when to stop and redo. "Record in sections, not in one breath." Main uses: on-camera videos on mobile, and faceless screencasts and tutorials on Mac (narration plus on-screen actions).
+**Positioning:** most teleprompters are one long scroll that follows your voice. TalkRoll directs the recording: what to say, what to do, and when to stop and redo. "Record in sections, not in one breath." Main uses: on-camera videos on mobile, and faceless screencasts and tutorials on Mac (narration plus on-screen actions).
 
 ### How to work
 
@@ -76,7 +76,7 @@ The mode chip reads **Auto-scroll · Voice · Narration**.
 
 **Platforms:** macOS, iOS, iPadOS, Android.
 
-Narration mode uses **only audio files the user imports** (m4a, mp3, wav, aac; the audio track of a video file if easy). The audio can come from anywhere: the user's own recording or any outside text-to-speech tool. **EchoPrompter has no built-in text-to-speech.**
+Narration mode uses **only audio files the user imports** (m4a, mp3, wav, aac; the audio track of a video file if easy). The audio can come from anywhere: the user's own recording or any outside text-to-speech tool. **TalkRoll has no built-in text-to-speech.**
 
 ### How it works
 
@@ -214,7 +214,7 @@ Deleting a script asks whether to delete its recordings too.
 
 **Platform:** macOS only. **Modes:** Auto-scroll, Voice, Narration.
 
-The Mac app doesn't record, so when someone retakes a section their screen recorder (OBS etc.) captures every attempt. EchoPrompter helps them find the cut points.
+The Mac app doesn't record, so when someone retakes a section their screen recorder (OBS etc.) captures every attempt. TalkRoll helps them find the cut points.
 
 ### Retake clap
 
@@ -279,10 +279,10 @@ The Mac app doesn't record, so when someone retakes a section their screen recor
 
 ## 7. App Review cleanup (Phase 0)
 
-- **Demo content:** the demo script contains placeholder copy ("Brightside sorts it into today…"). Replace it with real copy explaining EchoPrompter, showing sections and at least two action cues (one with hold). Search the repo for any other placeholder or lorem text.
+- **Demo content:** the demo script contains placeholder copy ("Brightside sorts it into today…"). Replace it with real copy explaining TalkRoll, showing sections and at least two action cues (one with hold). Search the repo for any other placeholder or lorem text.
 - **Bundled sample audio:** ship a short sample recording (about 20–30 s) that matches the demo script, so a reviewer can try Narration mode instantly. Arjun provides the final recording. Until then, use a placeholder file from any source, marked `TODO(arjun): replace sample audio`.
 - **"Hidden from screen recording": remove it from iOS, iPadOS and Android (decided).** Mobile records the camera, never the phone's screen, so the prompter can't appear in mobile videos anyway. The option is unnecessary there, and iOS can't reliably back the claim. Remove the setting, its copy (e.g. in "More text options") and any related code on mobile. **Keep it unchanged on macOS.**
-- **Permission strings:** clear, specific purpose strings for camera, microphone, speech recognition, Photos (add-only), and anything new on macOS. Example: "EchoPrompter uses speech recognition on your device to follow your voice and to sync your script to an audio recording."
+- **Permission strings:** clear, specific purpose strings for camera, microphone, speech recognition, Photos (add-only), and anything new on macOS. Example: "TalkRoll uses speech recognition on your device to follow your voice and to sync your script to an audio recording."
 - **Permission explainer screens:** the button says "Continue" (not "Allow") and leads straight to the system prompt.
 - **Competitor names:** none anywhere in the app, strings, metadata or assets.
 - **Review notes:** create `docs/app-review-notes.md` with a short walkthrough for the reviewer: open the demo script → Section by section → Narration mode with the sample → reach a hold cue → Continue → Retake a section → (mobile) export the finished video.
@@ -319,7 +319,7 @@ The Mac app doesn't record, so when someone retakes a section their screen recor
 
 All phases, including Android Narration mode, are needed before launch.
 
-**Prepare for the rename while building:** don't hard-code "EchoPrompter" in new code. Put the display name in one place (a constant and the localization files) and use that everywhere new, so phase 5 is quick.
+**Prepare for the rename while building:** don't hard-code "TalkRoll" in new code. Put the display name in one place (a constant and the localization files) and use that everywhere new, so phase 5 is quick.
 
 ---
 
@@ -360,18 +360,18 @@ Don't start until Arjun confirms the new name. Then:
 Fixed on iOS and iPadOS in the Narration-with-camera work. The three entries below are now also fixed on Android. macOS does not record, so it is not affected.
 
 ### Narration video had no narration audio
-- **Fixed on:** iOS and iPadOS (`packages/echoprompter_camera/ios/.../EchoprompterCameraPlugin.swift`, `NarrationMux.swift`, `packages/echoprompter_camera/lib/echoprompter_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`) and Android (`packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `NarrationMux.kt`, `app/lib/features/video/record_screen.dart`)
+- **Fixed on:** iOS and iPadOS (`packages/talkroll_camera/ios/.../TalkRollCameraPlugin.swift`, `NarrationMux.swift`, `packages/talkroll_camera/lib/talkroll_camera.dart`, `app/lib/features/video/record_screen.dart`, `app/lib/features/prompter/prompter_controller.dart`) and Android (`packages/talkroll_camera/android/.../TalkRollCameraPlugin.kt`, `NarrationMux.kt`, `app/lib/features/video/record_screen.dart`)
 - **Also affects:** none left (macOS does not record)
 - **Issue:** Record a take in Narration mode with the camera. With headphones, the volume down or silent mode, the saved video has only background noise instead of the narration.
 - **Root cause:** The video's audio track was the microphone, which only heard the narration through the speaker.
-- **Fix applied (iOS):** The take is filmed without the microphone. The Record screen reports the narration's playback position every 50 ms (`EchoPrompterCamera.narrationTick`), the camera notes which parts of the file played, and when the take stops `NarrationMux` puts those parts into the video (AAC soundtrack, picture copied without re-encoding). The audio session is set to playback only.
-- **Root cause on Android (same as iOS):** `Recorder` in `EchoprompterCameraPlugin.kt` always ran an AAC codec fed by `AudioRecord` (`MediaRecorder.AudioSource.MIC`). In Narration mode Dart asked for the built-in microphone (`setHeadsetInput(false)`) and played the narration on the speaker (`setReferenceRoute` does nothing on Android), so the take recorded the speaker.
+- **Fix applied (iOS):** The take is filmed without the microphone. The Record screen reports the narration's playback position every 50 ms (`TalkRollCamera.narrationTick`), the camera notes which parts of the file played, and when the take stops `NarrationMux` puts those parts into the video (AAC soundtrack, picture copied without re-encoding). The audio session is set to playback only.
+- **Root cause on Android (same as iOS):** `Recorder` in `TalkRollCameraPlugin.kt` always ran an AAC codec fed by `AudioRecord` (`MediaRecorder.AudioSource.MIC`). In Narration mode Dart asked for the built-in microphone (`setHeadsetInput(false)`) and played the narration on the speaker (`setReferenceRoute` does nothing on Android), so the take recorded the speaker.
 - **Fix applied (Android):** A Narration take starts no `AudioRecord` and the `Recorder` runs video-only (`withAudio = false`). `startRecording` receives the narration file and `narrationTick` (the same 50 ms playback reports as iOS) lets `Recorder` note which parts of the file played, on the take's own timeline, cut at the first video frame. When the take stops, `NarrationMux.kt` runs on a background thread: it decodes those parts with `MediaExtractor` and `MediaCodec`, puts silence between them, encodes AAC at the file's own sample rate, and joins that with the untouched video samples through `MediaMuxer` (platform APIs only, no new dependency). If that fails, or the narration never played, the result carries `narrationFailed` and the take is kept as filmed. The Dart side only widened `Platform.isIOS` to `Platform.isIOS || Platform.isAndroid` in `_toggleRecord`.
 - **Verified:** On the Android emulator (API 37) with the volume at maximum and at 0 (muted), the saved video has the narration clearly present both times (same level as the file; per-window correlation 0.5 to 0.95). The narration sits at a steady offset from the video's start, from 220 ms early to 90 ms late depending on the take, because it starts playing a little before or after the first camera frame. A take with a pause and resume stays continuous. An interrupted take (Home) is joined and saved as well. Voice mode takes still record the microphone, and a normal stop is unchanged.
 - **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Narration with the camera asked for the microphone
-- **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`) and Android (`app/lib/features/video/record_screen.dart`, `packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `RecordingService.kt`)
+- **Fixed on:** iOS and iPadOS (`app/lib/features/video/record_screen.dart`) and Android (`app/lib/features/video/record_screen.dart`, `packages/talkroll_camera/android/.../TalkRollCameraPlugin.kt`, `RecordingService.kt`)
 - **Also affects:** none left (macOS does not record)
 - **Issue:** Start Narration with the camera. The permission card and the system prompt ask for the microphone even though the take does not need it.
 - **Root cause:** The camera screen asked for camera and microphone for every mode.
@@ -381,7 +381,7 @@ Fixed on iOS and iPadOS in the Narration-with-camera work. The three entries bel
 - **Status:** Done (fixed on iOS, iPadOS and Android)
 
 ### Message when the narration could not be added, and the camera hint
-- **Fixed on:** iOS and iPadOS (`EchoprompterCameraPlugin.swift`, `record_screen.dart`, `echoprompter_camera.dart`) and Android (`EchoprompterCameraPlugin.kt`, `record_screen.dart`)
+- **Fixed on:** iOS and iPadOS (`TalkRollCameraPlugin.swift`, `record_screen.dart`, `talkroll_camera.dart`) and Android (`TalkRollCameraPlugin.kt`, `record_screen.dart`)
 - **Also affects:** none left (macOS does not record)
 - **Issue:** If the narration cannot be put into the video (or never played during the take), the reader should be told, not given a video without sound.
 - **Fix applied (iOS):** `stopRecording` and the interrupted/storage-full event carry `narrationFailed`. The camera screen then deletes the file and shows "Narration wasn't added ... Please record the take again." with Record again (a snackbar when a mode change saves the take). The hint under the preview says the narration is added from its file.
@@ -392,10 +392,10 @@ Fixed on iOS and iPadOS in the Narration-with-camera work. The three entries bel
 These were seen while testing the work above. None of them were part of it, so nothing was changed. Each says which platform needs fixing.
 
 #### "Saved to your gallery" is shown even when the save failed
-- **Fixed on:** Android (`app/lib/features/video/record_screen.dart`, `packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`) and iOS (the same shared Dart change in `record_screen.dart`; no native change).
+- **Fixed on:** Android (`app/lib/features/video/record_screen.dart`, `packages/talkroll_camera/android/.../TalkRollCameraPlugin.kt`) and iOS (the same shared Dart change in `record_screen.dart`; no native change).
 - **Also affects:** iPadOS (same code as iPhone, not tried on an iPad). macOS is not affected: it has no camera plugin and does not record.
 - **Issue:** Record a take and stop it when the gallery cannot take the video (for example Photos access refused on iOS, or no space on Android). The camera screen still said "Saved to your gallery" (and "What you recorded was saved" after an interruption), and the take was lost from the reader's point of view.
-- **Root cause:** `_onStopped` and `_endTake` in `record_screen.dart` called `EchoPrompterCamera.saveToGallery(r.path)` inside `try { ... } catch (_) {}`, so the error the native side returns was thrown away and the card was shown anyway. iOS reports it as a `FlutterError` (`permission` or `save`); Android throws from `saveToGallery` (MediaStore insert or copy). Android also left an empty or partial gallery entry behind when the copy failed.
+- **Root cause:** `_onStopped` and `_endTake` in `record_screen.dart` called `TalkRollCamera.saveToGallery(r.path)` inside `try { ... } catch (_) {}`, so the error the native side returns was thrown away and the card was shown anyway. iOS reports it as a `FlutterError` (`permission` or `save`); Android throws from `saveToGallery` (MediaStore insert or copy). Android also left an empty or partial gallery entry behind when the copy failed.
 - **Fix applied:** One `_saveToGallery(r)` helper in `record_screen.dart` returns whether the save worked. `_onStopped` shows the "Saved" card (or the interruption card) only when it did. Otherwise it shows a "Couldn't save to your gallery" card with the take kept, **Try again** and **Share** (`_unsaved`, `_retrySave`); a successful retry turns into the normal saved card. `_endTake` (mode change) shows a snackbar with Try again, then Share if the retry fails too. Android only: `saveToGallery` in the plugin deletes the half-written MediaStore row on failure and throws an `IOException` instead of a null-pointer error. iOS native code already returned the errors, so it is unchanged.
 - **Verified (Android emulator, API 37):** with a forced write failure, a stopped take shows the error card, the file stays in app storage and nothing is added to the gallery; Try again while still failing keeps the card; after the failure is removed, Try again saves it and shows "Saved to your gallery". A normal take still shows "Saved to your gallery". The mode-change snackbar shows "Couldn't save…" with Try again, then "Still couldn't save…" with Share. The test-only failure code was removed afterwards.
 - **Verified (iPhone 15 Pro Max, debug build, Narration + camera, a 9 s recording):** take 1 shows the heads-up (`next=0`, "Next ⏸ Click Submit · Hold" in the status line) and holds at the cue ("Holding at cue" + Continue in the controls). (a) Continue, run to the end, save, Record again: take 2 shows the heads-up and holds again. (b) Stop take 1 in the middle of the hold, Record again: take 2 shows the heads-up and holds again.
@@ -450,7 +450,7 @@ These were seen while testing the work above. None of them were part of it, so n
 - **Status:** Done on Android, macOS and iPhone (shared code; iPad not tried)
 
 #### Android: after an interrupted take the card shows the video length, not the file's
-- **Fixed on:** Android only (`packages/echoprompter_camera/android/.../EchoprompterCameraPlugin.kt`, `NarrationMux.kt`). An iPhone take interrupted the same way came out 6.60 s of video and 6.5 s of audio, so iOS is fine.
+- **Fixed on:** Android only (`packages/talkroll_camera/android/.../TalkRollCameraPlugin.kt`, `NarrationMux.kt`). An iPhone take interrupted the same way came out 6.60 s of video and 6.5 s of audio, so iOS is fine.
 - **Issue:** Record in Voice mode with the camera, press Home after about 8 s and come back. The card said "Saved 00:07 to your gallery", but the saved file had 8.73 s of audio and only 7.81 s of video, so the video ended before the sound did.
 - **Root cause:** When the app goes to the background the camera closes first, so video frames stop while the audio keeps going until the take is stopped. `Recorder.stop()` reports `lastPtsUs`, the last video frame, as the take's length.
 - **Fix applied (decision: end the audio at the last video frame):** Only a take that did not end with the Stop button (`reason != "user"`: interrupted, storage full) is touched. Voice: after `Recorder.stop()`, `NarrationMux.trimAudioToVideo` runs on a background thread. If the audio runs more than 50 ms past the last video frame (`Recorder.videoEndUs`), it copies the file over itself, every video sample and the audio samples up to that frame, without re-encoding; on any failure the file is left as recorded. Narration: `narrationSegments(videoEndUs)` also cuts the narration segments at the last video frame (before this they were only bounded by when the app was told to stop). A normal Stop is unchanged: the new code is skipped.
@@ -489,7 +489,7 @@ These were seen while testing the work above. None of them were part of it, so n
 ### Free plan: demo script locked at the script limit
 - **Fixed on:** Android and macOS (`app/lib/services/providers.dart` `canPresentNow`, `features/studio/studio_screen.dart`, `start_options.dart`, `desktop_studio_screen.dart`)
 - **Also affects:** none left (iPadOS shares the iOS code, not run)
-- **Issue:** With all 5 free scripts used, open the bundled "Welcome to EchoPrompter" demo: Start shows a lock and "Needs Pro. You've used your 5 free scripts". §6 says the demo must stay within the limits.
+- **Issue:** With all 5 free scripts used, open the bundled "Welcome to TalkRoll" demo: Start shows a lock and "Needs Pro. You've used your 5 free scripts". §6 says the demo must stay within the limits.
 - **Root cause:** The demo has no saved id, and `ProState.canPresent(null)` treats an unsaved script as needing a free slot.
 - **Fix applied:** `StudioNotifier.canPresentNow(pro)` returns true for the demo (no saved id and the text equals the welcome text, the same rule the save path uses) before asking `canPresent`. It is gated to `Platform.isAndroid || Platform.isMacOS`; now also `Platform.isIOS`.
 - **Status:** Done on Android, macOS and iOS (iPhone checked through the controller: `canPresentNow` true for the demo at the limit; the demo's Start button was not tapped on the phone; iPad not run)

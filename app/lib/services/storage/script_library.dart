@@ -11,7 +11,7 @@ import '../../core/script/saved_script.dart';
 class ScriptLibrary {
   ScriptLibrary(this.directory, this._prefs, {this.key = historyKey});
 
-  static const historyKey = 'EchoPrompter.scriptHistory.v1';
+  static const historyKey = 'TalkRoll.scriptHistory.v1';
   static const maxEntries = 20;
 
   final Directory directory;

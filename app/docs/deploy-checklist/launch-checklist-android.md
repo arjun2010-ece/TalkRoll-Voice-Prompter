@@ -22,12 +22,12 @@ If you have an organization account or an older personal one, this does not appl
 
 ## What the repo shows right now
 
-- Application ID and namespace `com.echoprompter.app`, `minSdk = 26`, `compileSdk = 37`, `targetSdk = flutter.targetSdkVersion`, version `1.0.0+1` [repo: `android/app/build.gradle.kts`].
+- Application ID and namespace `com.talkroll.app`, `minSdk = 26`, `compileSdk = 37`, `targetSdk = flutter.targetSdkVersion`, version `1.0.0+1` [repo: `android/app/build.gradle.kts`].
 - **Release builds are signed with the debug key** (`signingConfig = signingConfigs.getByName("debug")`, with a TODO) [repo]. Play will reject this. Fixing it is task C1.
 - No code shrinking (`isMinifyEnabled`) or ProGuard rules configured [repo].
 - Permissions: CAMERA, RECORD_AUDIO, READ_MEDIA_AUDIO; camera is `required="false"` [repo]. Narration does not ask for the microphone [result doc].
-- `allowBackup="true"` with `backup_rules.xml` and `data_extraction_rules.xml` that back up `FlutterSharedPreferences.xml` and `app_flutter/EchoPrompter Scripts` [repo]. This carries the free-plan counter across reinstall, and also the user's scripts.
-- Product ids `echoprompter.pro.monthly`, `.yearly`, `.lifetime`. Real purchases only run with `--dart-define=PAYMENTS_ANDROID=true` [repo]. Play Billing was never tested against the real store.
+- `allowBackup="true"` with `backup_rules.xml` and `data_extraction_rules.xml` that back up `FlutterSharedPreferences.xml` and `app_flutter/TalkRoll Scripts` [repo]. This carries the free-plan counter across reinstall, and also the user's scripts.
+- Product ids `talkroll.pro.monthly`, `.yearly`, `.lifetime`. Real purchases only run with `--dart-define=PAYMENTS_ANDROID=true` [repo]. Play Billing was never tested against the real store.
 - Android Block Store (a second reinstall-proof copy of the counter) is not built.
 - Android Narration timing is derived from pauses, not word-level transcription. It was tested on the emulator only (Pixel 6/7), never on a real phone [result doc].
 
@@ -38,7 +38,7 @@ If you have an organization account or an older personal one, this does not appl
 Same decisions and work, done once. Android-specific notes only:
 
 - [ ] **A1. Name, domain, email, icon, pricing, category, age rating** (Apple file A1-A7). Play uses a different icon format: a **512x512 PNG** store icon, a **1024x500 feature graphic**, and an **adaptive icon** in the app (foreground and background layers; keep the artwork inside the safe zone).
-- [ ] **A2. App name on Android:** change `android:label` in `AndroidManifest.xml` and any strings (Apple file A3). Keep `com.echoprompter.app`. It cannot be changed after the first upload.
+- [ ] **A2. App name on Android:** change `android:label` in `AndroidManifest.xml` and any strings (Apple file A3). Keep `com.talkroll.app`. It cannot be changed after the first upload.
 - [ ] **A3. Onboarding redesign** (Apple file E). Test it on a small phone, a large phone and a tablet. Android back-button and gesture navigation behave differently from iOS.
 - [ ] **A4. Security (Apple file G)** applies equally. Android extras are in section F below.
 - [ ] **A5. Web deploy and legal pages** (Apple file K). Play asks for a **Privacy Policy URL** and, in the Data safety form, wants it to match what the app does.
@@ -66,7 +66,7 @@ Same decisions and work, done once. Android-specific notes only:
 
 - [ ] **D1. Merchant profile / payments profile** set up in Play Console (name, address, bank, tax info). Without it you cannot sell. [general]
 - [ ] **D2. Upload a signed build to the Internal testing track first.** Google cannot test Billing without an uploaded build with the same application ID. [repo: `payments-plan.md` §2]
-- [ ] **D3. Create the products** with the same ids as the code: subscriptions `echoprompter.pro.monthly` and `echoprompter.pro.yearly` (base plans and prices, optional free-trial offer) and a one-time (in-app) product `echoprompter.pro.lifetime`. Activate each one.
+- [ ] **D3. Create the products** with the same ids as the code: subscriptions `talkroll.pro.monthly` and `talkroll.pro.yearly` (base plans and prices, optional free-trial offer) and a one-time (in-app) product `talkroll.pro.lifetime`. Activate each one.
 - [ ] **D4. Add licence testers** (Play Console > Settings > License testing) so your test accounts are charged nothing. Add your own Gmail.
 - [ ] **D5. Test purchases on a real device or a Play-enabled emulator** from the Internal testing track: buy monthly, yearly, lifetime; cancel; let a subscription lapse (test renewals run on an accelerated clock); Restore on a fresh install and on a second device; cancel the payment sheet; buy offline; a declined payment; a refund.
 - [ ] **D6. Subscription copy:** price, period, auto-renew, how to cancel (Play Store > Subscriptions), plus the Terms and Privacy links (already on the paywall on Android [repo]). Check they open once the website is deployed.
@@ -85,7 +85,7 @@ Same decisions and work, done once. Android-specific notes only:
 - [ ] **E5. Android 13 and 14/15/16 behaviours:** notification and media permissions, predictive back, edge-to-edge (forced on Android 15), foldables and tablets, landscape. Run the app at least once on API 33 and on the newest version you have. Result doc says Android 13 was "works by design, not run".
 - [ ] **E6. Camera screen in landscape and with a cut-out** (the iPhone landscape fix was iOS-only; Android and iPad landscape were not looked at, see "Cross-platform fixes pending").
 - [ ] **E7. Interruptions:** phone call, alarm, low storage, battery saver, app killed during a take, "Don't keep activities".
-- [ ] **E8. Memory leaks and hangs:** Android Studio Profiler (memory and CPU) on a release or profile build, and the loops in the Apple file H4-H6. Add Android's own checks: `adb shell dumpsys meminfo com.echoprompter.app` before and after 30 open/close cycles, and watch for ANRs in Play Console pre-launch report and Logcat.
+- [ ] **E8. Memory leaks and hangs:** Android Studio Profiler (memory and CPU) on a release or profile build, and the loops in the Apple file H4-H6. Add Android's own checks: `adb shell dumpsys meminfo com.talkroll.app` before and after 30 open/close cycles, and watch for ANRs in Play Console pre-launch report and Logcat.
 - [ ] **E9. Permission matrix:** camera, microphone: deny, "only this time", deny permanently ("don't ask again"), then re-enable from Settings. The app must show a clear path, not crash.
 - [ ] **E10. Accessibility:** TalkBack on the paywall and onboarding, font scale 200%, display size large.
 - [ ] **E11. Test on Pre-launch report:** upload to the Internal track and read Google's automatic device test results (crashes, accessibility, security).

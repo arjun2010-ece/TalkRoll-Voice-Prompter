@@ -31,7 +31,7 @@ class AppMenuBar extends ConsumerWidget {
 
     return PlatformMenuBar(
       menus: [
-        PlatformMenu(label: 'EchoPrompter', menus: [
+        PlatformMenu(label: 'TalkRoll', menus: [
           const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.about),
           PlatformMenuItemGroup(members: [
             PlatformMenuItem(label: 'Settings…', shortcut: _cmd(LogicalKeyboardKey.comma), onSelected: c?.settings),
@@ -123,7 +123,7 @@ class AppMenuBar extends ConsumerWidget {
         ]),
         PlatformMenu(label: 'Help', menus: [
           PlatformMenuItemGroup(members: [
-            PlatformMenuItem(label: 'EchoPrompter Website & FAQ', onSelected: () => openExternal(Uri.parse(websiteUrl))),
+            PlatformMenuItem(label: 'TalkRoll Website & FAQ', onSelected: () => openExternal(Uri.parse(websiteUrl))),
           ]),
           PlatformMenuItemGroup(members: [
             PlatformMenuItem(label: 'Send Feedback…', onSelected: () => openExternal(feedbackMailto())),

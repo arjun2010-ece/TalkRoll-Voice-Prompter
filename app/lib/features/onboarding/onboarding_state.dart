@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/providers.dart';
 import '../../services/storage/script_library.dart';
 
-const onboardingKey = 'EchoPrompter.onboarding.v1';
+const onboardingKey = 'TalkRoll.onboarding.v1';
 
 /// Whether the first-run tour has been finished (or skipped). Someone who already has saved settings or scripts
 /// is an existing user and never sees it. The answer is written on first read, so quitting halfway through (after

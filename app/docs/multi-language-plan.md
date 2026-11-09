@@ -34,7 +34,7 @@ code, **[inferred]** reasoned from garbled output.
 | Platform | Evidence | State |
 | --- | --- | --- |
 | Android | `SpeechChannel.kt:645` `LANGUAGE = "en-US"`, used for `EXTRA_LANGUAGE`, the on-device pack download (`:407`) and the fallback; user message "can't recognize English" (`:646`) | Hard-coded en-US |
-| iOS / iPadOS / macOS | `SpeechRecognizerChannel.swift` in `packages/echoprompter_camera` (iOS) and `packages/echoprompter_window` (macOS) | Hard-coded `Locale(identifier: "en-US")` before this work (the first version of this plan wrongly said Apple had no implementation; it lives in the packages, not in `ios/` or `macos/`) |
+| iOS / iPadOS / macOS | `SpeechRecognizerChannel.swift` in `packages/talkroll_camera` (iOS) and `packages/talkroll_window` (macOS) | Hard-coded `Locale(identifier: "en-US")` before this work (the first version of this plan wrongly said Apple had no implementation; it lives in the packages, not in `ios/` or `macos/`) |
 | Windows | Not in scope of this request; the engine decision doc says `Windows.Media.SpeechRecognition` | n/a |
 | Dart | `NativeSpeechRecognizer` has no language argument; `NativeRecognizerUnavailable` says "no recogniser ... for English" | English assumed in the API and the copy |
 
@@ -186,5 +186,5 @@ Extra verification (2026-10-30), previously untested items, run with system voic
 * **Still for a real device:** spoken recognition on iPhone/iPad, and the Android 14+ pack download prompt on a physical phone.
 
 Scope note (2026-10-30): the project now targets macOS, iOS, iPadOS and Android only; Windows is dropped. The Windows recogniser
-(`packages/echoprompter_window/windows/speech_recognizer_channel.cpp`) still ignores the language argument and stays English-only; it
+(`packages/talkroll_window/windows/speech_recognizer_channel.cpp`) still ignores the language argument and stays English-only; it
 is not maintained, so nothing was changed there.

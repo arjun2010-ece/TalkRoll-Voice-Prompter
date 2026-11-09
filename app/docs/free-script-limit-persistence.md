@@ -70,12 +70,12 @@ counter survive a delete-and-reinstall on Apple platforms. One or more is likely
 | Own server tied to an account | Yes | Needs sign-in. |
 
 The Mac point is already true for us. Deleting a sandboxed Mac app from Applications leaves its data in
-`~/Library/Containers/<bundle id>/`, and I saw our own macOS container (`com.echoprompter.app`) keep its settings and
+`~/Library/Containers/<bundle id>/`, and I saw our own macOS container (`com.talkroll.app`) keep its settings and
 script history across rebuilds. A reinstall therefore keeps the count unless the user removes the container.
 
 ## 3. Where our app stands today
 
-- The counter is `ProState.presented`, a set of script ids stored as JSON under `EchoPrompter.proState.v1` in
+- The counter is `ProState.presented`, a set of script ids stored as JSON under `TalkRoll.proState.v1` in
   `SharedPreferences` (`lib/features/pro/pro_state.dart`). The limit is `freeScriptLimit = 5` and is **not enforced
   yet** (`proEnforced = false` in `lib/core/entitlements/entitlements.dart`); purchases are not connected.
 - **Android:** our manifest does not mention backup, so the default applies: `allowBackup` is on and Auto Backup
@@ -168,9 +168,9 @@ keep in `SharedPreferences`; it is just kept where a reinstall does not erase it
 
 | Platform | What keeps the count | Code |
 |---|---|---|
-| **Android** | Android Auto Backup restores the preferences file and the scripts folder after a reinstall (same Google account, Google backup on). The rules are now written out instead of left to defaults, and they back up only `FlutterSharedPreferences.xml` and `app_flutter/EchoPrompter Scripts`. | `android/app/src/main/res/xml/backup_rules.xml` (Android 6 to 11), `data_extraction_rules.xml` (Android 12 and later), three attributes on `<application>` in `AndroidManifest.xml` |
-| **iPhone, iPad** | A Keychain item (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: stays on this device, never syncs to iCloud). iOS keeps Keychain items when an app is deleted. | `ios/Runner/AppDelegate.swift` (method channel `echoprompter/reinstall_store`), `lib/services/storage/reinstall_store.dart` |
-| **macOS, Windows** | Nothing new. The app's data folder is left behind when the app is deleted (macOS: `~/Library/Containers/com.echoprompter.app/`), so the count is already there after a reinstall. | none |
+| **Android** | Android Auto Backup restores the preferences file and the scripts folder after a reinstall (same Google account, Google backup on). The rules are now written out instead of left to defaults, and they back up only `FlutterSharedPreferences.xml` and `app_flutter/TalkRoll Scripts`. | `android/app/src/main/res/xml/backup_rules.xml` (Android 6 to 11), `data_extraction_rules.xml` (Android 12 and later), three attributes on `<application>` in `AndroidManifest.xml` |
+| **iPhone, iPad** | A Keychain item (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: stays on this device, never syncs to iCloud). iOS keeps Keychain items when an app is deleted. | `ios/Runner/AppDelegate.swift` (method channel `talkroll/reinstall_store`), `lib/services/storage/reinstall_store.dart` |
+| **macOS, Windows** | Nothing new. The app's data folder is left behind when the app is deleted (macOS: `~/Library/Containers/com.talkroll.app/`), so the count is already there after a reinstall. | none |
 
 `ProNotifier` (`lib/features/pro/pro_state.dart`) loads the preferences as before, then once the Keychain answers it
 merges the two with a union, so a restore can only raise the count, and writes the merged value back to both. On every
@@ -197,15 +197,15 @@ platform other than iOS the store does nothing, so those code paths are unchange
 ```sh
 cd app && flutter build ios --simulator --debug
 SIM=<simulator id from: xcrun simctl list devices available>
-APP=build/ios/iphonesimulator/Runner.app; BID=com.echoprompter.app
+APP=build/ios/iphonesimulator/Runner.app; BID=com.talkroll.app
 xcrun simctl install $SIM $APP && xcrun simctl launch $SIM $BID && sleep 5 && xcrun simctl terminate $SIM $BID
 D=$(xcrun simctl get_app_container $SIM $BID data)
-defaults write "$D/Library/Preferences/com.echoprompter.app" 'flutter.EchoPrompter.proState.v1' -string '{"presented":["111","222","333"]}'
+defaults write "$D/Library/Preferences/com.talkroll.app" 'flutter.TalkRoll.proState.v1' -string '{"presented":["111","222","333"]}'
 xcrun simctl launch $SIM $BID && sleep 6 && xcrun simctl terminate $SIM $BID   # writes the Keychain
 xcrun simctl uninstall $SIM $BID && xcrun simctl install $SIM $APP
 D=$(xcrun simctl get_app_container $SIM $BID data)
 xcrun simctl launch $SIM $BID && sleep 6 && xcrun simctl terminate $SIM $BID
-defaults read "$D/Library/Preferences/com.echoprompter.app" 'flutter.EchoPrompter.proState.v1'
+defaults read "$D/Library/Preferences/com.talkroll.app" 'flutter.TalkRoll.proState.v1'
 # expected: {"presented":["111","222","333"]}
 ```
 
@@ -221,12 +221,12 @@ cd app && flutter build apk --debug
 adb install build/app/outputs/flutter-apk/app-debug.apk
 adb shell bmgr enable true
 adb shell bmgr transport com.android.localtransport/.LocalTransport
-adb shell am start -n com.echoprompter.app/.MainActivity     # leave it running, then press Home
+adb shell am start -n com.talkroll.app/.MainActivity     # leave it running, then press Home
 # present some saved scripts in the app (or edit shared_prefs with run-as), then:
-adb shell bmgr backupnow com.echoprompter.app                # expect "Success"
-adb uninstall com.echoprompter.app && adb install build/app/outputs/flutter-apk/app-debug.apk
-adb shell bmgr restore 1 com.echoprompter.app                # token from: adb shell bmgr list sets
-adb shell run-as com.echoprompter.app grep -o 'proState.v1[^/]*' shared_prefs/FlutterSharedPreferences.xml
+adb shell bmgr backupnow com.talkroll.app                # expect "Success"
+adb uninstall com.talkroll.app && adb install build/app/outputs/flutter-apk/app-debug.apk
+adb shell bmgr restore 1 com.talkroll.app                # token from: adb shell bmgr list sets
+adb shell run-as com.talkroll.app grep -o 'proState.v1[^/]*' shared_prefs/FlutterSharedPreferences.xml
 ```
 
 Gotchas: a force-stopped app is skipped ("Backup is not allowed"), so open the app and press Home instead of using
@@ -234,11 +234,11 @@ Gotchas: a force-stopped app is skipped ("Backup is not allowed"), so open the a
 exceeds the local transport's quota.
 
 **Android, real phone:** turn on Settings, Google, Backup; run the app so it creates scripts; run
-`adb shell bmgr backupnow com.echoprompter.app` (or wait for the nightly backup on Wi-Fi and charger); uninstall, then
+`adb shell bmgr backupnow com.talkroll.app` (or wait for the nightly backup on Wi-Fi and charger); uninstall, then
 install from Google Play (internal testing) with the same Google account. Sideloaded installs are not restored.
 
-**macOS:** quit the app, delete `EchoPrompter.app`, install it again, and the count is unchanged. To start clean, delete
-`~/Library/Containers/com.echoprompter.app`.
+**macOS:** quit the app, delete `TalkRoll.app`, install it again, and the count is unchanged. To start clean, delete
+`~/Library/Containers/com.talkroll.app`.
 
 ### Limits to know about
 

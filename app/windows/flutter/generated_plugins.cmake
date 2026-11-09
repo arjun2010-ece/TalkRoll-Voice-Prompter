@@ -3,13 +3,13 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  echoprompter_window
   just_audio_windows
   permission_handler_windows
   record_windows
   screen_retriever_windows
   sentry_flutter
   share_plus
+  talkroll_window
   url_launcher_windows
   window_manager
 )

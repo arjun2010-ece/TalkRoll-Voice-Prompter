@@ -116,7 +116,7 @@ class NoteSidebar extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
                       child: Text(
-                        'Showing your ${ScriptLibrary.maxEntries} most recent notes. Older ones are kept in the EchoPrompter Notes folder; use Import to open one.',
+                        'Showing your ${ScriptLibrary.maxEntries} most recent notes. Older ones are kept in the TalkRoll Notes folder; use Import to open one.',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                       ),
@@ -231,7 +231,7 @@ class _EmptyNotes extends ConsumerWidget {
             Text(
               hasNotes
                   ? 'Pick a note from the list, or start a new one.'
-                  : 'Talking points, checklists and anything you want close at hand. Notes are never read aloud or tracked, and they\'re saved in Documents › EchoPrompter Notes.',
+                  : 'Talking points, checklists and anything you want close at hand. Notes are never read aloud or tracked, and they\'re saved in Documents › TalkRoll Notes.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),

@@ -17,7 +17,7 @@ Effort: **S** ≈ under a day · **M** ≈ 1–3 days · **L** ≈ about a week 
 | Essential | E2 | Reset text settings to defaults | 8 | S | all |
 | Essential | E3 | Audio mode: Start only with a ready recording | review | S | all |
 | Essential | E4 | Script title field (max 24 characters), and title + preview in the script list | 1 | M | all |
-| Essential | E5 | EchoPrompter Pro: upgrade card in Script Studio, Settings tab, paywall (3 plans) | 2 | M for the screens; purchases connect in Phase 3 | all |
+| Essential | E5 | TalkRoll Pro: upgrade card in Script Studio, Settings tab, paywall (3 plans) | 2 | M for the screens; purchases connect in Phase 3 | all |
 | Useful | U1 | Reading guide markers at the reading line | 11 | S | all |
 | Useful | U2 | Side margins | extra | S–M | all |
 | Useful | U3 | Font family (short curated list) | 5 | M | all |
@@ -42,7 +42,7 @@ These are worth knowing before building anything, so nothing is duplicated.
 - **Settings can't go out of range.** `PromptLimits` clamps text size (16–110), line spacing, speed and opacity, both in the sliders and when loading saved values. Item 8 is about getting back to a comfortable default, not about values breaking (see E2).
 - **Restart** is already a button and a global shortcut (⌃⌥R / Ctrl+Alt+R). This matters for spoken commands (O2).
 - **Following backwards in Voice mode** already works: if you re-read a passage, the highlight moves back. This covers most of the need for a spoken "go back" (O2).
-- **"Keep 20, never delete"** is already how scripts work: the list shows the 20 most recent, older `.txt` files stay in the *EchoPrompter Scripts* folder, and Import opens them. Notes (U6) should reuse the same rule.
+- **"Keep 20, never delete"** is already how scripts work: the list shows the 20 most recent, older `.txt` files stay in the *TalkRoll Scripts* folder, and Import opens them. Notes (U6) should reuse the same rule.
 - **Mobile already has a progress line** along the bottom of the Read screen. Desktop has none.
 - **Script Studio already shows** word count and reading time (`~3 min`) for the open script.
 
@@ -78,8 +78,8 @@ Ordered from easiest to hardest.
 Easiest: one settings section with a link and a copy button. No state, no prompter changes.
 
 - New last section **Help & feedback** in desktop Preferences and in mobile Studio settings (`ReadingSettings(app: true)`). Not on the prompter.
-- Support address: **arjun@echoprompter.app**.
-- **Email us** opens the mail app to that address, with subject "EchoPrompter feedback" and a pre-filled footer: app version, OS and version, platform. Never the script text.
+- Support address: **arjun@talkroll.app**.
+- **Email us** opens the mail app to that address, with subject "TalkRoll feedback" and a pre-filled footer: app version, OS and version, platform. Never the script text.
 - The address is also shown as text with a **Copy** button, because many Windows users have no mail app configured.
 - Optional second row: **Website & FAQ** link.
 - Keep the address in one constant so the website and the app can't drift apart.
@@ -163,7 +163,7 @@ How it was chosen:
 
 **Check when building:** every place that reads `SavedScript.title` (delete dialog, the "Start …" tooltip, mobile Studio, the scripts drawer) must show the new title.
 
-### E5. EchoPrompter Pro — M for the screens (purchases connect in Phase 3)
+### E5. TalkRoll Pro — M for the screens (purchases connect in Phase 3)
 
 **Decided (2026-10-25): build the Pro UI and its screens now. Don't hide them.**
 
@@ -322,7 +322,7 @@ Hardest of the Useful items. It needs a second kind of document in the library (
 - That one editor covers notes, checklists and talking points, with no separate title / description / list editors.
 - **Actions:** New, Import, Export and Delete work as they do for scripts, with the same shortcuts, and act on notes while Notes is selected.
 - **Import** accepts `.txt` and `.md`, so notes written in other apps can be brought in.
-- **Storage:** its own folder, *EchoPrompter Notes*, next to *EchoPrompter Scripts*, with its own history list. Same rule as scripts:
+- **Storage:** its own folder, *TalkRoll Notes*, next to *TalkRoll Scripts*, with its own history list. Same rule as scripts:
   - The list shows the 20 most recent.
   - Older files are never deleted automatically.
   - Import reopens them.
@@ -404,7 +404,7 @@ Deferred:
 - **Windows licensing** (account sign-in or Paddle license keys): decided later, with the Phase 3 billing work (see E5). The UI improvements come first.
 
 Decided (2026-10-25):
-- Support email: arjun@echoprompter.app.
+- Support email: arjun@talkroll.app.
 - Items 4, 7 and 10 are not needed.
 - Title limit: measured and set to 24 characters on every platform (see E4).
 - "Protected workspace" was a working name for a notes area, now **Notes** (see U6).

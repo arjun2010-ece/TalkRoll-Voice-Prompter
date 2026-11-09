@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:echoprompter/core/script/saved_script.dart';
-import 'package:echoprompter/core/settings/prompt_settings.dart';
-import 'package:echoprompter/services/storage/migration.dart';
-import 'package:echoprompter/services/storage/script_library.dart';
+import 'package:talkroll/core/script/saved_script.dart';
+import 'package:talkroll/core/settings/prompt_settings.dart';
+import 'package:talkroll/services/storage/migration.dart';
+import 'package:talkroll/services/storage/script_library.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,7 +13,7 @@ void main() {
   late ScriptLibrary lib;
 
   setUp(() async {
-    dir = Directory.systemTemp.createTempSync('echoprompter_test');
+    dir = Directory.systemTemp.createTempSync('talkroll_test');
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     lib = ScriptLibrary(dir, prefs);

@@ -3,7 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:echoprompter_window/echoprompter_window.dart' show EchoPrompterWindow, WindowCorner;
+import 'package:talkroll_window/talkroll_window.dart' show TalkRollWindow, WindowCorner;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/matching/script_tracker.dart';
@@ -311,7 +311,7 @@ class PrompterController extends Notifier<PrompterState> {
     final sound = s.retakeClap == RetakeClap.both || s.retakeClap == RetakeClap.sound;
     final flash = s.retakeClap == RetakeClap.both || s.retakeClap == RetakeClap.flash;
     if (!sound && !flash) return;
-    unawaited(EchoPrompterWindow.retakeClap(sound: sound, flash: flash, corner: WindowCorner.values.byName(s.retakeFlashCorner.name)));
+    unawaited(TalkRollWindow.retakeClap(sound: sound, flash: flash, corner: WindowCorner.values.byName(s.retakeFlashCorner.name)));
   }
 
   Future<void> pause() async {

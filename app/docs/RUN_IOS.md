@@ -1,4 +1,4 @@
-# Running EchoPrompter on an iPhone or iPad
+# Running TalkRoll on an iPhone or iPad
 
 Notes from the 2026-10-27 test session on an iPad Pro 11" (iPadOS 27). Run everything from `app/`, not the repo root
 (`flutter run` there fails with "No pubspec.yaml file found").
@@ -23,7 +23,7 @@ Voice and the camera need a real device. Debug builds also work but attach throu
 
 - The signing team id (`N3MNK6X8NN`) is only in the local, uncommitted `ios/Runner.xcodeproj/project.pbxproj`. Without it
   Flutter cannot sign for the device.
-- A release build compiles the Swift plugin too, so a change in `packages/echoprompter_camera/ios` needs a full rebuild.
+- A release build compiles the Swift plugin too, so a change in `packages/talkroll_camera/ios` needs a full rebuild.
   Hot reload never applies to native code.
 - Findings from the same session (camera orientation, prompter scroll drift, Voice mode, progress line) are in
   `ios-ipad-camera-and-prompter-findings.md`.

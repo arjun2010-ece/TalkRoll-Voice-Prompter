@@ -38,7 +38,7 @@ import 'script_list.dart';
 import 'script_text_controller.dart';
 import 'start_options.dart' show RunOptions;
 
-const _positionTipKey = 'EchoPrompter.positionTip.dismissed.v1';
+const _positionTipKey = 'TalkRoll.positionTip.dismissed.v1';
 
 /// Script Studio on macOS and Windows: scripts on the left, the editor in the
 /// middle, and on the right a live preview with the few choices that matter
@@ -432,7 +432,7 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
       child: Scaffold(
         key: _scaffold,
         appBar: AppBar(
-          title: const Text('EchoPrompter'),
+          title: const Text('TalkRoll'),
           // Nothing scrolls under this bar; ignore scroll notifications so the
           // script list relaying out on selection can't flash the header.
           notificationPredicate: (_) => false,
@@ -653,7 +653,7 @@ class _EditorPane extends ConsumerWidget {
               // The title names the script in the list and its file. Typing is a draft until Save, like the text.
               if (demo)
                 Text(
-                  'Welcome to EchoPrompter',
+                  'Welcome to TalkRoll',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

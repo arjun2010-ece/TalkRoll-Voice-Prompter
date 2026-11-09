@@ -7,7 +7,7 @@ Short map of the Flutter app (`app/`) for the signature-features work. The Swift
 - `lib/core/`: pure Dart. `script/` (saved script, section markers `[Name]`, cleaning, reading time), `settings/` (`PromptSettings`, `PromptControlMode`, labels), `matching/script_tracker.dart` (the conservative word matcher), `progress/`, `entitlements/`, `shortcuts/`.
 - `lib/features/`: UI by area: `studio` (macOS Script Studio, start options, script list), `read` (mobile reading screen and settings), `prompter` (controller, macOS prompter window, prompt surface), `video` (mobile camera and recording), `onboarding`, `pro` (paywall), `settings`, `menu`.
 - `lib/services/`: `speech` (native recognizer channel), `audio` (reference clock, input), `camera`, `storage` (script library, file IO), `purchases`, `permissions`, `window`, `providers.dart` (Riverpod wiring).
-- Local packages: `packages/echoprompter_window`, `packages/echoprompter_camera`. Native code: `macos/Runner`, `ios/Runner`, `android/`.
+- Local packages: `packages/talkroll_window`, `packages/talkroll_camera`. Native code: `macos/Runner`, `ios/Runner`, `android/`.
 - State management: Riverpod (`flutter_riverpod`). Settings are in `settingsProvider`; prompter state is in `prompterProvider` (`prompter_controller.dart`).
 
 ## Modes
@@ -22,7 +22,7 @@ Short map of the Flutter app (`app/`) for the signature-features work. The Swift
 
 ## Camera and recording
 
-`features/video/record_screen.dart` and `camera_state.dart`, over `echoprompter_camera`. Mobile only. macOS does not record.
+`features/video/record_screen.dart` and `camera_state.dart`, over `talkroll_camera`. Mobile only. macOS does not record.
 
 ## Paywall and limits
 
@@ -34,5 +34,5 @@ Scripts: `services/storage/script_library.dart` and `script_io.dart`. Settings: 
 
 ## Notes for the next phases
 
-- Keep "EchoPrompter" out of new strings; add a display-name constant before Phase 1 so the Phase 5 rename is quick.
+- Keep "TalkRoll" out of new strings; add a display-name constant before Phase 1 so the Phase 5 rename is quick.
 - No new dependency with native code without asking.

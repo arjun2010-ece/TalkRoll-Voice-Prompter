@@ -4,7 +4,7 @@ import 'dart:io' show Platform, exit;
 import 'dart:math' as math;
 import 'dart:ui' show AppExitType;
 
-import 'package:echoprompter_window/echoprompter_window.dart';
+import 'package:talkroll_window/talkroll_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,7 +29,7 @@ import 'section_end.dart';
 const _accent = Color(0xFF0A84FF);
 const _baseSpeed = 24.0;
 const _speedSteps = [0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0];
-const _firstStartToastKey = 'EchoPrompter.firstStartToast.v1';
+const _firstStartToastKey = 'TalkRoll.firstStartToast.v1';
 
 bool get _mac => isMacOS;
 
@@ -73,15 +73,15 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
   void initState() {
     super.initState();
     _subscriptions
-      ..add(EchoPrompterWindow.frameChanges.listen(_onFrame))
-      ..add(EchoPrompterWindow.trayActions.listen(_onCommand))
-      ..add(EchoPrompterWindow.hotkeys.listen(_onCommand));
-    EchoPrompterWindow.hasHardwareNotch.then((v) {
+      ..add(TalkRollWindow.frameChanges.listen(_onFrame))
+      ..add(TalkRollWindow.trayActions.listen(_onCommand))
+      ..add(TalkRollWindow.hotkeys.listen(_onCommand));
+    TalkRollWindow.hasHardwareNotch.then((v) {
       if (!mounted) return;
       setState(() => _hasNotch = v);
       _syncTray();
     }, onError: (_) {});
-    EchoPrompterWindow.supportsCaptureHiding.then(
+    TalkRollWindow.supportsCaptureHiding.then(
       (v) => mounted ? setState(() => _captureHidingSupported = v) : null,
       onError: (_) {},
     );
@@ -102,8 +102,8 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     }
     _bannerTimer?.cancel();
     _keys.dispose();
-    EchoPrompterWindow.unregisterHotkeys();
-    EchoPrompterWindow.setTrayMenu(null);
+    TalkRollWindow.unregisterHotkeys();
+    TalkRollWindow.setTrayMenu(null);
     _window.exit();
     super.dispose();
   }
@@ -263,16 +263,16 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     ref.read(studioProvider.notifier).stopPresenting(wordIndex: word);
     await WidgetsBinding.instance.endOfFrame;
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    EchoPrompterWindow.revealStudio();
+    TalkRollWindow.revealStudio();
   }
 
   void _quit() {
     ref.read(prompterProvider.notifier).pause();
     // Engine shutdown can take a few seconds on Windows; hide the window and
     // tray icon first so quitting looks instant.
-    unawaited(EchoPrompterWindow.setPrompterVisible(false));
-    EchoPrompterWindow.unregisterHotkeys();
-    EchoPrompterWindow.setTrayMenu(null);
+    unawaited(TalkRollWindow.setPrompterVisible(false));
+    TalkRollWindow.unregisterHotkeys();
+    TalkRollWindow.setTrayMenu(null);
     // Windows keeps the busy cursor for seconds while the engine shuts down
     // gracefully, so end the process once the window is gone.
     if (Platform.isWindows) {
@@ -331,7 +331,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     final narration = _mode == PromptControlMode.recordedAudio;
     // Continue is only taken from other apps when the script has a cue that holds.
     final hasHold = actionCues(ref.read(studioProvider).script).any((c) => c.hold);
-    await EchoPrompterWindow.registerHotkeys([
+    await TalkRollWindow.registerHotkeys([
       for (final e in bindings.entries)
         // The section keys, and Back 5 seconds, are only taken from other apps while they do something.
         if ((!e.key.isSectionAction || run) && (e.key != ShortcutAction.back5 || narration) && (e.key != ShortcutAction.continueCue || hasHold))
@@ -361,12 +361,12 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       TrayItem('place:floating', 'Position: Floating', checked: s.placement == PromptPlacement.floating),
       const TrayItem.separator(),
       const TrayItem('backToStudio', 'Back to Script Studio'),
-      const TrayItem('quit', 'Quit EchoPrompter'),
+      const TrayItem('quit', 'Quit TalkRoll'),
     ];
     final signature = items.map((i) => '${i.id}|${i.title}|${i.enabled}|${i.checked}').join(';');
     if (signature == _lastTray) return;
     _lastTray = signature;
-    await EchoPrompterWindow.setTrayMenu(items);
+    await TalkRollWindow.setTrayMenu(items);
   }
 
   // --- layout choice ---------------------------------------------------------
@@ -534,9 +534,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
 
   Widget _surface(PromptLayoutStyle style) => PromptSurface(
     style: style,
-    onDragStart: EchoPrompterWindow.gestureBegin,
-    onDragUpdate: EchoPrompterWindow.dragUpdate,
-    onDragEnd: EchoPrompterWindow.gestureEnd,
+    onDragStart: TalkRollWindow.gestureBegin,
+    onDragUpdate: TalkRollWindow.dragUpdate,
+    onDragEnd: TalkRollWindow.gestureEnd,
     coveredByDesktopChrome: style == PromptLayoutStyle.full,
   );
 
@@ -638,9 +638,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     cursor: SystemMouseCursors.resizeUpDown,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (_) => EchoPrompterWindow.gestureBegin(),
-      onPanUpdate: (_) => EchoPrompterWindow.resizeUpdate('b'),
-      onPanEnd: (_) => EchoPrompterWindow.gestureEnd(),
+      onPanStart: (_) => TalkRollWindow.gestureBegin(),
+      onPanUpdate: (_) => TalkRollWindow.resizeUpdate('b'),
+      onPanEnd: (_) => TalkRollWindow.gestureEnd(),
       child: SizedBox(
         height: 12,
         child: Center(
@@ -676,9 +676,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
         cursor: cursor,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onPanStart: (_) => EchoPrompterWindow.gestureBegin(),
-          onPanUpdate: (_) => EchoPrompterWindow.resizeUpdate(edge),
-          onPanEnd: (_) => EchoPrompterWindow.gestureEnd(),
+          onPanStart: (_) => TalkRollWindow.gestureBegin(),
+          onPanUpdate: (_) => TalkRollWindow.resizeUpdate(edge),
+          onPanEnd: (_) => TalkRollWindow.gestureEnd(),
         ),
       ),
     );
@@ -758,9 +758,9 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
     final pr = ref.watch(prompterProvider);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (_) => EchoPrompterWindow.gestureBegin(),
-      onPanUpdate: (_) => EchoPrompterWindow.dragUpdate(),
-      onPanEnd: (_) => EchoPrompterWindow.gestureEnd(),
+      onPanStart: (_) => TalkRollWindow.gestureBegin(),
+      onPanUpdate: (_) => TalkRollWindow.dragUpdate(),
+      onPanEnd: (_) => TalkRollWindow.gestureEnd(),
       child: Container(
         color: Colors.black.withValues(alpha: 0.96),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1088,7 +1088,7 @@ class _DesktopPrompterScreenState extends ConsumerState<DesktopPrompterScreen> {
       MenuItemButton(
         leadingIcon: const Icon(Icons.power_settings_new, size: 16),
         onPressed: _quit,
-        child: const Text('Quit EchoPrompter'),
+        child: const Text('Quit TalkRoll'),
       ),
     ],
     builder: (context, controller, _) => _HoverIconButton(

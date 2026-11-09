@@ -1,4 +1,4 @@
-# Run EchoPrompter on Windows
+# Run TalkRoll on Windows
 
 Use Flutter stable 3.47 or newer with Dart 3.13.5 or newer, as required by
 this project's dependencies. Install Visual Studio 2022 or its Build Tools
@@ -28,7 +28,7 @@ To build a standalone release:
 flutter build windows --release
 ```
 
-The executable is `build\windows\x64\runner\Release\echoprompter.exe`.
+The executable is `build\windows\x64\runner\Release\talkroll.exe`.
 Keep the DLLs and `data` folder alongside it when copying the app.
 
 For a first manual check, enter a script, start the prompter in Normal mode,

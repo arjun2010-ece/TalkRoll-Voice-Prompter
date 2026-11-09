@@ -1,4 +1,4 @@
-import 'package:echoprompter_camera/echoprompter_camera.dart';
+import 'package:talkroll_camera/talkroll_camera.dart';
 
 import '../../core/settings/prompt_settings.dart';
 

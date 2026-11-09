@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/entitlements/entitlements.dart';
 import 'purchase_service.dart';
 
-const _fakePlanKey = 'EchoPrompter.debugFakePlan.v1';
+const _fakePlanKey = 'TalkRoll.debugFakePlan.v1';
 
 /// What the next fake purchase does, set from Settings → Preview (debug builds only), so cancel, pending and failure
 /// can be tried without a store.

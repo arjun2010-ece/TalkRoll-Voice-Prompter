@@ -1,4 +1,4 @@
-# Running EchoPrompter on macOS
+# Running TalkRoll on macOS
 
 This guide covers the Flutter desktop app in `app/`. It explains how to run it,
 how to build a copy you can open like any other app, and what to check by hand.
@@ -29,16 +29,16 @@ after a Dart change, or `R` to restart. Native Swift changes need a full restart
 ```sh
 cd app
 flutter build macos --debug      # or: flutter build macos --release
-open build/macos/Build/Products/Debug/EchoPrompter.app
+open build/macos/Build/Products/Debug/TalkRoll.app
 ```
 
-Drag `EchoPrompter.app` to `/Applications` if you want to keep it. The release
+Drag `TalkRoll.app` to `/Applications` if you want to keep it. The release
 build (`--release`) is the one to use for real presentations; it is faster.
 
 ## Speech recognition (only for Voice and Audio modes)
 
 Voice and Audio mode use the platform's own speech recogniser, so there is nothing to download. Turn on
-Dictation in System Settings > Keyboard, then start the app with `open EchoPrompter.app` (not `flutter run`) so
+Dictation in System Settings > Keyboard, then start the app with `open TalkRoll.app` (not `flutter run`) so
 macOS can show the speech and microphone prompts.
 
 ## Permissions
@@ -53,7 +53,7 @@ macOS asks the first time a mode needs them:
 
 If you denied a permission and want it back, open **System Settings → Privacy &
 Security**, choose **Microphone** (or **Speech Recognition**), and turn on
-EchoPrompter. Restart the app afterwards.
+TalkRoll. Restart the app afterwards.
 
 Running `flutter run` uses a development signature, so macOS may ask again after
 each rebuild. That is expected.
@@ -64,7 +64,7 @@ Your settings are remembered between runs, so new defaults only apply to a fresh
 To go back to the defaults, quit the app and run:
 
 ```sh
-defaults delete com.echoprompter.app flutter.EchoPrompter.settings.v2
+defaults delete com.talkroll.app.macos flutter.TalkRoll.settings.v2
 ```
 
 ## Using the app
@@ -78,7 +78,7 @@ defaults delete com.echoprompter.app flutter.EchoPrompter.settings.v2
 4. The prompter opens above your other windows. To leave it, use any of:
    - **✕ Close** or **Esc**: back to Script Studio.
    - **Edit script**: back to Script Studio, with the cursor on the word you were reading.
-   - **⋯ → Quit EchoPrompter** or **⌘Q**: quit the app.
+   - **⋯ → Quit TalkRoll** or **⌘Q**: quit the app.
    - The **menu-bar icon** (top right of the screen, while the prompter is open).
    - Global shortcuts, which also work while another app is in front (see below).
 5. **Preferences** (⌘,) holds the privacy switch, mirror, appearance, crash
@@ -127,7 +127,7 @@ Run through these by hand after each build.
 **Prompter**
 - [ ] Opens above other apps, and Esc returns to Script Studio.
 - [ ] **Edit script** returns with the cursor on the word you were reading.
-- [ ] ⋯ → Quit EchoPrompter quits the app.
+- [ ] ⋯ → Quit TalkRoll quits the app.
 - [ ] A menu-bar icon appears while the prompter is open and disappears after you leave it.
 - [ ] Hide / show works from the menu bar and by ⌃⌥P.
 - [ ] While another app is in front, ⌃⌥Space plays and pauses.

@@ -195,7 +195,7 @@ how almost every free tier works and is not something an app owns.
 | Upgrade sheet | `lib/features/pro/paywall_dialog.dart` | Opens when a free user tries to present past the free scripts, from the card, from Settings and on app open. Added a **✕** in the corner (Not Now and Restore Purchases were already there). `showPaywall(..., source:)` records which surface opened it. |
 | Reminder card | `lib/features/pro/upgrade_card.dart` | "1 free script left" at 4 of 5; amber "All 5 free scripts used" at the limit with a **×** that hides it for the session. |
 | Sheet on app open | new `lib/features/pro/launch_upgrade_prompt.dart`, wrapped around the Studio in `lib/main.dart` | Once per launch, about 1.2 s after the Studio draws, only if the limit is enforced and used up and no upgrade sheet was shown in the last 24 hours. |
-| Timing | `lib/features/pro/pro_state.dart` | `launchPromptDue()` and `notePromptShown()`; the last-shown time is in `SharedPreferences` (`EchoPrompter.upgradePrompt.v1`). `upgradeCardHiddenProvider` is session-only. |
+| Timing | `lib/features/pro/pro_state.dart` | `launchPromptDue()` and `notePromptShown()`; the last-shown time is in `SharedPreferences` (`TalkRoll.upgradePrompt.v1`). `upgradeCardHiddenProvider` is session-only. |
 | Events | `showPaywall` | `upgrade_prompt_shown` and `upgrade_prompt_closed`, each with `source` (`start`, `card`, `settings`, `launch`). No script text. |
 
 Nothing hidden is unlocked, and no countdown, "% off" or "limited time" wording was added.
@@ -297,8 +297,8 @@ cd app
 flutter build apk --debug --dart-define=ENFORCE_FREE_LIMIT=true      # or: flutter run --dart-define=ENFORCE_FREE_LIMIT=true
 # save scripts until the card reads "All 5 free scripts used", open the 6th script, tap Start
 # relaunch: no sheet inside 24 hours; to see it, age the stored time and relaunch:
-adb shell run-as com.echoprompter.app grep -o 'upgradePrompt.v1[^/]*' shared_prefs/FlutterSharedPreferences.xml
-# macOS or iOS: edit flutter.EchoPrompter.upgradePrompt.v1 (milliseconds since 1970) to a value older than 24 hours.
+adb shell run-as com.talkroll.app grep -o 'upgradePrompt.v1[^/]*' shared_prefs/FlutterSharedPreferences.xml
+# macOS or iOS: edit flutter.TalkRoll.upgradePrompt.v1 (milliseconds since 1970) to a value older than 24 hours.
 ```
 
 Without the `--dart-define`, the app behaves as it did before.

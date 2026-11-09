@@ -4,7 +4,7 @@ import '../../core/script/saved_script.dart';
 import '../../services/storage/script_io.dart';
 import '../../services/storage/script_library.dart';
 
-const notesHistoryKey = 'EchoPrompter.noteHistory.v1';
+const notesHistoryKey = 'TalkRoll.noteHistory.v1';
 
 final notesLibraryProvider = Provider<ScriptLibrary>((_) => throw UnimplementedError());
 

@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:echoprompter/core/settings/prompt_settings.dart';
-import 'package:echoprompter/features/prompter/desktop_prompter_screen.dart';
-import 'package:echoprompter/services/providers.dart';
-import 'package:echoprompter/services/storage/script_library.dart';
+import 'package:talkroll/core/settings/prompt_settings.dart';
+import 'package:talkroll/features/prompter/desktop_prompter_screen.dart';
+import 'package:talkroll/services/providers.dart';
+import 'package:talkroll/services/storage/script_library.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,7 +20,7 @@ void main() {
     testWidgets('$name layout builds without errors and controls respond', (t) async {
       final calls = <String>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('com.echoprompter/window'),
+        const MethodChannel('com.talkroll/window'),
         (c) async {
           calls.add(c.method);
           return c.method == 'hasHardwareNotch' || c.method == 'supportsCaptureHiding' ? true : null;

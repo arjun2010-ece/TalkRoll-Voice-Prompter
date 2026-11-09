@@ -1,6 +1,6 @@
 
 import '../../services/platform.dart';
-import 'package:echoprompter_window/echoprompter_window.dart';
+import 'package:talkroll_window/talkroll_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -315,10 +315,10 @@ class _ProTab extends ConsumerWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     final used = pro.used.clamp(0, freeScriptLimit);
     final planLabel = switch (pro.plan) {
-      ProPlan.free => 'EchoPrompter Free',
-      ProPlan.monthly => 'EchoPrompter Pro · Monthly',
-      ProPlan.yearly => 'EchoPrompter Pro · Yearly',
-      ProPlan.lifetime => 'EchoPrompter Pro · Lifetime',
+      ProPlan.free => 'TalkRoll Free',
+      ProPlan.monthly => 'TalkRoll Pro · Monthly',
+      ProPlan.yearly => 'TalkRoll Pro · Yearly',
+      ProPlan.lifetime => 'TalkRoll Pro · Lifetime',
     };
     Widget row(IconData icon, String title, String sub, Widget action) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -471,7 +471,7 @@ class _HelpTab extends StatelessWidget {
         ]),
       ]),
       _Group(title: 'Resources', children: [
-        row(Icons.language, 'Website & FAQ', 'echoprompter.app', [
+        row(Icons.language, 'Website & FAQ', 'talkroll.app', [
           OutlinedButton(onPressed: () => openExternal(Uri.parse(websiteUrl)), child: const Text('Open')),
         ]),
       ]),
@@ -493,7 +493,7 @@ class _CaptureSupportNoteState extends State<_CaptureSupportNote> {
   @override
   void initState() {
     super.initState();
-    EchoPrompterWindow.supportsCaptureHiding.then(
+    TalkRollWindow.supportsCaptureHiding.then(
       (v) => mounted ? setState(() => _supported = v) : null,
       onError: (_) {},
     );
@@ -532,7 +532,7 @@ class _CrashReportsSwitchState extends State<_CrashReportsSwitch> {
   Widget build(BuildContext context) => SwitchListTile(
     title: const Text('Send crash reports'),
     subtitle: Text(
-      'Helps fix crashes. Never includes your scripts. Applies the next time EchoPrompter starts.',
+      'Helps fix crashes. Never includes your scripts. Applies the next time TalkRoll starts.',
       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
     ),
     value: widget.prefs.getBool(crashReportingKey) ?? false,

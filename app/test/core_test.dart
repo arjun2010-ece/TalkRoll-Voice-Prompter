@@ -1,5 +1,5 @@
-import 'package:echoprompter/core/progress/reading_progress.dart';
-import 'package:echoprompter/core/script/text.dart';
+import 'package:talkroll/core/progress/reading_progress.dart';
+import 'package:talkroll/core/script/text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

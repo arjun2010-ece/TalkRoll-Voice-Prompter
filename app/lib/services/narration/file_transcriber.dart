@@ -58,7 +58,7 @@ class FileTranscriber {
   /// Told how much of a language pack has downloaded, 0 to 1.
   void Function(String language, double fraction)? onPackProgress;
 
-  static const _channel = MethodChannel('com.echoprompter/transcribe');
+  static const _channel = MethodChannel('com.talkroll/transcribe');
   void Function(double fraction)? _progress;
 
   /// Whether this platform has a transcriber at all.

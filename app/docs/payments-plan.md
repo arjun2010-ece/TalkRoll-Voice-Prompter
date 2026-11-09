@@ -164,7 +164,7 @@ Advice:
 2. Is the product set right (monthly, yearly with trial, lifetime)? Prices are placeholders today (monthly €6.99, yearly
    €55, lifetime €109.99).
 3. One app record for iPhone, iPad and Mac (Universal Purchase), or separate? The bundle ID is already shared
-   (`com.echoprompter.app`).
+   (`com.talkroll.app`).
 4. Do you want Windows covered in this round? It would need the Microsoft Store's own purchase API.
 
 ## 6. Not checked
@@ -217,8 +217,8 @@ Which service a build uses: the real store when its switch is on; the **debug fa
 nothing (buying says it is not available) in release builds with the switch off. The fake is compiled in only for
 debug builds, so it cannot unlock Pro in a release.
 
-Product ids (same in App Store Connect and Play Console): `echoprompter.pro.monthly`, `echoprompter.pro.yearly`
-(auto-renewing subscriptions), `echoprompter.pro.lifetime` (non-consumable). They are constants in `ProProductIds`.
+Product ids (same in App Store Connect and Play Console): `talkroll.pro.monthly`, `talkroll.pro.yearly`
+(auto-renewing subscriptions), `talkroll.pro.lifetime` (non-consumable). They are constants in `ProProductIds`.
 
 Two extra dependencies were added: `in_app_purchase` and `url_launcher` (the Manage subscription link on phones).
 
@@ -292,7 +292,7 @@ There is no local equivalent of the StoreKit file, so real Android testing needs
    verify this, so read Play Console help before planning the Android launch date.
 2. Create the app, then the in-app products with the **same ids** (subscriptions with base plans and the free-trial offer;
    lifetime as a one-time product).
-3. Upload a **signed** build (same application ID, `com.echoprompter.app`) to the **Internal testing** track and add
+3. Upload a **signed** build (same application ID, `com.talkroll.app`) to the **Internal testing** track and add
    **licence testers**, who buy for free.
 4. Test on a device or an emulator image with the Play Store, signed in as a tester, using
    `--dart-define=PAYMENTS_ANDROID=true`: prices, buy, cancel, pending, refund, Restore after reinstall, subscription
@@ -306,7 +306,7 @@ There is no local equivalent of the StoreKit file, so real Android testing needs
 ### 8.3 Checks that apply to both
 
 - `ProState.plan` must come back correctly after a restart while **offline** (the last answer is cached under
-  `EchoPrompter.proPlan.store.v1`).
+  `TalkRoll.proPlan.store.v1`).
 - A lapsed or refunded subscription must stop being Pro (not implemented yet, section 7.4).
 - Every upgrade surface keeps its close button and the free scripts keep working after it is closed.
 - The debug fake is not in the release build: in a release without a switch, buying says it is not available; with a

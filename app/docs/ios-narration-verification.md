@@ -4,7 +4,7 @@ Status: reviewed by reading the code and compiling (`flutter build ios --no-code
 
 ## What was reviewed
 
-- `packages/echoprompter_camera/ios/echoprompter_camera/Sources/echoprompter_camera/FileTranscriberChannel.swift` (identical to the macOS copy). Channel `com.echoprompter/transcribe`; methods `isSupported`, `transcribe`, `cancel`; progress goes back as `progress`.
+- `packages/talkroll_camera/ios/talkroll_camera/Sources/talkroll_camera/FileTranscriberChannel.swift` (identical to the macOS copy). Channel `com.talkroll/transcribe`; methods `isSupported`, `transcribe`, `cancel`; progress goes back as `progress`.
 - On iOS 26 and later it uses `SpeechAnalyzer` (`SpeechTranscriber`, else `DictationTranscriber`; the system installs the language pack on first use and every locale is released after use). Otherwise, or if that fails, it uses `SFSpeechRecognizer` with `requiresOnDeviceRecognition = true`. If the language has no offline model it refuses with `unavailable` and a message pointing at Settings > General > Keyboard > Dictation. The recording is never sent to a server.
 - Only the **Speech Recognition** permission is asked for (`NSSpeechRecognitionUsageDescription`, updated to mention narration). Narration never asks for the microphone on iOS: the Dart code requests microphone only on Android, and `Info.plist` strings are the only prompts.
 - Playback is `just_audio` (`AudiblePlayback`), position-driven; no `AVAudioEngine` input is touched.

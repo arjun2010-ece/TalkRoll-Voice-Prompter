@@ -1,10 +1,10 @@
-# EchoPrompter: App Brief
+# TalkRoll: App Brief
 
 This document describes the current Flutter app as implemented in the repository. It is a product brief for an App Store optimization agent, not final store copy. Confirm the features and commercial terms in the specific release before making claims in a listing; development documentation also contains proposals and older implementation notes.
 
 ## What the app does
 
-EchoPrompter is a teleprompter for writing, rehearsing, presenting, and recording from a script. It helps people keep their place and maintain eye contact with a camera while speaking naturally. Users can scroll at a steady pace, have the text follow their speech, or follow an existing narration recording. They can also divide a script into sections, add production cues, and retake individual sections.
+TalkRoll is a teleprompter for writing, rehearsing, presenting, and recording from a script. It helps people keep their place and maintain eye contact with a camera while speaking naturally. Users can scroll at a steady pace, have the text follow their speech, or follow an existing narration recording. They can also divide a script into sections, add production cues, and retake individual sections.
 
 The current product scope is **iPhone, iPad, Mac, and Android**. The repository contains Windows-related code, but recent product documentation says Windows has been dropped from the current scope. Do not assume the app is available in any particular store or market until the release is confirmed.
 
@@ -36,7 +36,7 @@ Voice following means tracking the words of the script; do not advertise spoken 
 
 ### Video recording on iPhone, iPad, and Android
 
-- On iOS, iPadOS, and Android, the prompter floats over EchoPrompter's in-app camera preview while users record with the front or back camera. This lets them read the script and see the camera view at the same time. The camera is available with Voice and Narration modes; it is not currently offered with Auto-scroll.
+- On iOS, iPadOS, and Android, the prompter floats over TalkRoll's in-app camera preview while users record with the front or back camera. This lets them read the script and see the camera view at the same time. The camera is available with Voice and Narration modes; it is not currently offered with Auto-scroll.
 - Record a whole script or capture a section at a time, retaking individual sections as needed. The app can export the selected section takes as one finished video or as separate clips, and offers saving to the device gallery and sharing.
 - Narration mode can use the imported recording as the audio for the video. The recorded narration is not a live voice recording.
 

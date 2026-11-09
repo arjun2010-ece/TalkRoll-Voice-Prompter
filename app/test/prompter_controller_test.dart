@@ -1,6 +1,6 @@
-import 'package:echoprompter/core/settings/prompt_settings.dart';
-import 'package:echoprompter/features/prompter/prompter_controller.dart';
-import 'package:echoprompter/services/audio/audio_input.dart';
+import 'package:talkroll/core/settings/prompt_settings.dart';
+import 'package:talkroll/features/prompter/prompter_controller.dart';
+import 'package:talkroll/services/audio/audio_input.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

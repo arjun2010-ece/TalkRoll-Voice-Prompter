@@ -18,9 +18,9 @@ export default function LegalPage({ kicker, title, summary, updated, highlights,
     <main className="legal">
       <header className="legal-hero">
         <nav className="nav shell" aria-label="Primary navigation">
-          <a className="brand" href="/" aria-label="EchoPrompter home">
+          <a className="brand" href="/" aria-label="TalkRoll home">
             <span className="brand-mark" aria-hidden="true"><img src="/icon.png" alt="" /></span>
-            <span>EchoPrompter</span>
+            <span>TalkRoll</span>
           </a>
           <div className="nav-links">
             <a href="/privacy">Privacy</a>
@@ -67,8 +67,8 @@ export default function LegalPage({ kicker, title, summary, updated, highlights,
       <footer className="footer">
         <div className="shell footer-inner">
           <div className="footer-branding">
-            <a className="brand" href="/"><span className="brand-mark" aria-hidden="true"><img src="/icon.png" alt="" /></span><span>EchoPrompter</span></a>
-            <p>Made in Portugal by Arjun Sah <span aria-hidden="true">·</span> © 2026 EchoPrompter</p>
+            <a className="brand" href="/"><span className="brand-mark" aria-hidden="true"><img src="/icon.png" alt="" /></span><span>TalkRoll</span></a>
+            <p>Made in Portugal by Arjun Sah <span aria-hidden="true">·</span> © 2026 TalkRoll</p>
           </div>
           <nav className="footer-links" aria-label="Footer navigation">
             <a href="/">Home</a>

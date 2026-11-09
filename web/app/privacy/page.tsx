@@ -3,11 +3,11 @@ import LegalPage, { type LegalSection } from "../../components/LegalPage";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How EchoPrompter handles your scripts, camera, microphone and speech: on your device, with no account.",
+  description: "How TalkRoll handles your scripts, camera, microphone and speech: on your device, with no account.",
   alternates: { canonical: "/privacy" },
 };
 
-const email = "arjun@echoprompter.app";
+const email = "arjun@talkroll.app";
 
 const sections: LegalSection[] = [
   {
@@ -15,7 +15,7 @@ const sections: LegalSection[] = [
     title: "The short version",
     body: (
       <>
-        <p>EchoPrompter is built so your words stay with you. There is no account, and your scripts, recordings and transcripts are kept on your device. We do not sell your data, and we do not run advertising or tracking.</p>
+        <p>TalkRoll is built so your words stay with you. There is no account, and your scripts, recordings and transcripts are kept on your device. We do not sell your data, and we do not run advertising or tracking.</p>
         <ul>
           <li>Scripts are stored on your device and are never uploaded by us.</li>
           <li>Camera, microphone and speech recognition are used only for the feature you choose, and only after you allow them.</li>
@@ -29,7 +29,7 @@ const sections: LegalSection[] = [
     id: "who",
     title: "Who we are",
     body: (
-      <p>EchoPrompter is made by Arjun Sah in Portugal. For this policy, that is the controller of the personal data described below. You can reach us at <a href={`mailto:${email}`}>{email}</a>.</p>
+      <p>TalkRoll is made by Arjun Sah in Portugal. For this policy, that is the controller of the personal data described below. You can reach us at <a href={`mailto:${email}`}>{email}</a>.</p>
     ),
   },
   {
@@ -37,9 +37,9 @@ const sections: LegalSection[] = [
     title: "What stays on your device",
     body: (
       <>
-        <p>These never leave your device through EchoPrompter:</p>
+        <p>These never leave your device through TalkRoll:</p>
         <ul>
-          <li><b>Your scripts and notes.</b> On a Mac they are plain text files in <code>Documents/EchoPrompter Scripts</code>. On a phone they are kept in the app's own storage.</li>
+          <li><b>Your scripts and notes.</b> On a Mac they are plain text files in <code>Documents/TalkRoll Scripts</code>. On a phone they are kept in the app's own storage.</li>
           <li><b>Narration recordings</b> you choose. The file is copied into the app's storage and read on the device to find the timing of your words. Transcripts are kept only to avoid doing the work twice.</li>
           <li><b>Your settings</b>, such as text size, theme, language and shortcuts.</li>
           <li><b>Videos you record.</b> They are saved to your photo library or gallery when you ask, and are yours to keep, share or delete.</li>
@@ -52,14 +52,14 @@ const sections: LegalSection[] = [
     title: "Camera, microphone and speech",
     body: (
       <>
-        <p>EchoPrompter asks for each permission only when a feature needs it. Auto-scroll uses none of them.</p>
+        <p>TalkRoll asks for each permission only when a feature needs it. Auto-scroll uses none of them.</p>
         <ul>
           <li><b>Microphone</b> is used by Voice mode to follow what you say, and to record your video with sound.</li>
           <li><b>Camera</b> is used only when you record a video while you read.</li>
           <li><b>Speech recognition</b> is used by Voice mode, and by Narration to align a recording with your script.</li>
           <li><b>Photos or gallery</b> access is used only to save the videos you record.</li>
         </ul>
-        <p>On Apple devices, speech is processed on the device where your language supports it. The first time you use some languages, the system may download that language's speech pack from Apple. On Android, EchoPrompter prefers the on-device recogniser. If your device does not offer one, Android's built-in recogniser is used, and depending on your device and language it may send audio to Google. That processing is governed by Google's own policies, not by ours. We never receive your audio.</p>
+        <p>On Apple devices, speech is processed on the device where your language supports it. The first time you use some languages, the system may download that language's speech pack from Apple. On Android, TalkRoll prefers the on-device recogniser. If your device does not offer one, Android's built-in recogniser is used, and depending on your device and language it may send audio to Google. That processing is governed by Google's own policies, not by ours. We never receive your audio.</p>
       </>
     ),
   },
@@ -68,7 +68,7 @@ const sections: LegalSection[] = [
     title: "What we collect",
     body: (
       <>
-        <p>By default, nothing. EchoPrompter has no account, no sign-in and, at the time of writing, no usage analytics.</p>
+        <p>By default, nothing. TalkRoll has no account, no sign-in and, at the time of writing, no usage analytics.</p>
         <p><b>Crash reports (optional).</b> In Settings you can turn on “Send crash reports”. It is off by default. When on, technical details about a crash are sent to our error-reporting provider, Sentry. We configure it not to attach personal information, screenshots or your scripts. You can turn it off at any time; the change applies the next time the app starts.</p>
         <p><b>Messages you send us.</b> If you email us, we receive your email address and whatever you write, and we use it only to reply.</p>
       </>
@@ -79,7 +79,7 @@ const sections: LegalSection[] = [
     title: "Purchases and Pro",
     body: (
       <>
-        <p>EchoPrompter has a free plan and an optional Pro upgrade. Payment is handled entirely by Apple (App Store) or Google (Google Play). We never see your card or payment details. The store tells the app whether Pro is active, and the app keeps that answer on your device so Pro keeps working offline.</p>
+        <p>TalkRoll has a free plan and an optional Pro upgrade. Payment is handled entirely by Apple (App Store) or Google (Google Play). We never see your card or payment details. The store tells the app whether Pro is active, and the app keeps that answer on your device so Pro keeps working offline.</p>
         <p>To keep the free plan fair, the app counts how many scripts you have used. This small counter is stored on your device. So that it is not reset by deleting and reinstalling the app, a copy is kept in the iOS Keychain on iPhone and iPad, and in Android's backup of the app's settings. It contains script identifiers only, not their content.</p>
       </>
     ),
@@ -119,7 +119,7 @@ const sections: LegalSection[] = [
     id: "children",
     title: "Children",
     body: (
-      <p>EchoPrompter is a general-purpose tool and is not directed at children under 13 (or under 16 where local law sets that age). We do not knowingly collect personal data from children.</p>
+      <p>TalkRoll is a general-purpose tool and is not directed at children under 13 (or under 16 where local law sets that age). We do not knowingly collect personal data from children.</p>
     ),
   },
   {
@@ -143,7 +143,7 @@ export default function PrivacyPage() {
     <LegalPage
       kicker="Privacy Policy"
       title={<>Your script <em>stays close.</em></>}
-      summary="No account, no tracking, no uploads of your scripts. Here is exactly what EchoPrompter does with your data."
+      summary="No account, no tracking, no uploads of your scripts. Here is exactly what TalkRoll does with your data."
       updated="7 November 2026"
       highlights={[
         { label: "Scripts", text: "Stored on your device only" },

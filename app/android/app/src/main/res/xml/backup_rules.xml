@@ -3,5 +3,5 @@
      on the same Google account. Nothing else (caches, recordings, temporary files) is backed up. -->
 <full-backup-content>
     <include domain="sharedpref" path="FlutterSharedPreferences.xml" />
-    <include domain="file" path="app_flutter/EchoPrompter Scripts" />
+    <include domain="file" path="app_flutter/TalkRoll Scripts" />
 </full-backup-content>

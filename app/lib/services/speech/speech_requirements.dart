@@ -21,7 +21,7 @@ Future<SpeechRequirement?> unmetSpeechRequirement() async {
       if (blocked(r['speech'])) {
         return SpeechRequirement(
           title: 'Allow speech recognition',
-          message: 'Voice and Narration mode need Speech Recognition access. Turn it on for EchoPrompter in '
+          message: 'Voice and Narration mode need Speech Recognition access. Turn it on for TalkRoll in '
               'System Settings > Privacy & Security > Speech Recognition.',
           openSettings: () => _open('x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition'),
         );
@@ -29,7 +29,7 @@ Future<SpeechRequirement?> unmetSpeechRequirement() async {
       if (blocked(r['mic'])) {
         return SpeechRequirement(
           title: 'Allow microphone access',
-          message: 'Voice and Narration mode listen through the microphone. Turn it on for EchoPrompter in '
+          message: 'Voice and Narration mode listen through the microphone. Turn it on for TalkRoll in '
               'System Settings > Privacy & Security > Microphone.',
           openSettings: () => _open('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'),
         );

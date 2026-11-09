@@ -10,10 +10,10 @@ import '../../services/purchases/fake_purchase_service.dart';
 import '../../services/purchases/purchase_service.dart';
 import '../../services/storage/reinstall_store.dart';
 
-const _proKey = 'EchoPrompter.proState.v1';
-const _promptKey = 'EchoPrompter.upgradePrompt.v1';
+const _proKey = 'TalkRoll.proState.v1';
+const _promptKey = 'TalkRoll.upgradePrompt.v1';
 // The real store and the debug fake keep their last answer apart, so trying one never leaks Pro into the other.
-String get _planKey => storePaymentsLive ? 'EchoPrompter.proPlan.store.v1' : 'EchoPrompter.proPlan.debug.v1';
+String get _planKey => storePaymentsLive ? 'TalkRoll.proPlan.store.v1' : 'TalkRoll.proPlan.debug.v1';
 
 /// The upgrade sheet opens by itself on app start at most this often.
 const upgradePromptGap = Duration(hours: 24);

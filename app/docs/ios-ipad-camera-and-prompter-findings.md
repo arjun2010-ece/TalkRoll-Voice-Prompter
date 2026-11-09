@@ -4,7 +4,7 @@ Status: findings from an iPad Pro 11" (4th gen, iPadOS 27) test session, 2026-10
 `mobile-redesign`. **Verified** means the owner confirmed it on the iPad; **not verified** means it compiled and
 analysed clean but has not been seen on a device.
 
-Scope: the camera plugin (`packages/echoprompter_camera`, iOS Swift), the camera screen
+Scope: the camera plugin (`packages/talkroll_camera`, iOS Swift), the camera screen
 (`app/lib/features/video/record_screen.dart`) and the shared prompter text (`app/lib/features/prompter/`).
 
 ---

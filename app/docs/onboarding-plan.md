@@ -67,7 +67,7 @@ Take-aways worth keeping:
 
 - **Ask at the moment of need.** Every reference does this; it is also what Apple prefers.
 - **The demo script doubles as the tour** (VoicePrompter). We already have one (`StudioNotifier.welcome`, shown
-  as "Welcome to EchoPrompter" in `script_list.dart`).
+  as "Welcome to TalkRoll" in `script_list.dart`).
 - **Denial must degrade gracefully** (NotchPrompter turns the feature off and explains).
 - Their weaknesses are our opportunity: a bare `alert()` on denial, no explanation of *why* before the system
   prompt, no recovery path, no preview of what the prompter will look like.
@@ -108,7 +108,7 @@ Take-aways worth keeping:
 |---|---|---|---|
 | 1 | **Welcome** — one line of promise, an animated prompter preview with highlight following a sample line, "Get started" | Value first | none |
 | 2 | **Choose how you read** — three cards: *Voice* (follows you), *Normal* (steady scroll), *Audio* (follows a recording). Selection sets the default mode and decides which of the following steps appear. | Personalises and lets us skip irrelevant asks | none |
-| 3 | **Voice setup** (only if Voice or Audio chosen) — plain-language explanation: "To follow your voice, EchoPrompter listens through the microphone while you read." Button **Turn on microphone**; secondary **Not now**. Then, on Apple, speech recognition prompt; on Android the system recogniser is used. A live "say a line" test shows words highlighting so the user *sees* it work. | Mic (+ Speech on Apple) | **Mic, Speech** |
+| 3 | **Voice setup** (only if Voice or Audio chosen) — plain-language explanation: "To follow your voice, TalkRoll listens through the microphone while you read." Button **Turn on microphone**; secondary **Not now**. Then, on Apple, speech recognition prompt; on Android the system recogniser is used. A live "say a line" test shows words highlighting so the user *sees* it work. | Mic (+ Speech on Apple) | **Mic, Speech** |
 | 4 | **Record video?** (optional) — "Want to record yourself while you read?" **Set up camera** / **Skip**. | Camera + mic for Record | **Camera** (mic if not yet) |
 | 5 | **Ready** — opens the Studio on the sample script with a first-Start coach mark. | Landing | none |
 
@@ -188,7 +188,7 @@ Checked against the App Store Review Guidelines as I know them; **re-read the cu
   only the *idea* that the sample script can teach the app, which is a generic pattern.
 - **The Android APK and NotchPrompter** are other people's products (decompiled/closed or MIT-style per their
   LICENSE; check before relying on anything). We reference *behaviour* only, never code, strings or assets.
-- Our own onboarding gets: original copy, our own illustrations/animation of the EchoPrompter prompter, our
+- Our own onboarding gets: original copy, our own illustrations/animation of the TalkRoll prompter, our
   own colours/typography from `mobile_theme.dart` / `desktop_theme.dart`, and our own structure (mode-first
   personalisation, live voice test), which none of the references have.
 - Keep our own sample script (already written, `StudioNotifier.welcome`) and re-check that it shares no text
@@ -255,8 +255,8 @@ optional; replay from Settings → Help (assumed, not answered); iPad uses the p
 
 | Area | Where | Change |
 |---|---|---|
-| First-run flag | `lib/main.dart` (beside `crashReportingKey`), `SharedPreferences` | New key `EchoPrompter.onboarding.v1` storing the completed version. |
-| Gate | `EchoPrompterApp.build` `home:` | If not completed: mobile → `MobileOnboarding`, desktop → `DesktopOnboarding`; else existing screens. Finishing writes the flag and swaps `home` (via a small provider so the app rebuilds). |
+| First-run flag | `lib/main.dart` (beside `crashReportingKey`), `SharedPreferences` | New key `TalkRoll.onboarding.v1` storing the completed version. |
+| Gate | `TalkRollApp.build` `home:` | If not completed: mobile → `MobileOnboarding`, desktop → `DesktopOnboarding`; else existing screens. Finishing writes the flag and swaps `home` (via a small provider so the app rebuilds). |
 | Screens | New `lib/features/onboarding/` | `mobile_onboarding.dart` (5 pages in a `PageView`, fixed pager dots), `desktop_onboarding.dart` (3 steps in the Studio window), shared `voice_test.dart` (the "say this" card). |
 | Mode choice | `settingsProvider` (`PromptSettings.mode`, `PromptControlMode`) | Step 2 writes the default mode. Normal → skip the voice and camera steps. Hide Voice/Audio cards' ask if `voiceAvailableProvider` is false and show the existing unsupported wording instead of the mic step. |
 | Position (macOS) | `lib/ui/position_picker.dart` (`PositionPicker`), `PromptPlacement` | Reuse the picker; write the chosen placement via `settingsProvider`. |

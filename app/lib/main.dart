@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:echoprompter_window/echoprompter_window.dart';
+import 'package:talkroll_window/talkroll_window.dart';
 
 import 'core/settings/prompt_settings.dart';
 import 'features/menu/app_menu_bar.dart';
@@ -21,7 +21,7 @@ import 'ui/mobile_theme.dart';
 import 'services/storage/migration.dart';
 import 'services/storage/script_library.dart';
 
-const crashReportingKey = 'EchoPrompter.crashReporting.v1';
+const crashReportingKey = 'TalkRoll.crashReporting.v1';
 const _sentryDsn = String.fromEnvironment('SENTRY_DSN');
 
 Future<void> main() async {
@@ -34,7 +34,7 @@ Future<void> main() async {
     prefs: prefs,
     library: library,
     current: const PromptSettings(),
-    legacyDefaults: isDesktop ? await EchoPrompterWindow.legacyDefaults() : const {},
+    legacyDefaults: isDesktop ? await TalkRollWindow.legacyDefaults() : const {},
   );
   if (migrated != null && prefs.getString(settingsKey) == null) {
     await prefs.setString(settingsKey, jsonEncodeSettings(migrated));
@@ -46,7 +46,7 @@ Future<void> main() async {
       libraryProvider.overrideWithValue(library),
       notesLibraryProvider.overrideWithValue(notesLibrary),
     ],
-    child: const EchoPrompterApp(),
+    child: const TalkRollApp(),
   ));
 
   // Crash reporting is opt-in; no script content is ever attached.
@@ -72,15 +72,15 @@ ThemeData _theme(Brightness brightness) {
   return brightness == Brightness.dark ? desktopDarkTheme(style) : desktopLightTheme(style);
 }
 
-class EchoPrompterApp extends ConsumerWidget {
-  const EchoPrompterApp({super.key});
+class TalkRollApp extends ConsumerWidget {
+  const TalkRollApp({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appearance = ref.watch(settingsProvider.select((s) => s.studioAppearance));
     final presenting = isDesktop && ref.watch(studioProvider.select((s) => s.presenting));
     final onboarded = ref.watch(onboardingDoneProvider);
     return MaterialApp(
-      title: 'EchoPrompter',
+      title: 'TalkRoll',
       debugShowCheckedModeBanner: false,
       theme: isDesktop ? _theme(Brightness.light) : mobileTheme(Brightness.light),
       darkTheme: isDesktop ? _theme(Brightness.dark) : mobileTheme(Brightness.dark),

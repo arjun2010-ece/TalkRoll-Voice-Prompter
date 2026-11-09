@@ -10,9 +10,9 @@ import 'store_purchase_service.dart';
 /// lifetime is a non-consumable.
 class ProProductIds {
   const ProProductIds._();
-  static const monthly = 'echoprompter.pro.monthly';
-  static const yearly = 'echoprompter.pro.yearly';
-  static const lifetime = 'echoprompter.pro.lifetime';
+  static const monthly = 'talkroll.pro.monthly';
+  static const yearly = 'talkroll.pro.yearly';
+  static const lifetime = 'talkroll.pro.lifetime';
   static const all = {monthly, yearly, lifetime};
 
   static String of(ProPlan plan) => switch (plan) {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:echoprompter_camera/echoprompter_camera.dart';
+import 'package:talkroll_camera/talkroll_camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,7 +91,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
   // Overlay height as a fraction of the screen, remembered per orientation.
   double _fractionFor(bool landscape, Size screen, CameraPreviewInfo? preview) =>
-      ref.read(prefsProvider).getDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}') ??
+      ref.read(prefsProvider).getDouble('TalkRoll.overlay.${landscape ? 'l' : 'p'}') ??
       _defaultFraction(landscape, screen, preview);
 
   /// iPhone, iPad and Android in portrait: the prompter covers 60% of the camera picture, which leaves the script more
@@ -104,7 +104,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     return 0.6 * pictureHeight / screen.height;
   }
   void _saveFraction(bool landscape, double v) =>
-      ref.read(prefsProvider).setDouble('EchoPrompter.overlay.${landscape ? 'l' : 'p'}', v);
+      ref.read(prefsProvider).setDouble('TalkRoll.overlay.${landscape ? 'l' : 'p'}', v);
   final _dragFractions = <bool, double>{};
   static const _recordButtonSize = 72.0;
   static const _fadeIn = Duration(milliseconds: 250);
@@ -138,7 +138,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
 
   /// Mobile: Voice mode listens through a connected headset microphone; Audio mode through the built-in one.
   void _routeInput(PromptControlMode mode) {
-    if (isMobile) EchoPrompterCamera.setHeadsetInput(mode != PromptControlMode.recordedAudio);
+    if (isMobile) TalkRollCamera.setHeadsetInput(mode != PromptControlMode.recordedAudio);
   }
 
   Future<void> _init() async {
@@ -164,8 +164,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     // the microphone records it; other modes pace silently or into headphones.
     _route = ref.read(settingsProvider).mode == PromptControlMode.recordedAudio
         ? ReferenceRoute.speaker
-        : await EchoPrompterCamera.headphonesConnected ? ReferenceRoute.headphones : ReferenceRoute.silent;
-    _events = EchoPrompterCamera.events.listen((e) async {
+        : await TalkRollCamera.headphonesConnected ? ReferenceRoute.headphones : ReferenceRoute.silent;
+    _events = TalkRollCamera.events.listen((e) async {
       final type = e['type'];
       if (type == 'interrupted' || type == 'storage_full') {
         // The camera ended the take itself and finished the file; keep it like a take the reader stopped.
@@ -266,10 +266,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     if (_opening) return;
     _opening = true;
     try {
-      final p = await EchoPrompterCamera.startPreview(_facing);
+      final p = await TalkRollCamera.startPreview(_facing);
       if (!mounted) {
         // Left the screen while the camera was opening: release it again.
-        EchoPrompterCamera.stopPreview();
+        TalkRollCamera.stopPreview();
         return;
       }
       setState(() => _preview = p);
@@ -305,7 +305,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       mode: s.mode,
       audioPath: ref.read(audioPathProvider),
       // One mic stream feeds the video file and the speech engine.
-      externalSamples: EchoPrompterCamera.audioSamples,
+      externalSamples: TalkRollCamera.audioSamples,
       startSection: ref.read(startSectionProvider),
     );
   }
@@ -321,9 +321,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   Future<void> _flip() async {
     if (_recording) return;
     _facing = _facing == CameraFacing.front ? CameraFacing.back : CameraFacing.front;
-    final p = await EchoPrompterCamera.switchCamera(_facing);
+    final p = await TalkRollCamera.switchCamera(_facing);
     if (!mounted) {
-      EchoPrompterCamera.stopPreview();
+      TalkRollCamera.stopPreview();
       return;
     }
     setState(() => _preview = p);
@@ -335,7 +335,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       if (_preview == null) return;
-      EchoPrompterCamera.stopPreview();
+      TalkRollCamera.stopPreview();
       setState(() => _preview = null);
     } else if (state == AppLifecycleState.resumed) {
       // Android: back from Settings with a permission refused. Look again (without asking) instead of opening the camera.
@@ -392,7 +392,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         t.cancel();
         return;
       }
-      EchoPrompterCamera.narrationTick(position: _prompter.audioPosition, playing: _prompter.audioPlaying);
+      TalkRollCamera.narrationTick(position: _prompter.audioPosition, playing: _prompter.audioPlaying);
     });
   }
 
@@ -400,13 +400,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     HapticFeedback.mediumImpact();
     final prompter = ref.read(prompterProvider.notifier);
     if (_paused) {
-      await EchoPrompterCamera.resumeRecording();
+      await TalkRollCamera.resumeRecording();
       _startTimer();
       setState(() => _paused = false);
       await prompter.play();
     } else {
       _timer?.cancel();
-      await EchoPrompterCamera.pauseRecording();
+      await TalkRollCamera.pauseRecording();
       setState(() => _paused = true);
       await prompter.pause();
     }
@@ -439,7 +439,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     );
     if (choice == null || !_recording || !mounted) return;
     await ref.read(prompterProvider.notifier).pause();
-    final r = await EchoPrompterCamera.stopRecording();
+    final r = await TalkRollCamera.stopRecording();
     if (choice == 'save') {
       await _onStopped(r, 'user');
       if (home && mounted) _home();
@@ -469,7 +469,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         return;
       }
       await prompter.pause();
-      final r = await EchoPrompterCamera.stopRecording();
+      final r = await TalkRollCamera.stopRecording();
       await _onStopped(r, 'user');
       return;
     }
@@ -492,10 +492,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       landscape ? [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight] : [DeviceOrientation.portraitUp],
     );
     final mode = ref.read(settingsProvider).mode;
-    await EchoPrompterCamera.setReferenceRoute(_route);
+    await TalkRollCamera.setReferenceRoute(_route);
     // iPhone, iPad and Android Narration: the video gets the narration file itself, not what the microphone hears of it.
     final narrationFile = (Platform.isIOS || Platform.isAndroid) && mode == PromptControlMode.recordedAudio ? ref.read(audioPathProvider) : null;
-    await EchoPrompterCamera.startRecording(landscape: landscape, narrationPath: narrationFile);
+    await TalkRollCamera.startRecording(landscape: landscape, narrationPath: narrationFile);
     if (section != null) {
       _session ??= RecordingSession(id: ++_sessionCount, mode: mode, camera: _facing);
       _takeSection = section;
@@ -567,7 +567,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     try {
       await Future<void>.delayed(_sectionTail);
       if (!mounted || !_recording || _takeSection != section) return;
-      final r = await EchoPrompterCamera.stopRecording();
+      final r = await TalkRollCamera.stopRecording();
       await _endSectionTake(section);
       if (!mounted) return;
       final a = ref.read(analyticsProvider);
@@ -606,7 +606,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final section = _takeSection;
     if (section == null) return;
     await _prompter.pause();
-    final r = await EchoPrompterCamera.stopRecording();
+    final r = await TalkRollCamera.stopRecording();
     await _deleteFile(r.path);
     await _endSectionTake(section);
     if (mounted) setState(() => _elapsed = Duration.zero);
@@ -713,12 +713,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
     final files = <String>[];
     try {
       if (joined) {
-        files.add(keepers.length == 1 ? keepers.first.path : await EchoPrompterCamera.joinClips([for (final c in keepers) c.path]));
+        files.add(keepers.length == 1 ? keepers.first.path : await TalkRollCamera.joinClips([for (final c in keepers) c.path]));
       } else {
-        final dir = await Directory.systemTemp.createTemp('echoprompter_clips_');
+        final dir = await Directory.systemTemp.createTemp('talkroll_clips_');
         for (final c in keepers) {
           final label = _prompter.sections[c.sectionIndex].label.replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '').trim();
-          final name = 'EchoPrompter ${(c.sectionIndex + 1).toString().padLeft(2, '0')}${label.isEmpty ? '' : ' $label'}.mp4';
+          final name = 'TalkRoll ${(c.sectionIndex + 1).toString().padLeft(2, '0')}${label.isEmpty ? '' : ' $label'}.mp4';
           files.add((await File(c.path).copy('${dir.path}/$name')).path);
         }
       }
@@ -760,7 +760,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   Future<_Save> _saveToGallery(RecordingResult r) async {
     final a = ref.read(analyticsProvider);
     try {
-      await EchoPrompterCamera.saveToGallery(r.path);
+      await TalkRollCamera.saveToGallery(r.path);
       a.log('video_saved', {'duration_s': r.duration.inSeconds});
       return _Save.saved;
     } catch (e) {
@@ -812,7 +812,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       ..showSnackBar(SnackBar(
         duration: const Duration(seconds: 10),
         content: Text(photosOff
-            ? "EchoPrompter can't add videos to your Photos. Share this video to keep it, then turn on Photos access in Settings."
+            ? "TalkRoll can't add videos to your Photos. Share this video to keep it, then turn on Photos access in Settings."
             : retried
                 ? "Still couldn't save to your gallery. Your video is kept on this device."
                 : "Couldn't save to your gallery. Your video is kept on this device."),
@@ -840,7 +840,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
   @override
   void dispose() {
     // First, so nothing below can keep the camera open.
-    EchoPrompterCamera.stopPreview();
+    TalkRollCamera.stopPreview();
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _events?.cancel();
@@ -910,7 +910,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
                 TextButton(
                   onPressed: () => setState(() {
                     for (final land in [true, false]) {
-                      ref.read(prefsProvider).remove('EchoPrompter.overlay.${land ? 'l' : 'p'}');
+                      ref.read(prefsProvider).remove('TalkRoll.overlay.${land ? 'l' : 'p'}');
                       _dragFractions.remove(land);
                     }
                   }),
@@ -964,7 +964,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
       return;
     }
     await ref.read(prompterProvider.notifier).pause();
-    final r = await EchoPrompterCamera.stopRecording();
+    final r = await TalkRollCamera.stopRecording();
     _timer?.cancel();
     await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     final a = ref.read(analyticsProvider);
@@ -1448,7 +1448,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
                 tone: CameraCardTone.error,
                 title: _unsaved!.photosOff ? _photosOffTitle : _saveFailedTitle,
                 body: _unsaved!.photosOff
-                    ? "EchoPrompter can't add videos to your Photos. Your video is kept in the app: share it to save it elsewhere. Turning Photos access on in Settings restarts the app, so share it first."
+                    ? "TalkRoll can't add videos to your Photos. Your video is kept in the app: share it to save it elsewhere. Turning Photos access on in Settings restarts the app, so share it first."
                     : switch (_unsaved!.reason) {
                       'storage_full' => 'There is no space left on this device, so the recording stopped and the video could not go to your gallery. It is kept in the app. Free up space and try again, or share it to save it elsewhere.',
                       'user' => 'Your video is kept in the app. Check that your device has free space and try again, or share it to save it elsewhere.',
@@ -1497,8 +1497,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         icon: Icons.videocam_outlined,
         title: 'Record yourself while you read',
         body: _needsMic(mode)
-            ? 'EchoPrompter needs your camera and microphone. Your video stays on this device until you share it.'
-            : 'EchoPrompter needs your camera. Your narration is added to the video from its file, so the microphone is not used. Your video stays on this device until you share it.',
+            ? 'TalkRoll needs your camera and microphone. Your video stays on this device until you share it.'
+            : 'TalkRoll needs your camera. Your narration is added to the video from its file, so the microphone is not used. Your video stays on this device until you share it.',
         primaryLabel: 'Continue',
         onPrimary: () => _primer?.complete(true),
         secondaryLabel: 'Not now, use voice only',
@@ -1512,10 +1512,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         tone: CameraCardTone.warning,
         title: both ? 'Camera and microphone are off' : micOnly ? 'Microphone access is off' : 'Camera access is off',
         body: both
-            ? (apple ? 'Turn both on for EchoPrompter in Settings to record video while you read.' : 'Turn both permissions on in the app settings to record video while you read.')
+            ? (apple ? 'Turn both on for TalkRoll in Settings to record video while you read.' : 'Turn both permissions on in the app settings to record video while you read.')
             : micOnly
                 ? (apple ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings.' : 'Voice mode needs the microphone. Turn it on in the app settings.')
-                : (apple ? 'Turn on Camera for EchoPrompter in Settings to record video.' : 'Camera permission was denied. Turn it on in the app settings to record video.'),
+                : (apple ? 'Turn on Camera for TalkRoll in Settings to record video.' : 'Camera permission was denied. Turn it on in the app settings to record video.'),
         primaryLabel: apple ? 'Open Settings' : 'Open app settings',
         onPrimary: openAppSettings,
         secondaryLabel: micOnly ? 'Use Auto-scroll mode' : 'Continue with voice only',
@@ -1526,7 +1526,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> with WidgetsBinding
         icon: Icons.warning_amber_rounded,
         tone: CameraCardTone.error,
         title: 'Camera unavailable',
-        body: 'Another app may be using the camera, or this device has none EchoPrompter can use. Close other camera apps and try again. You can keep reading with voice only.',
+        body: 'Another app may be using the camera, or this device has none TalkRoll can use. Close other camera apps and try again. You can keep reading with voice only.',
         primaryLabel: 'Try again',
         onPrimary: () {
           setState(() => _error = null);

@@ -137,7 +137,7 @@ class _PaywallDialogState extends ConsumerState<PaywallDialog> {
               ),
             ),
             const SizedBox(height: 14),
-            Text('Upgrade to EchoPrompter Pro', textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
+            Text('Upgrade to TalkRoll Pro', textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
               widget.reason == null
@@ -320,7 +320,7 @@ Future<void> showSubscriptionCheckAlert(BuildContext context) => showDialog<void
     icon: Icon(Icons.warning_amber_rounded, size: 32, color: proText(ctx)),
     title: const Text('Connect to check your subscription'),
     content: const Text(
-      'EchoPrompter checks your Pro subscription at least every 30 days. Connect to the internet to keep presenting. '
+      'TalkRoll checks your Pro subscription at least every 30 days. Connect to the internet to keep presenting. '
       'It checks again on its own as soon as you\'re online.',
     ),
     actions: [

@@ -150,7 +150,7 @@ class _LibraryPage extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.only(left: 16),
               child: Text(
-                'EchoPrompter',
+                'TalkRoll',
                 maxLines: 1,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontSize: 26,

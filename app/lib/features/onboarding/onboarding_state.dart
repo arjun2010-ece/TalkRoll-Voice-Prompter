@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,15 @@ import '../../services/providers.dart';
 import '../../services/storage/script_library.dart';
 
 const onboardingKey = 'TalkRoll.onboarding.v1';
+
+/// The tour's answers (ids only, never script text), kept for later personalisation.
+const onboardingAnswersKey = 'TalkRoll.onboarding.answers.v1';
+
+/// Stores the tour's answers and logs them as one event. A replay overwrites the earlier answers.
+void saveOnboardingAnswers(WidgetRef ref, Map<String, Object> answers) {
+  ref.read(prefsProvider).setString(onboardingAnswersKey, jsonEncode(answers));
+  ref.read(analyticsProvider).log('onboarding_answers', answers);
+}
 
 /// Whether the first-run tour has been finished (or skipped). Someone who already has saved settings or scripts
 /// is an existing user and never sees it. The answer is written on first read, so quitting halfway through (after

@@ -392,7 +392,7 @@ class _HelpContent extends StatelessWidget {
         ListTile(
           leading: const Icon(Icons.play_circle_outline),
           title: const Text('Show the tour again'),
-          subtitle: const Text('Microphone and camera setup, and how to choose a mode.'),
+          subtitle: const Text('A few questions, a quick voice test, and the reading modes.'),
           onTap: () => replayOnboarding(context),
         ),
       ]),

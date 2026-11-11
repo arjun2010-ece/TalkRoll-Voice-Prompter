@@ -466,7 +466,7 @@ class _HelpTab extends StatelessWidget {
         ),
       ),
       _Group(title: 'Welcome tour', children: [
-        row(Icons.play_circle_outline, 'Show the tour again', 'Position and voice setup', [
+        row(Icons.play_circle_outline, 'Show the tour again', 'A few questions, position and a quick voice test', [
           OutlinedButton(onPressed: () => replayOnboarding(context), child: const Text('Show')),
         ]),
       ]),

@@ -216,7 +216,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         const Spacer(),
       ],
       actions: [
-        FilledButton(onPressed: _askMicrophone, child: const Text('Turn on microphone')),
+        FilledButton(onPressed: _askMicrophone, child: Text(isApple ? 'Continue' : 'Turn on microphone')),
         TextButton(onPressed: () => _finish(PromptControlMode.normal), child: const Text('Not now')),
       ],
     );
@@ -286,7 +286,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
             await requestPermission(Permission.camera, 'camera', ref.read(analyticsProvider));
             if (mounted) _finish(_mode);
           },
-          child: const Text('Set up camera'),
+          child: Text(isApple ? 'Continue' : 'Set up camera'),
         ),
         TextButton(onPressed: () => _finish(_mode), child: const Text('Skip for now')),
       ],

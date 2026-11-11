@@ -120,7 +120,7 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
                 if (last && !_testing && !_micOff) TextButton(onPressed: _finish, child: const Text('Not now')),
                 const SizedBox(width: 8),
                 if (!last) FilledButton(onPressed: () => setState(() => _step++), child: const Text('Continue')),
-                if (last && !_testing && !_micOff) FilledButton(onPressed: _askMicrophone, child: const Text('Turn on microphone')),
+                if (last && !_testing && !_micOff) FilledButton(onPressed: _askMicrophone, child: Text(isMacOS ? 'Continue' : 'Turn on microphone')),
                 if (last && _micOff) FilledButton(onPressed: _finish, child: const Text('Continue in Auto-scroll mode')),
                 if (last && _testing) FilledButton(onPressed: _finish, child: const Text('Finish')),
               ],

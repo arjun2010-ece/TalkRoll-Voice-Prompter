@@ -40,14 +40,14 @@ class UpgradeCard extends ConsumerWidget {
       style: FilledButton.styleFrom(
         backgroundColor: proAccent,
         foregroundColor: const Color(0xFF1A1A1A),
-        minimumSize: Size.fromHeight(mobile ? 48 : (limit ? 40 : 34)),
-        textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: mobile ? 15 : (limit ? 14 : 13)),
+        minimumSize: Size.fromHeight(mobile ? 48 : (limit ? 44 : 40)),
+        textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: mobile ? 15 : (limit ? 15 : 14)),
       ),
       child: const Text('Upgrade to Pro…'),
     );
     return Container(
-      margin: mobile ? const EdgeInsets.fromLTRB(16, 8, 16, 12) : const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      padding: EdgeInsets.all(mobile ? 16 : (limit ? 14 : 12)),
+      margin: mobile ? const EdgeInsets.fromLTRB(16, 8, 16, 12) : const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      padding: EdgeInsets.all(mobile ? 16 : 14),
       decoration: BoxDecoration(
         color: limit ? (theme.brightness == Brightness.dark ? const Color(0xFF33291A) : const Color(0xFFFFF4DF)) : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(10),
@@ -91,7 +91,7 @@ class UpgradeCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text('Upgrade to save and present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),
         ],
-        SizedBox(height: mobile ? 16 : 10),
+        SizedBox(height: mobile ? 16 : 12),
         button,
         if (limit && priceLine != null) ...[
           const SizedBox(height: 6),

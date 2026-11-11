@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
+
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/narration/alignment.dart';
 import '../../core/script/text.dart';
@@ -14,6 +20,9 @@ import '../prompter/prompter_controller.dart';
 import 'audio_check.dart';
 
 export '../../services/narration/language_pack.dart' show fileTranscriberProvider, languagePackProvider;
+
+/// The bundled recording of the demo script.
+const sampleRecordingAsset = 'assets/audio/talkroll-sample.m4a';
 
 final narrationStoreProvider = Provider<NarrationStore>((_) => const NarrationStore());
 
@@ -92,6 +101,15 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
     await prepare(path);
   }
 
+  /// Chooses the recording bundled with the app, which reads the built-in demo script, so Narration can be tried at once.
+  Future<void> chooseSample() async {
+    final data = await rootBundle.load(sampleRecordingAsset);
+    final file = File(p.join((await getTemporaryDirectory()).path, p.basename(sampleRecordingAsset)));
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+    await choose(file.path);
+  }
+
   /// Makes sure [path] has a transcript: from the cache, or by transcribing it. A language pack that is not on this
   /// device yet is downloaded first.
   Future<void> prepare(String path) async {
@@ -143,7 +161,8 @@ class NarrationPrep extends Notifier<NarrationPrepState> {
       if (run != _run || e.failure == TranscribeFailure.cancelled) return;
       final message = packError != null ? ref.read(languagePackProvider).note ?? e.message : e.message;
       state = NarrationPrepState(phase: NarrationPhase.failed, path: path, failure: e.failure, message: message, language: language);
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('Narration prepare failed: $e\n$stack');
       if (run != _run) return;
       state = NarrationPrepState(
         phase: NarrationPhase.failed,
@@ -223,7 +242,11 @@ String? narrationStartBlocker(Reader read) {
   final check = read(audioCheckProvider);
   final prep = read(narrationPrepProvider);
   final path = read(audioPathProvider);
-  if (path == null) return 'Choose a recording to start.';
+  if (path == null) {
+    final studio = read(studioProvider);
+    final demo = studio.script == StudioNotifier.welcome && read(studioProvider.notifier).currentId == null;
+    return demo ? 'Use the sample recording to start.' : 'Choose a recording to start.';
+  }
   if (check.isLoading) return 'Start is available once the recording is checked.';
   if (check.hasError || check.requireValue.readiness != AudioReadiness.ready) return 'Choose another recording to start.';
   return switch (prep.phase) {

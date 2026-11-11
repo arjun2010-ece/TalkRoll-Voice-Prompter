@@ -41,8 +41,22 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     ref.listen(studioProvider.select((s) => s.scriptRevision), (_, _) => _restore());
     ref.listen(settingsProvider.select((s) => s.speechLanguage), (_, _) => _restore());
     final path = ref.watch(audioPathProvider);
+    // The demo script only ever uses the bundled sample recording: no choosing another file.
+    final demo = ref.watch(studioProvider.select((s) => s.script == StudioNotifier.welcome)) &&
+        ref.read(studioProvider.notifier).currentId == null;
     final packNote = ref.watch(languagePackProvider).note;
     if (path == null) {
+      // The built-in demo comes with its own recording, so Narration can be tried without one of your own.
+      if (demo) {
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonalIcon(
+            onPressed: () => ref.read(narrationPrepProvider.notifier).chooseSample(),
+            icon: const Icon(Icons.graphic_eq),
+            label: const Text('Use the sample recording'),
+          ),
+        );
+      }
       return SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
@@ -85,7 +99,7 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
     } else {
       detail = 'Getting ready…';
     }
-    final name = path.split(RegExp(r'[\\/]')).last;
+    final name = demo ? 'Sample recording' : path.split(RegExp(r'[\\/]')).last;
     final colour = problem ? scheme.secondary : scheme.onSurfaceVariant;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -121,6 +135,10 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
             ),
             if (transcribing)
               TextButton(onPressed: () => ref.read(narrationPrepProvider.notifier).cancel(), child: const Text('Cancel'))
+            else if (demo)
+              (unreadable || failed
+                  ? TextButton(onPressed: () => ref.read(narrationPrepProvider.notifier).chooseSample(), child: const Text('Try again'))
+                  : const SizedBox.shrink())
             else if (!needsPack && (!lowMatch || prep.lowMatchAccepted))
               TextButton(onPressed: _choose, child: Text(unreadable || failed ? 'Choose another' : 'Change…')),
           ]),
@@ -139,7 +157,10 @@ class _NarrationCardState extends ConsumerState<NarrationCard> {
             Padding(
               padding: const EdgeInsets.fromLTRB(0, 4, 8, 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                TextButton(onPressed: _choose, child: const Text('Choose another file')),
+                TextButton(
+                  onPressed: demo ? () => ref.read(narrationPrepProvider.notifier).chooseSample() : _choose,
+                  child: Text(demo ? 'Try again' : 'Choose another file'),
+                ),
                 FilledButton.tonal(
                   onPressed: () => ref.read(narrationPrepProvider.notifier).acceptLowMatch(),
                   child: const Text('Continue anyway'),

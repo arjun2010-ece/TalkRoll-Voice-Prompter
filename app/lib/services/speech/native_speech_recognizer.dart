@@ -12,6 +12,7 @@ class NativeSpeechRecognizer {
 
   /// macOS: what the reader must still allow or turn on, without asking for anything. Keys `speech` and `mic`
   /// ("authorized", "denied", "restricted", "notDetermined") and `dictation` ("on", "off", "unknown").
+  /// iOS: `speech` only (the microphone is read through permission_handler).
   Future<Map<String, String>> readiness() async =>
       (await _method.invokeMapMethod<String, String>('readiness')) ?? const {};
 

@@ -80,6 +80,7 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "isAvailable": available(result)
+        case "readiness": result(["speech": Self.speechStatus()])
         case "supportedLanguages":
             result(SFSpeechRecognizer.supportedLocales().map { $0.identifier.replacingOccurrences(of: "_", with: "-") }.sorted())
         case "detectLanguage":
@@ -90,6 +91,16 @@ final class SpeechRecognizerChannel: NSObject, FlutterStreamHandler {
             bias = Array(((call.arguments as? [String]) ?? []).prefix(Self.maxBias))
             result(nil)
         default: result(FlutterMethodNotImplemented)
+        }
+    }
+
+    /// The speech permission as "authorized", "denied", "restricted" or "notDetermined", without asking for it.
+    private static func speechStatus() -> String {
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .restricted: return "restricted"
+        default: return "notDetermined"
         }
     }
 

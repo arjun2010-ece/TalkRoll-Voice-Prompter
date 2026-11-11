@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/entitlements/entitlements.dart';
+import '../../services/platform.dart';
 import '../../services/purchases/purchase_service.dart';
 import 'paywall_dialog.dart';
 import 'pro_state.dart';
@@ -30,6 +31,8 @@ class UpgradeCard extends ConsumerWidget {
         : yearly.perMonth != null
         ? 'From ${yearly.perMonth} a month, billed yearly'
         : 'Yearly plan: ${yearly.price} a year';
+    // On phones the card is a roomier bottom banner: page-width margins, the same button height as the screen's other buttons.
+    final mobile = isMobile;
     final lastOne = proEnforced && !limit && used == freeScriptLimit - 1;
 
     final button = FilledButton(
@@ -37,14 +40,14 @@ class UpgradeCard extends ConsumerWidget {
       style: FilledButton.styleFrom(
         backgroundColor: proAccent,
         foregroundColor: const Color(0xFF1A1A1A),
-        minimumSize: Size.fromHeight(limit ? 40 : 34),
-        textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: limit ? 14 : 13),
+        minimumSize: Size.fromHeight(mobile ? 48 : (limit ? 40 : 34)),
+        textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: mobile ? 15 : (limit ? 14 : 13)),
       ),
       child: const Text('Upgrade to Pro…'),
     );
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      padding: EdgeInsets.all(limit ? 14 : 12),
+      margin: mobile ? const EdgeInsets.fromLTRB(16, 8, 16, 12) : const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      padding: EdgeInsets.all(mobile ? 16 : (limit ? 14 : 12)),
       decoration: BoxDecoration(
         color: limit ? (theme.brightness == Brightness.dark ? const Color(0xFF33291A) : const Color(0xFFFFF4DF)) : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(10),
@@ -72,10 +75,10 @@ class UpgradeCard extends ConsumerWidget {
               ),
             ),
         ]),
-        const SizedBox(height: 8),
+        SizedBox(height: mobile ? 12 : 8),
         LinearProgressIndicator(
           value: used / freeScriptLimit,
-          minHeight: 4,
+          minHeight: mobile ? 6 : 4,
           color: proAccent,
           backgroundColor: scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(2),
@@ -88,7 +91,7 @@ class UpgradeCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text('Upgrade to save and present more scripts. Your first $freeScriptLimit still work.', style: theme.textTheme.bodySmall),
         ],
-        const SizedBox(height: 10),
+        SizedBox(height: mobile ? 16 : 10),
         button,
         if (limit && priceLine != null) ...[
           const SizedBox(height: 6),

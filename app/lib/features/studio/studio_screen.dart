@@ -293,7 +293,8 @@ class _EmptyLibrary extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          // The same 16 px sides as the plan banner below and the script list, so their edges line up.
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.subject_rounded, size: 56, color: theme.colorScheme.primary),
             const SizedBox(height: 16),

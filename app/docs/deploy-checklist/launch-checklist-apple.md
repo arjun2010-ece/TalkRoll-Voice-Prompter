@@ -24,15 +24,18 @@ in App Store Connect before submitting, because those change.
 
 | Day | Sections |
 |---|---|
-| 1 | A (decisions: name, icon, domain), B1-B2 (accounts and app records) |
-| 2 | A (keywords with Astro, listing text), C (billing set up in App Store Connect), D (App Review cleanup) |
-| 3 | E (onboarding redesign), F (finish product gaps) |
-| 4 | G (security), H (testing, part 1) |
-| 5 | H (testing, part 2: memory, hangs, iPad, Mac), I (iOS/macOS build settings and privacy files) |
-| 6 | J (store listing, screenshots), K (web deploy), TestFlight upload |
+| 1 | A (decisions: name, icon, domain) |
+| 2 | A (keywords with Astro, listing text), B (App Review cleanup) |
+| 3 | C (onboarding redesign), D (finish product gaps) |
+| 4 | E (security), F (accounts and app records), G (billing set up in App Store Connect) |
+| 5 | H (testing: features, memory, hangs, iPad, Mac) |
+| 6 | I (iOS/macOS build settings and privacy files), J (store listing, screenshots), K (web deploy), TestFlight upload |
 | 7 | L (final pass), submit for review |
 
-If something slips, cut from F first (see "What can wait until 1.1" at the end), never from G, H or the billing test.
+Accounts (F) and billing (G) are deliberately done after the features are built, just before the testing in H. The
+sandbox purchase tests in G (G6, with real accounts) need a TestFlight build, so finish them after I9.
+
+If something slips, cut from D first (see "What can wait until 1.1" at the end), never from E, H or the billing test.
 
 ---
 
@@ -42,77 +45,77 @@ Do these first. The name changes the listing, icon, screenshots, domain, legal p
 
 - [x] **A1. Decide whether to rename.** **Done 2026-11-09: renamed to TalkRoll (final).** Spec §11 says an iOS teleprompter called "EchoPrompt" already exists.
 - [x] **A2. Check the candidate name is usable.** For each candidate: search the App Store and Google Play, search the USPTO/EUIPO trademark databases (you are in Portugal, so EUIPO matters), check that the `.app` or `.com` domain is free, and that the handle is free on the social sites you care about. Pick one primary and one fallback. **Done: TalkRoll chosen as final (owner's decision, 2026-11-09).** Trademark/domain/handle availability was not re-verified by Claude.
-- [x] **A3. Do the rename in one pass** (use the Phase 5 list in `signature-features-talkroll.md` §12). Places: iOS `CFBundleDisplayName` and `CFBundleName`, macOS product name and menu items, Android `android:label`, window titles, About screen, onboarding, paywall, permission strings, demo script, exported file names, `web/`, `supportEmail` and `websiteUrl` in `external_links.dart`, `sitemap`, legal pages. Keep bundle ID and application ID unchanged. **Done 2026-11-09** in `app/`, `packages/` (renamed to `talkroll_camera` / `talkroll_window`), `web/`, `plan/`, `app/docs/`, `App-Brief.md`: display names, permission strings, channel names, product ids (`talkroll.pro.*`), prefs keys, scripts folder `TalkRoll Scripts`, domain `talkroll.app`. Not touched: bundle ID/application ID `com.talkroll.app` (see B3/B4), the legacy root Swift app (`Sources/`, `Package.swift`, `build-app.sh`, `README.md`, `LICENSE`, `CLAUDE.md`), `app/windows/` and `packages/*/windows/` (Windows dropped), doc file names `signature-features-talkroll*.md`. `flutter analyze` is clean; no device builds were run. The spec says to keep the display name in one constant; if that was not done everywhere, grep for "TalkRoll" in `lib/`, `ios/`, `macos/`, `android/`, `web/`.
+- [x] **A3. Do the rename in one pass** (use the Phase 5 list in `signature-features-talkroll.md` §12). Places: iOS `CFBundleDisplayName` and `CFBundleName`, macOS product name and menu items, Android `android:label`, window titles, About screen, onboarding, paywall, permission strings, demo script, exported file names, `web/`, `supportEmail` and `websiteUrl` in `external_links.dart`, `sitemap`, legal pages. Keep bundle ID and application ID unchanged. **Done 2026-11-09** in `app/`, `packages/` (renamed to `talkroll_camera` / `talkroll_window`), `web/`, `plan/`, `app/docs/`, `App-Brief.md`: display names, permission strings, channel names, product ids (`talkroll.pro.*`), prefs keys, scripts folder `TalkRoll Scripts`, domain `talkroll.app`. Not touched: bundle ID/application ID `com.talkroll.app` (see F3/F4), the legacy root Swift app (`Sources/`, `Package.swift`, `build-app.sh`, `README.md`, `LICENSE`, `CLAUDE.md`), `app/windows/` and `packages/*/windows/` (Windows dropped), doc file names `signature-features-talkroll*.md`. `flutter analyze` is clean; no device builds were run. The spec says to keep the display name in one constant; if that was not done everywhere, grep for "TalkRoll" in `lib/`, `ios/`, `macos/`, `android/`, `web/`.
 - [x] **A4. Decide the domain and support email now.** **Decided: `talkroll.app`, mailbox `arjun@talkroll.app`; checked as available. Purchase is deferred until the app is nearly finished (pending, must happen before K1/K4 and before submission, because the Support and Privacy URLs must work).** The app and the legal pages already point there. When bought, buy the domain, set up the mailbox, and update `external_links.dart`. App Store Connect needs a working Support URL and a Privacy Policy URL.
 - [x] **A5. Decide the final icon.** **Done 2026-11-09:** `Golden eye script emblem.png` (1254x1254, rounded corners baked in). Generated from it: iOS/iPadOS full-bleed opaque set; macOS set with the 824/1024 template margin and transparent corners; Android adaptive icon (gradient background + foreground, `mipmap-anydpi-v26`) plus legacy `ic_launcher.png`; `web/app/icon.png` and `Assets/TalkRollAppIcon.png` (identical). A 1024x1024 source with square corners would be sharper; the corners here were filled by script. Design once at 1024x1024, no transparency and no rounded corners (Apple rounds them) for iOS; the Mac icon uses the macOS template with its own shape. Android needs an adaptive icon (foreground and background layers). Replace `ios/Runner/Assets.xcassets/AppIcon.appiconset`, `macos/Runner/Assets.xcassets/AppIcon.appiconset`, Android `mipmap-*` and adaptive icon, `web/app/icon.png`, and `Assets/TalkRollAppIcon.png` (CLAUDE.md says the last two stay identical).
-- [x] **A6. Decide pricing.** **Done: keep the prices the paywall already shows (source: `ProPrices` in `lib/core/entitlements/entitlements.dart`). Monthly $8.99 (`talkroll.pro.monthly`), yearly $45.99, about $3.83/month (`talkroll.pro.yearly`), lifetime $97.99 (`talkroll.pro.lifetime`). Create the same tiers in App Store Connect in C1 and Google Play, and keep the prices in the code and the stores in step. Trial: none decided, so none is configured (C3 skipped unless added).** Monthly, yearly, lifetime, and whether to offer a free trial. Write the three prices down in one place; you need them for the billing setup in C. Decide the same prices (or local equivalents) for Google.
+- [x] **A6. Decide pricing.** **Done: keep the prices the paywall already shows (source: `ProPrices` in `lib/core/entitlements/entitlements.dart`). Monthly $8.99 (`talkroll.pro.monthly`), yearly $45.99, about $3.83/month (`talkroll.pro.yearly`), lifetime $97.99 (`talkroll.pro.lifetime`). Create the same tiers in App Store Connect in G1 and Google Play, and keep the prices in the code and the stores in step. Trial: none decided, so none is configured (G3 skipped unless added).** Monthly, yearly, lifetime, and whether to offer a free trial. Write the three prices down in one place; you need them for the billing setup in C. Decide the same prices (or local equivalents) for Google.
 - [x] **A7. Decide the age rating, category and "made for kids" answer.** **Decided 2026-11-09: primary category Productivity, not for kids.** Secondary category and the age questionnaire answers are still to enter (J3, J8). Suggested: Productivity or Photo & Video. Not for kids. Write the answers once so both stores match.
 
-## B. Accounts and app records (Day 1)
+## B. App Review cleanup, spec §7 (Day 2)
 
-- [ ] **B1. Apple Developer Program** ($99/year) active, and you are the Account Holder. [general]
-- [ ] **B2. Paid Applications Agreement signed, plus bank and tax forms** in App Store Connect > Business. Without it, in-app purchases cannot be tested in the sandbox or sold. This can take days to be approved, so start it first. [general]
-- [ ] **B3. Create two App IDs** in the developer portal (or let Xcode create them with automatic signing): `com.talkroll.app` (iOS, iPadOS) and `com.talkroll.app.macos` (macOS). No special capabilities are needed beyond In-App Purchase (and Speech Recognition is a usage string, not a capability).
-- [ ] **B4. Create two app records** in App Store Connect, **decided 2026-11-09**: one for iOS/iPadOS (`com.talkroll.app`) and one for macOS (`com.talkroll.app.macos`), each with its own name, subtitle and keywords from `aso/ios/` and `aso/macos/`. Consequence: no universal purchase. Pro bought on iPhone or iPad does not unlock the Mac app, and the reverse. Each record needs its own subscription group and products (C1), its own review and privacy answers, and its own TestFlight. State this on the paywall and in the listing so Mac buyers are not surprised.
-- [ ] **B5. Note the numeric Apple ID** once the record exists. It is needed for the review deep link in the rating prompt (`app-store-rating-prompt-plan.md`).
-- [ ] **B6. Add yourself and your testers** to TestFlight (internal group first). Add a second Apple ID or a friend's device as a sandbox tester for purchases (Users and Access > Sandbox).
+- [ ] **B1. Demo script:** replace the placeholder copy ("Brightside…") with real copy that explains the app, shows sections, and has at least two action cues, one a hold. Search for `lorem` and other placeholder text. (A quick search found none in `lib/`, but the demo copy itself still needs your review.)
+- [ ] **B2. Bundled sample audio** (20-30 s) matching the demo script so the reviewer can try Narration at once. You provide the recording; until then mark `TODO(arjun): replace sample audio`.
+- [ ] **B3. Remove "Hidden from screen recording" on iOS and iPadOS** (and Android). Keep it on macOS. Verify it is gone from Settings and "More text options", and from the code on mobile.
+- [ ] **B4. Competitor names:** none in the app, strings, metadata, screenshots, web, or the docs you attach. A search for "voiceprompter" in `lib/`, `web/app` and the native folders found none, but the keyword field in B5 must also be clean.
+- [ ] **B5. Write `docs/app-review-notes.md`:** open the demo script, Section by section, Narration with the sample, reach a hold cue, Continue, Retake a section, (mobile) export the video. Add: how to reach the paywall, that no account is needed, and that the speech and camera permissions are used on the device only. Paste the same text into the App Review Information box in App Store Connect.
+- [ ] **B6. Permission strings:** iOS has camera, microphone, speech recognition, and Photos add-only; macOS has microphone and speech recognition [repo]. Check each is specific and matches what the app does. Permission explainer screens say "Continue", not "Allow".
+- [ ] **B7. Language-pack download copy** (`language_pack_prompt.dart`) and `docs/apple-speech-languages.md`: reread, because the reviewer may hit the download dialog on a first run with a non-English language.
 
-## C. Billing: Apple (Day 2) **(Android is in the other file)**
-
-The purchase code exists (`in_app_purchase`, product ids above, debug fake store). It has never been tested against the real stores [repo: `payments-plan.md` §7].
-
-- [ ] **C1. Create the subscription group and products** in App Store Connect: `talkroll.pro.monthly`, `talkroll.pro.yearly` (same group, so a user cannot hold both), and a non-consumable `talkroll.pro.lifetime`. The ids must match the code exactly. Do this once in each of the two app records (iOS and macOS). If App Store Connect refuses the same product ids in the second record, use a `.macos` suffix and make the code choose the ids per platform.
-- [ ] **C2. For each product fill in:** reference name, price tier, localized display name and description, and a review screenshot of the paywall. Subscriptions also need a group display name. Status must reach "Ready to Submit"; the first purchases are submitted together with the app version. [general]
-- [ ] **C3. If you offer a trial,** configure it as an introductory offer on the subscription and make sure the paywall text states the price after the trial and the renewal terms. Apple rejects unclear subscription copy (Guideline 3.1.2). [general]
-- [ ] **C4. Paywall legal text:** auto-renewal wording, price, period, cancel in Settings, and the Terms and Privacy links. Links were added on all three platforms [repo], but they 404 until the web is deployed (K).
-- [ ] **C5. Restore Purchases** is reachable and works. Apple requires it. Test it on a second device.
-- [ ] **C6. Test with a StoreKit configuration file in Xcode first** (iOS simulator and a Mac build), then with real sandbox accounts on a TestFlight build with `PAYMENTS_APPLE=true`. Cases: buy monthly, buy yearly, buy lifetime, cancel, expire, restore on a fresh install, refund, buying while offline, cancelling the Apple payment sheet.
-- [ ] **C7. Confirm the release build is built with `--dart-define=PAYMENTS_APPLE=true`** and that the fake store is not compiled into release (the plan says it is debug-only; verify with a release build that "Preview plan" is absent).
-- [ ] **C8. Verify the free-plan rules against the real store:** 5 scripts, the shared pool of 15 free changes, the demo script exemption, and that Pro lifts all of it. Check the counter survives a reinstall (never tested on any platform: Keychain on iOS, app data on macOS).
-- [ ] **C9. Decide about promo codes and gifting** (`gifting-and-promo-licenses.md`). For 1.0 use Apple offer codes only; skip any custom redeem code.
-
-## D. App Review cleanup, spec §7 (Day 2)
-
-- [ ] **D1. Demo script:** replace the placeholder copy ("Brightside…") with real copy that explains the app, shows sections, and has at least two action cues, one a hold. Search for `lorem` and other placeholder text. (A quick search found none in `lib/`, but the demo copy itself still needs your review.)
-- [ ] **D2. Bundled sample audio** (20-30 s) matching the demo script so the reviewer can try Narration at once. You provide the recording; until then mark `TODO(arjun): replace sample audio`.
-- [ ] **D3. Remove "Hidden from screen recording" on iOS and iPadOS** (and Android). Keep it on macOS. Verify it is gone from Settings and "More text options", and from the code on mobile.
-- [ ] **D4. Competitor names:** none in the app, strings, metadata, screenshots, web, or the docs you attach. A search for "voiceprompter" in `lib/`, `web/app` and the native folders found none, but the keyword field in D5 must also be clean.
-- [ ] **D5. Write `docs/app-review-notes.md`:** open the demo script, Section by section, Narration with the sample, reach a hold cue, Continue, Retake a section, (mobile) export the video. Add: how to reach the paywall, that no account is needed, and that the speech and camera permissions are used on the device only. Paste the same text into the App Review Information box in App Store Connect.
-- [ ] **D6. Permission strings:** iOS has camera, microphone, speech recognition, and Photos add-only; macOS has microphone and speech recognition [repo]. Check each is specific and matches what the app does. Permission explainer screens say "Continue", not "Allow".
-- [ ] **D7. Language-pack download copy** (`language_pack_prompt.dart`) and `docs/apple-speech-languages.md`: reread, because the reviewer may hit the download dialog on a first run with a non-English language.
-
-## E. Redesign the onboarding (Day 3)
+## C. Redesign the onboarding (Day 3)
 
 The current flow was built from `onboarding-plan.md` (implemented 2026-10-28, checked on Android and macOS only; iOS and iPad were not run).
 
-- [ ] **E1. List what is wrong with it today.** Run it fresh on an iPhone, an Android phone and a Mac, write down every screen, and note where you would quit. Ask two or three people who have never seen the app to use it and say what they expected.
-- [ ] **E2. Define the goal in one sentence,** for example "the user reads a script in a prompter within 60 seconds and sees why it follows their voice".
-- [ ] **E3. Write the new screen list** (keep it short: 3 screens or fewer before the demo script). Typical: what it does, the three modes in one line each, permissions only when needed. Do not ask for the microphone until Voice is started.
-- [ ] **E4. Mock the new flow,** get your own approval, then build it. Keep platform gates (CLAUDE.md): build and test on one platform before the next.
-- [ ] **E5. Decide about a survey** ("How did you hear about us?") and about analytics. If you add any analytics, the privacy answers in J change. Prefer no analytics in 1.0.
-- [ ] **E6. Re-test** the free-plan card, the demo script exemption, first-run permissions, and "skip" paths. Check light and dark, portrait and landscape, iPad.
-- [ ] **E7. Update the screenshots** (J) after the redesign, not before.
+- [ ] **C1. List what is wrong with it today.** Run it fresh on an iPhone, an Android phone and a Mac, write down every screen, and note where you would quit. Ask two or three people who have never seen the app to use it and say what they expected.
+- [ ] **C2. Define the goal in one sentence,** for example "the user reads a script in a prompter within 60 seconds and sees why it follows their voice".
+- [ ] **C3. Write the new screen list** (keep it short: 3 screens or fewer before the demo script). Typical: what it does, the three modes in one line each, permissions only when needed. Do not ask for the microphone until Voice is started.
+- [ ] **C4. Mock the new flow,** get your own approval, then build it. Keep platform gates (CLAUDE.md): build and test on one platform before the next.
+- [ ] **C5. Decide about a survey** ("How did you hear about us?") and about analytics. If you add any analytics, the privacy answers in J change. Prefer no analytics in 1.0.
+- [ ] **C6. Re-test** the free-plan card, the demo script exemption, first-run permissions, and "skip" paths. Check light and dark, portrait and landscape, iPad.
+- [ ] **C7. Update the screenshots** (J) after the redesign, not before.
 
-## F. Finish the product gaps (Day 3, cut if short on time)
+## D. Finish the product gaps (Day 3, cut if short on time)
 
-- [ ] **F1. 800-words-per-script limit and the "612 / 800 words" counter** (spec §6). Not built. Needs a decision: if you cut it, remove it from the paywall copy and the store text so nothing promises it.
-- [ ] **F2. 60% word-diff "big rewrite" rule** (spec §6). Not built: today typing over the demo script saves as a new script and takes a change with no warning.
-- [ ] **F3. Rating prompt** (`app-store-rating-prompt-plan.md`): needs the Apple ID from B5. Optional for 1.0; add it in 1.0.1 if short on time.
-- [ ] **F4. Open items in the spec you chose not to fix:** list them in a backlog file. From the result doc: Android timing precision inside long sentences, Voice last-word matching with synthetic speech, after "Sections…" the prompter waits paused with no hint on the camera screen, Narration camera option wording "Voice only / Voice + camera", macOS Studio "Start ⌘↩" shows a blue emoji box, macOS Narration needs a click on Play to start.
-- [ ] **F5. Run the pending Cross-platform fixes** in `signature-features-talkroll.md` and set statuses.
+- [ ] **D1. 800-words-per-script limit and the "612 / 800 words" counter** (spec §6). Not built. Needs a decision: if you cut it, remove it from the paywall copy and the store text so nothing promises it.
+- [ ] **D2. 60% word-diff "big rewrite" rule** (spec §6). Not built: today typing over the demo script saves as a new script and takes a change with no warning.
+- [ ] **D3. Rating prompt** (`app-store-rating-prompt-plan.md`): needs the Apple ID from F5. Optional for 1.0; add it in 1.0.1 if short on time.
+- [ ] **D4. Open items in the spec you chose not to fix:** list them in a backlog file. From the result doc: Android timing precision inside long sentences, Voice last-word matching with synthetic speech, after "Sections…" the prompter waits paused with no hint on the camera screen, Narration camera option wording "Voice only / Voice + camera", macOS Studio "Start ⌘↩" shows a blue emoji box, macOS Narration needs a click on Play to start.
+- [ ] **D5. Run the pending Cross-platform fixes** in `signature-features-talkroll.md` and set statuses.
 
-## G. Security and vulnerability checks **[shared]** (Day 4)
+## E. Security and vulnerability checks **[shared]** (Day 4)
 
-- [ ] **G1. Secret scan of the repo and its history:** `gitleaks detect` (or `trufflehog`). Look for the Sentry DSN, API keys, keystores, and `.env` files. Nothing has been pushed yet, so history is still easy to clean.
-- [ ] **G2. Dependency audit:** `flutter pub outdated`, then read the changelog for each security-relevant package (`sentry_flutter`, `file_picker`, `share_plus`, `url_launcher`, `permission_handler`, `in_app_purchase`). In `web/`: `npm audit`. Do not upgrade blindly right before launch; fix only real vulnerabilities.
-- [ ] **G3. Data on device:** scripts and recordings are stored in app storage. Confirm nothing is world-readable on Android (`allowBackup` is on and backs up scripts, on purpose) and that iOS file protection is acceptable. Write down what leaves the device: Sentry (opt-in), Apple language-pack download, store purchases, and nothing else.
-- [ ] **G4. Network review:** grep for every `http` use. Release builds must only use HTTPS. The `WEBSITE_URL` define must not be set to a local address in release builds (check build scripts).
-- [ ] **G5. URL and file handling:** `openExternal` opens fixed URLs only. Check the file-import path (scripts, audio) for huge files and malformed files: import a 100 MB text file, a zero-byte file, and a binary file renamed to `.txt`.
-- [ ] **G6. In-app purchase integrity:** the entitlement is decided on the device from the store response. For a $-small app that is the usual choice, but state that a jailbroken device can bypass it, and decide that you accept it for 1.0. (RevenueCat or server receipt checks are the alternative; see `payments-plan.md`.)
-- [ ] **G7. Debug features are absent in release:** the fake store, "Preview plan", any debug logging, VM-service hooks, and `debugShowCheckedModeBanner`. Build release and check each.
-- [ ] **G8. Privacy truth check:** compare what the privacy page says with what the code does (G3), then fix whichever is wrong. This is also the basis for J.
-- [ ] **G9. Web:** headers (CSP, X-Content-Type-Options), HTTPS only, no mixed content, no admin or debug routes. `npm run build` passes.
-- [ ] **G10. macOS hardening:** hardened runtime on, sandbox on (already in the entitlements), and no entitlement you do not need. Check the signed app with `codesign -dvv --entitlements -`.
+- [ ] **E1. Secret scan of the repo and its history:** `gitleaks detect` (or `trufflehog`). Look for the Sentry DSN, API keys, keystores, and `.env` files. Nothing has been pushed yet, so history is still easy to clean.
+- [ ] **E2. Dependency audit:** `flutter pub outdated`, then read the changelog for each security-relevant package (`sentry_flutter`, `file_picker`, `share_plus`, `url_launcher`, `permission_handler`, `in_app_purchase`). In `web/`: `npm audit`. Do not upgrade blindly right before launch; fix only real vulnerabilities.
+- [ ] **E3. Data on device:** scripts and recordings are stored in app storage. Confirm nothing is world-readable on Android (`allowBackup` is on and backs up scripts, on purpose) and that iOS file protection is acceptable. Write down what leaves the device: Sentry (opt-in), Apple language-pack download, store purchases, and nothing else.
+- [ ] **E4. Network review:** grep for every `http` use. Release builds must only use HTTPS. The `WEBSITE_URL` define must not be set to a local address in release builds (check build scripts).
+- [ ] **E5. URL and file handling:** `openExternal` opens fixed URLs only. Check the file-import path (scripts, audio) for huge files and malformed files: import a 100 MB text file, a zero-byte file, and a binary file renamed to `.txt`.
+- [ ] **E6. In-app purchase integrity:** the entitlement is decided on the device from the store response. For a $-small app that is the usual choice, but state that a jailbroken device can bypass it, and decide that you accept it for 1.0. (RevenueCat or server receipt checks are the alternative; see `payments-plan.md`.)
+- [ ] **E7. Debug features are absent in release:** the fake store, "Preview plan", any debug logging, VM-service hooks, and `debugShowCheckedModeBanner`. Build release and check each.
+- [ ] **E8. Privacy truth check:** compare what the privacy page says with what the code does (E3), then fix whichever is wrong. This is also the basis for J.
+- [ ] **E9. Web:** headers (CSP, X-Content-Type-Options), HTTPS only, no mixed content, no admin or debug routes. `npm run build` passes.
+- [ ] **E10. macOS hardening:** hardened runtime on, sandbox on (already in the entitlements), and no entitlement you do not need. Check the signed app with `codesign -dvv --entitlements -`.
+
+## F. Accounts and app records (Day 4)
+
+- [ ] **F1. Apple Developer Program** ($99/year) active, and you are the Account Holder. [general]
+- [ ] **F2. Paid Applications Agreement signed, plus bank and tax forms** in App Store Connect > Business. Without it, in-app purchases cannot be tested in the sandbox or sold. This can take days to be approved, so start it first. [general]
+- [ ] **F3. Create two App IDs** in the developer portal (or let Xcode create them with automatic signing): `com.talkroll.app` (iOS, iPadOS) and `com.talkroll.app.macos` (macOS). No special capabilities are needed beyond In-App Purchase (and Speech Recognition is a usage string, not a capability).
+- [ ] **F4. Create two app records** in App Store Connect, **decided 2026-11-09**: one for iOS/iPadOS (`com.talkroll.app`) and one for macOS (`com.talkroll.app.macos`), each with its own name, subtitle and keywords from `aso/ios/` and `aso/macos/`. Consequence: no universal purchase. Pro bought on iPhone or iPad does not unlock the Mac app, and the reverse. Each record needs its own subscription group and products (G1), its own review and privacy answers, and its own TestFlight. State this on the paywall and in the listing so Mac buyers are not surprised.
+- [ ] **F5. Note the numeric Apple ID** once the record exists. It is needed for the review deep link in the rating prompt (`app-store-rating-prompt-plan.md`).
+- [ ] **F6. Add yourself and your testers** to TestFlight (internal group first). Add a second Apple ID or a friend's device as a sandbox tester for purchases (Users and Access > Sandbox).
+
+## G. Billing: Apple (Day 4) **(Android is in the other file)**
+
+The purchase code exists (`in_app_purchase`, product ids above, debug fake store). It has never been tested against the real stores [repo: `payments-plan.md` §7].
+
+- [ ] **G1. Create the subscription group and products** in App Store Connect: `talkroll.pro.monthly`, `talkroll.pro.yearly` (same group, so a user cannot hold both), and a non-consumable `talkroll.pro.lifetime`. The ids must match the code exactly. Do this once in each of the two app records (iOS and macOS). If App Store Connect refuses the same product ids in the second record, use a `.macos` suffix and make the code choose the ids per platform.
+- [ ] **G2. For each product fill in:** reference name, price tier, localized display name and description, and a review screenshot of the paywall. Subscriptions also need a group display name. Status must reach "Ready to Submit"; the first purchases are submitted together with the app version. [general]
+- [ ] **G3. If you offer a trial,** configure it as an introductory offer on the subscription and make sure the paywall text states the price after the trial and the renewal terms. Apple rejects unclear subscription copy (Guideline 3.1.2). [general]
+- [ ] **G4. Paywall legal text:** auto-renewal wording, price, period, cancel in Settings, and the Terms and Privacy links. Links were added on all three platforms [repo], but they 404 until the web is deployed (K).
+- [ ] **G5. Restore Purchases** is reachable and works. Apple requires it. Test it on a second device.
+- [ ] **G6. Test with a StoreKit configuration file in Xcode first** (iOS simulator and a Mac build), then with real sandbox accounts on a TestFlight build with `PAYMENTS_APPLE=true`. Cases: buy monthly, buy yearly, buy lifetime, cancel, expire, restore on a fresh install, refund, buying while offline, cancelling the Apple payment sheet.
+- [ ] **G7. Confirm the release build is built with `--dart-define=PAYMENTS_APPLE=true`** and that the fake store is not compiled into release (the plan says it is debug-only; verify with a release build that "Preview plan" is absent).
+- [ ] **G8. Verify the free-plan rules against the real store:** 5 scripts, the shared pool of 15 free changes, the demo script exemption, and that Pro lifts all of it. Check the counter survives a reinstall (never tested on any platform: Keychain on iOS, app data on macOS).
+- [ ] **G9. Decide about promo codes and gifting** (`gifting-and-promo-licenses.md`). For 1.0 use Apple offer codes only; skip any custom redeem code.
 
 ## H. Full testing: features, memory leaks, hangs **[shared]** (Days 4-5)
 
@@ -147,23 +150,23 @@ Run on: iPhone (done so far: 15 Pro Max, iOS 26.6.2), **iPad (never run)**, a se
 ## J. Store listing (Days 2 and 6)
 
 - [x] **J1. Subscribe to Astro** (https://tryastro.app) only after A1-A2, so you research the right name. Use it to: check keyword popularity and difficulty for your name, subtitle and keyword field; compare the top competitors' titles and subtitles (for ideas only, never their names in your metadata); check ranking per country (start with US, UK, Portugal, Brazil, Germany, France, Spain). **Done 2026-11-09:** research is in `aso/`.
-- [x] **J2. Write the metadata** within Apple's limits (these limits are what I know: name 30 characters, subtitle 30, keywords 100 including commas, promotional text 170, description 4000) [general]. Do not repeat words between name, subtitle and keywords. No competitor names (D4), no "best/#1/free" claims, no prices in the name. **Done 2026-11-09 for name, subtitle and keywords in 39 locales:** `aso/ios/app-store-listings.md` and `aso/macos/app-store-listings.md`. Still to write: description and promotional text (outside those files).
+- [x] **J2. Write the metadata** within Apple's limits (these limits are what I know: name 30 characters, subtitle 30, keywords 100 including commas, promotional text 170, description 4000) [general]. Do not repeat words between name, subtitle and keywords. No competitor names (B4), no "best/#1/free" claims, no prices in the name. **Done 2026-11-09 for name, subtitle and keywords in 39 locales:** `aso/ios/app-store-listings.md` and `aso/macos/app-store-listings.md`. Still to write: description and promotional text (outside those files).
 - [ ] **J3. Choose the category** (A7) and a secondary one.
 - [x] **J4. Localize at least English.** Because speech supports 33 languages, consider localizing the listing for a few more (Portuguese, Spanish, German, French). Not needed for the first submission. **Done as metadata (39 locales)** in the two `aso/` files; paste it in App Store Connect on Day 6.
-- [ ] **J5. Screenshots,** after E7: iPhone 6.9-inch and 6.5-inch sets, iPad 13-inch, Mac. Show: reading with the prompter, the three modes, section clips and export, cues. Check the current required sizes in App Store Connect. Do not show competitor apps or private info.
+- [ ] **J5. Screenshots,** after C7: iPhone 6.9-inch and 6.5-inch sets, iPad 13-inch, Mac. Show: reading with the prompter, the three modes, section clips and export, cues. Check the current required sizes in App Store Connect. Do not show competitor apps or private info.
 - [ ] **J6. App preview video** (optional, 15-30 s).
-- [ ] **J7. Privacy nutrition label:** answer from G3/G8. If Sentry crash reporting is on only by opt-in and sends no identifiers, declare it accordingly; if the user can enable it, declare "Crash data". Purchases are handled by Apple. No tracking.
+- [ ] **J7. Privacy nutrition label:** answer from E3/E8. If Sentry crash reporting is on only by opt-in and sends no identifiers, declare it accordingly; if the user can enable it, declare "Crash data". Purchases are handled by Apple. No tracking.
 - [ ] **J8. Age rating questionnaire** and **content rights** answers (A7). Select "no third-party content" unless true, and list font licenses if asked (the fonts are SIL OFL).
 - [ ] **J9. Support URL, marketing URL and privacy URL** (K). Terms: use the standard Apple EULA or link your own `/terms` in the description.
 - [ ] **J10. Copyright and contact** fields. Demo account: none needed (no sign-in). State "No account required" in the review notes.
 - [ ] **J11. Pricing and availability:** choose territories, price tier for the free download, release option (manual release recommended for 1.0).
-- [ ] **J12. Attach the in-app purchases** to the version before you submit (C2).
+- [ ] **J12. Attach the in-app purchases** to the version before you submit (G2).
 
 ## K. Website and legal **[shared]** (Day 6)
 
 - [ ] **K1. Deploy `web/`** to Netlify (`netlify.toml` already sets `base = "web"`). Set `NEXT_PUBLIC_SITE_URL`. Point the domain (A4).
 - [ ] **K2. Check** `/privacy`, `/terms`, `/sitemap.xml`, `/robots.txt` load over HTTPS, and open them from the app (paywall links on all three platforms).
-- [ ] **K3. Review the legal text yourself.** It is a draft: you as controller, Portuguese law, CNPD, a liability cap of 12 months of payments. Have a lawyer or a trusted template check it if you can, and update the "last updated" date. Make it match G8 and the final name.
+- [ ] **K3. Review the legal text yourself.** It is a draft: you as controller, Portuguese law, CNPD, a liability cap of 12 months of payments. Have a lawyer or a trusted template check it if you can, and update the "last updated" date. Make it match E8 and the final name.
 - [ ] **K4. Add a Support page** or contact section for the Support URL, with the mailbox from A4.
 - [ ] **K5. Update the website copy to the final name and screenshots,** and add App Store badges when the app is live.
 
@@ -171,7 +174,7 @@ Run on: iPhone (done so far: 15 Pro Max, iOS 26.6.2), **iPad (never run)**, a se
 
 - [ ] **L1. Fresh-install run of the exact TestFlight build** on iPhone, iPad and Mac: onboarding, demo script, each mode, a purchase in sandbox, restore, paywall links.
 - [ ] **L2. Re-read the App Store Review Guidelines** sections most likely to bite you: 2.1 (complete app, working purchase), 3.1.1/3.1.2 (purchases and subscription text), 4.0 (design), 5.1.1 (privacy, permission strings, data collection), 5.1.2, and Mac-specific rules.
-- [ ] **L3. Fill in "App Review Information"** (D5), notes, contact phone and e-mail.
+- [ ] **L3. Fill in "App Review Information"** (B5), notes, contact phone and e-mail.
 - [ ] **L4. Select the build, attach the purchases, set release to manual,** and submit for review (iOS/iPadOS and macOS can be submitted separately; do iPhone first).
 - [ ] **L5. After submission:** watch for the review e-mail daily; keep the phone and Mac on the exact build; do not change the server (web) or the purchase products during review.
 - [ ] **L6. If rejected:** read the exact guideline, reply in App Resolution Center, fix, and resubmit. The most likely reasons for this app: a purchase that does not load, missing privacy manifest, permission wording, the legal links not loading, or an iPad layout problem.
@@ -180,16 +183,16 @@ Run on: iPhone (done so far: 15 Pro Max, iOS 26.6.2), **iPad (never run)**, a se
 
 ## What can wait until 1.1 (do not let these block the submission)
 
-- 800-word limit and the 60% rewrite rule (F1, F2) if you remove their mentions from the copy.
-- Rating prompt (F3).
+- 800-word limit and the 60% rewrite rule (D1, D2) if you remove their mentions from the copy.
+- Rating prompt (D3).
 - Localized store listings beyond English (J4).
 - App preview video (J6).
-- Custom redeem codes and RevenueCat (C9, G6).
+- Custom redeem codes and RevenueCat (G9, E6).
 - Mac screen recording and the other items listed in the spec §8 "Future scope".
 
 ## Things I could not confirm from the repo
 
-- Whether your Apple Developer account and the Paid Applications agreement are active. B1 and B2 are the first risk to a one-week plan.
+- Whether your Apple Developer account and the Paid Applications agreement are active. F1 and F2 are the first risk to a one-week plan.
 - Whether the current app name is available on the App Store (A2).
 - The exact current Apple requirements for screenshot sizes and the SDK version; read App Store Connect.
 - That the privacy manifest list is complete: check each plugin's manifest after the first build.

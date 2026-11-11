@@ -39,8 +39,8 @@ Same decisions and work, done once. Android-specific notes only:
 
 - [ ] **A1. Name, domain, email, icon, pricing, category, age rating** (Apple file A1-A7). Play uses a different icon format: a **512x512 PNG** store icon, a **1024x500 feature graphic**, and an **adaptive icon** in the app (foreground and background layers; keep the artwork inside the safe zone).
 - [ ] **A2. App name on Android:** change `android:label` in `AndroidManifest.xml` and any strings (Apple file A3). Keep `com.talkroll.app`. It cannot be changed after the first upload.
-- [ ] **A3. Onboarding redesign** (Apple file E). Test it on a small phone, a large phone and a tablet. Android back-button and gesture navigation behave differently from iOS.
-- [ ] **A4. Security (Apple file G)** applies equally. Android extras are in section F below.
+- [ ] **A3. Onboarding redesign** (Apple file C). Test it on a small phone, a large phone and a tablet. Android back-button and gesture navigation behave differently from iOS.
+- [ ] **A4. Security (Apple file E)** applies equally. Android extras are in section F below.
 - [ ] **A5. Web deploy and legal pages** (Apple file K). Play asks for a **Privacy Policy URL** and, in the Data safety form, wants it to match what the app does.
 
 ## B. Account and the testing clock (Day 1)
@@ -74,7 +74,7 @@ Same decisions and work, done once. Android-specific notes only:
 - [ ] **D8. Reinstall persistence:** uninstall and reinstall, with backup enabled, and confirm the counter returns (Auto Backup works only with a Google account and cloud backup on, and restores on first install). Never tested. The emulator may not test this faithfully; use a real phone.
 - [ ] **D9. Block Store (optional for 1.0).** Auto Backup can be turned off by the user; Block Store would keep the counter anyway. Spec §6 asks for it. If cut, say it in your notes.
 - [ ] **D10. Promo codes:** Play promo codes work with the existing purchase code (`gifting-and-promo-licenses.md`). Nothing to build for 1.0.
-- [ ] **D11. Confirm the debug fake store and "Preview plan" are absent from the release bundle** (Apple file G7).
+- [ ] **D11. Confirm the debug fake store and "Preview plan" are absent from the release bundle** (Apple file E7).
 
 ## E. Product pieces specific to Android
 
@@ -92,7 +92,7 @@ Same decisions and work, done once. Android-specific notes only:
 
 ## F. Security checks specific to Android (Day 4)
 
-- [ ] **F1. Do the shared security list** (Apple file G1-G10).
+- [ ] **F1. Do the shared security list** (Apple file E1-E10).
 - [ ] **F2. Manifest review:** `exported` only where needed (MainActivity is exported for the launcher, and that is correct). No unneeded permission. No cleartext HTTP traffic (set `usesCleartextTraffic="false"` or a network security config if any plugin needs it).
 - [ ] **F3. Backup contents:** `allowBackup=true` stores the user's scripts and the counter in Google's backup. That is by design [repo: `free-script-limit-persistence.md`], but it must be in the Data safety answers and the privacy page. Decide if scripts should really be in cloud backup.
 - [ ] **F4. READ_MEDIA_AUDIO** is used for picking narration files. Check whether the system file picker already gives you access without the permission (a photo picker or `ACTION_OPEN_DOCUMENT` does). If so, remove the permission, because Play asks you to justify sensitive permissions.
@@ -103,12 +103,12 @@ Same decisions and work, done once. Android-specific notes only:
 
 - [ ] **G1. Use the Astro research** (Apple file J1-J2). Play ranks on the **title (30 characters), short description (80) and full description (4000)**; there is no keyword field, so keywords have to appear naturally in the text. Repeat each important keyword a few times but write for people.
 - [ ] **G2. Graphics:** 512x512 icon, 1024x500 feature graphic, at least 2 phone screenshots (aim for 6-8), and optional 7-inch and 10-inch tablet screenshots. Take them after the onboarding redesign.
-- [ ] **G3. Data safety form:** declare what is collected and shared. For this app: no accounts; scripts and recordings stay on the device; purchases handled by Google; crash data only if the user turns on Sentry (declare it). Say whether data is encrypted in transit (HTTPS) and whether users can ask for deletion (uninstall deletes local data; backups are with Google). Match the privacy page (Apple file G8).
+- [ ] **G3. Data safety form:** declare what is collected and shared. For this app: no accounts; scripts and recordings stay on the device; purchases handled by Google; crash data only if the user turns on Sentry (declare it). Say whether data is encrypted in transit (HTTPS) and whether users can ask for deletion (uninstall deletes local data; backups are with Google). Match the privacy page (Apple file E8).
 - [ ] **G4. Content rating questionnaire** (IARC) in "App content".
 - [ ] **G5. Target audience:** 18+ or 13+; not designed for children. Declare no ads.
 - [ ] **G6. Other App content declarations:** ads (none), news app (no), COVID (no), government (no), financial features (no), health (no), advertising ID (no), and any "sensitive permissions" forms. If you keep camera and microphone, state why in the permissions declaration.
 - [ ] **G7. Photo/video and media permission policy:** if the app only saves its own recordings and picks audio via the picker, you should not need the broad media permissions (F4).
-- [ ] **G8. Store listing text must not mention competitors** (Apple file D4) or promise features not built (800 words, 60% rule: Apple file F1/F2).
+- [ ] **G8. Store listing text must not mention competitors** (Apple file B4) or promise features not built (800 words, 60% rule: Apple file D1/D2).
 - [ ] **G9. Contact details:** support email, website and privacy URL (Apple file A4, K).
 - [ ] **G10. Pricing and distribution:** countries, free app with in-app purchases, "contains in-app purchases" flag, content guidelines and US export laws accepted.
 
@@ -134,7 +134,7 @@ Same decisions and work, done once. Android-specific notes only:
 - R8 shrinking (C3) if it causes issues.
 - Block Store (D9).
 - Tablet screenshots, a promo video, and listing translations.
-- 800-word limit and the 60% rewrite rule (Apple file F1/F2).
+- 800-word limit and the 60% rewrite rule (Apple file D1/D2).
 
 ## Things I could not confirm
 

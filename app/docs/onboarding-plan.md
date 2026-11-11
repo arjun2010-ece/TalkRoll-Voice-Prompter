@@ -285,3 +285,44 @@ optional; replay from Settings → Help (assumed, not answered); iPad uses the p
 5. macOS three steps + first-Start toast (`plan/desktop-ux-plan.md` §3.7).
 6. Settings → Help replay row.
 7. `flutter analyze`, then run on iOS simulator, Android and macOS via the existing `RUN_*.md` docs. No tests (project rule).
+
+---
+
+## 12. Questionnaire flow (2026-11-11)
+
+Rebuilt with the `app-onboarding-questionnaire` skill (`.claude/skills/app-onboarding-questionnaire/`, MIT, from
+github.com/adamlyttleapps/claude-skill-app-onboarding-questionnaire). The permission and voice-test steps above are kept;
+questions, a solution screen, a demo with a result, and the plans are added around them. Not yet run on a device.
+
+Trimmed the same day after review (the first cut was 12 screens; the owner did not want a mode choice):
+
+| Mobile (iOS, iPadOS, Android) | macOS |
+|---|---|
+| Welcome → Goal (one tap, moves on by itself) → What gets in the way (multi) → How TalkRoll helps → Microphone* → "Writing your script…" → Try it with a real line (Voice), or Read along (Auto-scroll) → You're ready: your pace + the three modes explained → Pro sheet | Welcome → Goal → What gets in the way → How TalkRoll helps → Position → Voice → "Writing your script…" → demo → You're ready: pace + modes → Pro sheet |
+
+\* Skipped when the device has no speech recognition. "Not now" or a refused microphone carries on in Auto-scroll.
+
+Cut on review, and why:
+
+- **Mode choice:** a new user cannot judge Voice vs Narration before trying either. The tour shows Voice live (the
+  "aha" moment) and explains all three on the result screen; the choice stays in "How to read" / the Studio.
+- **Swipe cards:** repeated the pain question for four more taps.
+- **Camera step:** asked on the Record screen when it is needed (its own primer), as the skill itself advises.
+- **Second processing pause:** one build-up before the demo is enough.
+
+Decisions that change §10/§11:
+
+- **Paywall:** the owner chose the skill's version, so the Pro sheet now ends the full flow (`source: 'onboarding'`, a
+  title restating the goal). It always has Close and Not Now. Skip on any step still ends the tour with no sheet. There is
+  no trial yet: that needs an introductory offer in the stores (`paywall-placement-strategy.md` §3, item 1).
+- **No testimonials and no invented stats** until there are real reviews; the solution screen uses product facts.
+- **Not built from the skill:** comparison table (optional) and account creation (TalkRoll has no accounts).
+- **No script is saved.** The goal only picks the practice line the demo reads (`onboarding_content.dart`), so the tour
+  never uses one of the five free scripts. The built-in welcome script stays the sample (and the reviewers' script).
+  The result shows the reader's pace (when the voice demo measured one) and explains the three modes.
+- **Goal screen** ("What will you use the teleprompter for?") follows the owner's mock-up: a two-column grid of cards,
+  each with a line icon drawn by `GoalGlyphPainter` (film camera, mortarboard, presentation board, handheld mic, studio
+  mic, sparkles; two people for Mac's video calls) in the mock-up's sampled colours (`BadgeTone`: sky, lavender, aqua,
+  peach, rose, periwinkle; light mode uses deeper icons on pale badges). One tap moves on. The pain list uses neutral
+  Material line icons, accent when ticked. No emoji.
+- **Answers** (ids only) are stored in `TalkRoll.onboarding.answers.v1` and logged as `onboarding_answers`.

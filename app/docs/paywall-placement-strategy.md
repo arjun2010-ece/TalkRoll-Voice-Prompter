@@ -75,6 +75,8 @@ in the app, and named on the store listing (2.3.2).
 
 - **A hard paywall in the first run.** It converts better on paper, but we decided on no paywall in onboarding, it
   works best with a trial, and it hurts the try-first promise.
+  *Update 2026-11-11:* the owner reversed this for the questionnaire onboarding: a closable Pro sheet now ends the full
+  tour (Skip still avoids it). See `onboarding-plan.md` §12.
 - **Interrupting presenting or recording.** It is the worst moment and costs trust. The sheet never opens during a read
   or a take.
 - **Promotional push or local notifications.** They need explicit opt-in (4.5.4).

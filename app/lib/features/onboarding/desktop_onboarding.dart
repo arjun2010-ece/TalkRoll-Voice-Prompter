@@ -6,9 +6,10 @@ import '../../core/settings/prompt_settings.dart';
 import '../../services/platform.dart';
 import '../../services/providers.dart';
 import '../../ui/position_picker.dart';
+import '../../ui/voice_permission_list.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
-import '../prompter/prompter_controller.dart' show audioInputProvider, nativeSpeechProvider;
+import '../prompter/voice_permissions.dart';
 import 'onboarding_content.dart';
 import 'onboarding_state.dart';
 import 'onboarding_widgets.dart';
@@ -17,9 +18,10 @@ enum _Step { welcome, goal, pains, solution, position, voice, result }
 
 /// First run on macOS and Windows, in the Studio window. Two quick questions (what the reader is getting ready for,
 /// what gets in the way) shape a "here's how TalkRoll helps" screen and the practice line; then where the prompter sits,
-/// Voice, a read of that line, the result with the three modes explained, and the plans. The tour never saves a script,
-/// so it never uses one of the free scripts. Voice is optional; skipping it, or a refused microphone,
-/// leaves the app in Normal mode. There is no live voice test here, unlike on phones.
+/// Voice (a checklist of the microphone, speech recognition and Dictation, each asked for on its own click), a read of
+/// that line, the result with the three modes explained, and the plans. The tour never saves a script, so it never uses
+/// one of the free scripts. Voice is optional; the tour ends in Normal mode either way. There is no live voice test
+/// here, unlike on phones.
 class DesktopOnboarding extends ConsumerStatefulWidget {
   const DesktopOnboarding({super.key});
 
@@ -27,7 +29,7 @@ class DesktopOnboarding extends ConsumerStatefulWidget {
   ConsumerState<DesktopOnboarding> createState() => _DesktopOnboardingState();
 }
 
-class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with WidgetsBindingObserver {
+class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> {
   _Step _step = _Step.welcome;
 
   /// Steps visited before this one, for Back.
@@ -36,40 +38,12 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
   OnboardingGoal? _goal;
   final _pains = <String>{};
 
-  /// What still stops Voice mode (a title and an explanation), or null when nothing does.
-  (String, String)? _problem;
-  bool get _micOff => _problem != null;
-
   /// The plans are open, so a second click on the result's button does nothing.
   bool _completing = false;
 
   OnboardingGoal get _g => _goal ?? desktopGoals.last;
 
   static const _path = _Step.values;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  /// Coming back from System Settings after turning something on carries on once nothing is left to allow.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || !_micOff || _step != _Step.voice) return;
-    _voiceProblem().then((problem) {
-      if (mounted && problem == null && _micOff && _step == _Step.voice) {
-        setState(() => _problem = null);
-        _go(_Step.result);
-      }
-    });
-  }
 
   void _go(_Step s) => setState(() {
     _history.add(_step);
@@ -79,19 +53,12 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
   void _back() {
     if (_history.isEmpty) return;
     setState(() {
-      var s = _history.removeLast();
-      _step = s;
-      _problem = null;
+      _step = _history.removeLast();
     });
   }
 
   /// Voice declined: carry on with Auto-scroll, which needs no permission.
-  void _useAutoScroll() {
-    setState(() {
-      _problem = null;
-    });
-    _go(_Step.result);
-  }
+  void _useAutoScroll() => _go(_Step.result);
 
   /// One click answers and moves on; the short pause lets the highlight show first.
   void _pickGoal(OnboardingGoal g) {
@@ -134,47 +101,6 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
     });
     ref.read(settingsProvider.notifier).update((s) => s.copyWith(mode: mode));
     ref.read(onboardingDoneProvider.notifier).complete();
-  }
-
-  /// What still stops Voice mode, or null when the microphone and speech recognition are both ready. Asks for each the
-  /// first time. Speech recognition is a separate macOS permission, and it needs Dictation to be on in Keyboard settings.
-  Future<(String, String)?> _voiceProblem() async {
-    if (!await ref.read(audioInputProvider).hasPermission()) {
-      return (
-        'Microphone is off',
-        isMacOS
-            ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in System Settings → Privacy & Security → Microphone, or carry on in Auto-scroll mode.'
-            : 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings → Privacy → Microphone, or carry on in Auto-scroll mode.',
-      );
-    }
-    final native = ref.read(nativeSpeechProvider);
-    if (native == null || !isMacOS) return null;
-    try {
-      await native.isAvailable(); // asks for speech recognition the first time
-      final r = await native.readiness();
-      if (r['speech'] == 'denied' || r['speech'] == 'restricted') {
-        return (
-          'Speech recognition is off',
-          'Voice mode turns your words into text, so it needs speech recognition. Turn it on in System Settings → Privacy & Security → Speech Recognition, or carry on in Auto-scroll mode.',
-        );
-      }
-      if (r['dictation'] == 'off') {
-        return (
-          'Dictation is off',
-          'Voice mode uses your Mac\'s dictation engine. Turn on Dictation in System Settings → Keyboard, or carry on in Auto-scroll mode.',
-        );
-      }
-    } catch (_) {
-      // The check itself failed; Voice mode explains any problem when it starts.
-    }
-    return null;
-  }
-
-  Future<void> _askMicrophone() async {
-    final problem = await _voiceProblem();
-    if (!mounted) return;
-    setState(() => _problem = problem);
-    if (problem == null) _go(_Step.result);
   }
 
   @override
@@ -261,7 +187,7 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
           ),
         ],
       ),
-      _Step.voice => _voice(context, title, muted),
+      _Step.voice => _voice(context, muted),
       _Step.result => _result(context, title, muted),
     };
     return Theme(
@@ -322,40 +248,31 @@ class _DesktopOnboardingState extends ConsumerState<DesktopOnboarding> with Widg
       _Step.pains => [back, skip, primary('Continue', () => _go(_Step.solution))],
       _Step.solution => [back, skip, primary('Set up my prompter', () => _go(_Step.position))],
       _Step.position => [back, primary('Continue', () => _go(_Step.voice))],
-      _Step.voice when _micOff => [back, primary('Continue in Auto-scroll mode', _useAutoScroll)],
-      _Step.voice => [
+      // Continue appears once everything on the checklist is allowed; "Not now" always carries on without it.
+      _Step.voice when voicePermissionsReady(ref.watch(voicePermissionsProvider).value) => [
         back,
-        TextButton(onPressed: _useAutoScroll, child: const Text('Not now')),
-        primary(isMacOS ? 'Continue' : 'Turn on microphone', _askMicrophone),
+        primary('Continue', () => _go(_Step.result)),
       ],
+      _Step.voice => [back, TextButton(onPressed: _useAutoScroll, child: const Text('Not now'))],
       _Step.result => [back, primary('Open the Studio', _complete)],
     };
   }
 
-  Widget _voice(BuildContext context, TextStyle? title, TextStyle? muted) {
+  Widget _voice(BuildContext context, TextStyle? muted) {
     final device = isMacOS ? 'this Mac' : 'this PC';
-    if (!_micOff) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Your script follows your voice', style: onboardingHero(context)),
-          const SizedBox(height: 10),
-          Text('Voice Mode uses your microphone to keep your place as you read aloud.', style: muted),
-          const SizedBox(height: 24),
-          const VoiceExampleCard(),
-          const SizedBox(height: 28),
-          PrivacyBlock(lines: voiceFacts(onDevice: true, device: device)),
-        ],
-      );
-    }
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const HeroIcon(Icons.mic_off_outlined, warn: true),
-        const SizedBox(height: 20),
-        Text(_problem!.$1, textAlign: TextAlign.center, style: title),
+        Text('Your script follows your voice', style: onboardingHero(context)),
         const SizedBox(height: 10),
-        Text(_problem!.$2, textAlign: TextAlign.center, style: muted),
+        Text(
+          'Turn these on so Voice Mode can keep your place as you read aloud. You can change them later in Settings.',
+          style: muted,
+        ),
+        const SizedBox(height: 24),
+        const VoicePermissionList(card: true),
+        const SizedBox(height: 28),
+        PrivacyBlock(lines: voiceFacts(onDevice: true, device: device)),
       ],
     );
   }

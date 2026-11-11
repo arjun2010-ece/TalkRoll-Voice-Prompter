@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/entitlements/entitlements.dart';
 import '../../core/settings/prompt_settings.dart';
-import '../../services/permissions/permissions.dart';
 import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
+import '../../ui/voice_permission_list.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/pro_state.dart';
 import '../prompter/voice_availability.dart';
+import '../prompter/voice_permissions.dart';
 import 'onboarding_content.dart';
 import 'onboarding_state.dart';
 import 'onboarding_widgets.dart';
@@ -21,10 +21,11 @@ enum _Step { welcome, goal, pains, solution, voice, preparing, demo, result }
 const _skippable = {_Step.welcome, _Step.goal, _Step.pains, _Step.solution, _Step.demo};
 
 /// First run on iPhone, iPad and Android. Two quick questions (what the reader is getting ready for, what gets in the
-/// way) shape a "here's how TalkRoll helps" screen and the practice line. Then the microphone, a live read of that line
-/// in Voice mode (Auto-scroll without the microphone), the result with the three modes explained, and the plans. The
-/// tour never saves a script, so it never uses one of the free scripts. The camera is asked for on the Record screen, when it is needed. Nothing here is needed to use
-/// Auto-scroll mode.
+/// way) shape a "here's how TalkRoll helps" screen and the practice line. Then Voice mode's checklist (the microphone,
+/// and speech recognition on iPhone and iPad, each asked for on its own tap), a live read of that line in Voice mode
+/// (Auto-scroll without them), the result with the three modes explained, and the plans. The tour never saves a script,
+/// so it never uses one of the free scripts. The camera is asked for on the Record screen, when it is needed. Nothing
+/// here is needed to use Auto-scroll mode.
 class MobileOnboarding extends ConsumerStatefulWidget {
   const MobileOnboarding({super.key});
 
@@ -32,7 +33,7 @@ class MobileOnboarding extends ConsumerStatefulWidget {
   ConsumerState<MobileOnboarding> createState() => _MobileOnboardingState();
 }
 
-class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with WidgetsBindingObserver {
+class _MobileOnboardingState extends ConsumerState<MobileOnboarding> {
   _Step _step = _Step.welcome;
 
   /// Steps visited before this one, for Back.
@@ -41,10 +42,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
   OnboardingGoal? _goal;
   final _pains = <String>{};
 
-  /// The microphone was refused (or cannot be asked again): the voice step shows how to carry on.
-  bool _micOff = false;
-
-  /// The microphone is allowed, so the demo listens and the reader ends in Voice mode.
+  /// Everything on the Voice step's checklist is allowed, so the demo listens and the reader ends in Voice mode.
   bool _micReady = false;
 
   /// Words a minute from the voice demo, when it measured one.
@@ -57,46 +55,20 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
 
   bool get _voiceOk => ref.read(voiceAvailableProvider).value ?? true;
 
-  /// The steps this run will show, for the progress bar. A device without speech recognition has no microphone step.
+  /// The steps this run will show, for the progress bar. A device without speech recognition has no Voice step; one
+  /// already shown stays counted, so refusing speech recognition there doesn't move the bar.
   List<_Step> get _path => [
     _Step.welcome,
     _Step.goal,
     _Step.pains,
     _Step.solution,
-    if (_voiceOk) _Step.voice,
+    if (_voiceOk || _step == _Step.voice || _history.contains(_Step.voice)) _Step.voice,
     _Step.preparing,
     _Step.demo,
     _Step.result,
   ];
 
   PromptControlMode get _finalMode => _micReady ? PromptControlMode.voice : PromptControlMode.normal;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  /// Coming back from Settings after turning the microphone on carries on to the demo.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || _step != _Step.voice || !_micOff) return;
-    Permission.microphone.status.then((s) {
-      if (mounted && s.isGranted && _micOff && _step == _Step.voice) {
-        setState(() {
-          _micOff = false;
-          _micReady = true;
-        });
-        _go(_Step.preparing);
-      }
-    });
-  }
 
   void _go(_Step s) => setState(() {
     _history.add(_step);
@@ -113,17 +85,19 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         s = _history.removeLast();
       }
       _step = s;
-      _micOff = false;
       if (s == _Step.demo) _pace = null;
     });
   }
 
   /// Voice setup declined: carry on with Auto-scroll, which needs no permission.
   void _useAutoScroll() {
-    setState(() {
-      _micOff = false;
-      _micReady = false;
-    });
+    setState(() => _micReady = false);
+    _go(_Step.preparing);
+  }
+
+  /// Everything on the checklist is allowed: carry on to the demo in Voice mode.
+  void _useVoice() {
+    setState(() => _micReady = true);
     _go(_Step.preparing);
   }
 
@@ -170,25 +144,6 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
     });
   }
 
-  Future<void> _askMicrophone() async {
-    final status = await Permission.microphone.status;
-    final granted =
-        status.isGranted ||
-        (!status.isPermanentlyDenied &&
-            !status.isRestricted &&
-            await requestPermission(Permission.microphone, 'mic', ref.read(analyticsProvider)));
-    if (!mounted) return;
-    if (granted) {
-      setState(() {
-        _micOff = false;
-        _micReady = true;
-      });
-      _go(_Step.preparing);
-    } else {
-      setState(() => _micOff = true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Read once here so the answer is ready by the solution step.
@@ -198,7 +153,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
       _Step.goal => _goalPage(context),
       _Step.pains => _painsPage(context),
       _Step.solution => _solutionPage(context),
-      _Step.voice => _micOff ? _micOffPage(context) : _voicePage(context),
+      _Step.voice => _voicePage(context),
       _Step.preparing => _preparingPage(),
       _Step.demo => _demoPage(context),
       _Step.result => _resultPage(context),
@@ -252,7 +207,7 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
                       Expanded(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
-                          child: KeyedSubtree(key: ValueKey('$_step$_micOff'), child: page),
+                          child: KeyedSubtree(key: ValueKey(_step), child: page),
                         ),
                       ),
                     ],
@@ -371,7 +326,10 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
     );
   }
 
+  /// Voice mode's checklist: each row asks for its own permission, and Continue appears once all are allowed. "Not now"
+  /// always carries on without them, in Auto-scroll.
   Widget _voicePage(BuildContext context) {
+    final ready = voicePermissionsReady(ref.watch(voicePermissionsProvider).value);
     return _Page(
       body: [
         Expanded(
@@ -381,9 +339,12 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
               children: [
                 Text('Your script follows your voice', style: onboardingHero(context)),
                 const SizedBox(height: 10),
-                Text('Voice Mode uses your microphone to keep your place as you read aloud.', style: _muted(context)),
+                Text(
+                  'Turn these on so Voice Mode can keep your place as you read aloud. You can change them later in Settings.',
+                  style: _muted(context),
+                ),
                 const SizedBox(height: 24),
-                const VoiceExampleCard(),
+                const VoicePermissionList(card: true),
                 const SizedBox(height: 28),
                 PrivacyBlock(
                   lines: voiceFacts(onDevice: isApple, device: 'this device'),
@@ -394,32 +355,9 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
         ),
       ],
       actions: [
-        FilledButton(onPressed: _askMicrophone, child: Text(isApple ? 'Continue' : 'Turn on microphone')),
-        TextButton(onPressed: _useAutoScroll, child: const Text('Not now')),
-      ],
-    );
-  }
-
-  Widget _micOffPage(BuildContext context) {
-    return _Page(
-      body: [
-        const Spacer(),
-        const HeroIcon(Icons.mic_off_outlined, warn: true),
-        const SizedBox(height: 20),
-        Text('Microphone is off', textAlign: TextAlign.center, style: _title(context)),
-        const SizedBox(height: 10),
-        Text(
-          isApple
-              ? 'Voice mode follows what you say, so it needs the microphone. Turn it on in Settings, or use Auto-scroll mode, which needs nothing.'
-              : 'Voice mode needs the microphone. Turn it on in the app settings, or use Auto-scroll mode, which needs nothing.',
-          textAlign: TextAlign.center,
-          style: _muted(context),
-        ),
-        const Spacer(),
-      ],
-      actions: [
-        FilledButton(onPressed: openAppSettings, child: const Text('Open Settings')),
-        OutlinedButton(onPressed: _useAutoScroll, child: const Text('Use Auto-scroll mode')),
+        ready
+            ? FilledButton(onPressed: _useVoice, child: const Text('Continue'))
+            : TextButton(onPressed: _useAutoScroll, child: const Text('Not now')),
       ],
     );
   }
@@ -446,10 +384,12 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
   Widget _demoPage(BuildContext context) {
     return _Page(
       body: [
-        Text('Try reading aloud', style: onboardingHero(context)),
+        Text(_micReady ? 'Try reading aloud' : 'Watch Auto-scroll', style: onboardingHero(context)),
         const SizedBox(height: 10),
         Text(
-          _micReady ? 'Watch the words highlight as you speak.' : 'Watch the words highlight as they scroll.',
+          _micReady
+              ? 'Watch the words highlight as you speak.'
+              : 'Auto-scroll moves at a steady pace, so there is nothing to say. Turn on Voice mode and the words follow you instead.',
           style: _muted(context),
         ),
         const SizedBox(height: 28),
@@ -461,7 +401,11 @@ class _MobileOnboardingState extends ConsumerState<MobileOnboarding> with Widget
           ),
         ),
       ],
-      actions: [FilledButton(onPressed: () => _go(_Step.result), child: const Text('Continue'))],
+      actions: [
+        FilledButton(onPressed: () => _go(_Step.result), child: const Text('Continue')),
+        if (!_micReady && _history.contains(_Step.voice))
+          TextButton(onPressed: () => _go(_Step.voice), child: const Text('Turn on Voice mode')),
+      ],
     );
   }
 

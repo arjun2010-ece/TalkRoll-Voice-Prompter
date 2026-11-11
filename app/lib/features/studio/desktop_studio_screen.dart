@@ -13,7 +13,8 @@ import '../../core/settings/labels.dart';
 import '../../core/settings/prompt_settings.dart';
 import '../../core/shortcuts/shortcut_binding.dart';
 import '../../services/providers.dart';
-import '../../services/speech/speech_requirements.dart';
+import '../../ui/voice_permission_list.dart';
+import '../prompter/voice_permissions.dart';
 import '../../services/storage/script_io.dart';
 import '../../ui/discard_changes_dialog.dart';
 import '../../ui/position_picker.dart';
@@ -271,27 +272,36 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     if (id != null) ref.read(proProvider.notifier).recordStart(id);
   }
 
-  /// Voice and Audio mode need something only the reader can allow or turn on (speech or microphone access
-  /// and Dictation on macOS). Offers the Settings page first; "Start
-  /// anyway" goes on regardless, since a setting can't always be read.
+  /// Voice and Audio mode need the microphone, speech recognition and Dictation. If any is not on yet, the reader gets
+  /// the checklist (one prompt per tap) instead of the system asking for them back to back once the prompter starts.
+  /// "Start anyway" goes on regardless, since a setting can't always be read.
   Future<bool> _speechSettingReady() async {
-    if (ref.read(settingsProvider).mode == PromptControlMode.normal) return true;
-    final need = await unmetSpeechRequirement();
-    if (need == null || !mounted) return true;
-    final choice = await showDialog<String>(
+    if (!isMacOS || ref.read(settingsProvider).mode == PromptControlMode.normal) return true;
+    try {
+      ref.invalidate(voicePermissionsProvider);
+      final states = await ref.read(voicePermissionsProvider.future);
+      if (voicePermissionsReady(states) || !mounted) return true;
+    } catch (_) {
+      return true;
+    }
+    final go = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.mic_none_rounded, size: 32),
-        title: Text(need.title),
-        content: Text(need.message),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop('start'), child: const Text('Start anyway')),
-          FilledButton(onPressed: () => Navigator.of(context).pop('settings'), child: const Text('Open settings')),
-        ],
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final ready = voicePermissionsReady(ref.watch(voicePermissionsProvider).value);
+          return AlertDialog(
+            title: const Text('Turn on Voice mode'),
+            content: const SizedBox(width: 440, child: VoicePermissionList()),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+              if (!ready) TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Start anyway')),
+              if (ready) FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Start')),
+            ],
+          );
+        },
       ),
     );
-    if (choice == 'settings') await need.openSettings();
-    return choice == 'start';
+    return go ?? false;
   }
 
   void _preferences() => showPreferences(context);

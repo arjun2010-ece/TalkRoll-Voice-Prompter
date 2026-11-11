@@ -11,6 +11,7 @@ import '../../services/external_links.dart';
 import '../../services/providers.dart';
 import '../../ui/adaptive.dart';
 import '../../ui/speech_language_row.dart';
+import '../../ui/voice_permission_list.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/purchase_actions.dart';
@@ -236,6 +237,7 @@ class _GeneralContentState extends ConsumerState<_GeneralContent> {
         ),
       ]),
       const _Group(title: 'Voice', children: [SpeechLanguageRow()]),
+      const _Group(title: 'Permissions', children: [VoicePermissionList()]),
       _Group(title: 'Diagnostics', children: [
         _SwitchRow(
           title: 'Send crash reports',

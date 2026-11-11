@@ -16,6 +16,7 @@ import '../../main.dart' show crashReportingKey;
 import '../../services/external_links.dart';
 import '../../services/providers.dart';
 import '../../ui/speech_language_row.dart';
+import '../../ui/voice_permission_list.dart';
 import '../onboarding/onboarding_state.dart';
 import '../pro/paywall_dialog.dart';
 import '../pro/purchase_actions.dart';
@@ -269,6 +270,7 @@ class _GeneralTab extends ConsumerWidget {
             ),
         ]),
       const _Group(title: 'Voice', children: [SpeechLanguageRow()]),
+      if (isMacOS) const _Group(title: 'Permissions', children: [VoicePermissionList()]),
       const _CaptureSupportNote(),
       _Group(title: 'Diagnostics', children: [_CrashReportsSwitch(prefs: prefs)]),
     ]);

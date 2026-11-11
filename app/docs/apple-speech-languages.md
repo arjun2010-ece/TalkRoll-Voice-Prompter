@@ -124,7 +124,7 @@ Measured on the iPhone (iOS 26.6.2) on 2026-11-02.
 
 ### Suggested App Review note
 
-"TalkRoll's Narration and Voice modes use Apple's on-device speech recognition (Speech framework, SpeechAnalyzer). For a language whose speech pack is not on the device yet, the app asks the user before downloading it from Apple through the system's AssetInventory API; the pack is system speech data, not app code, and the app works without it (Auto-scroll mode, and Voice mode in English). After the one-time download the language works offline and no audio leaves the device."
+"TalkRoll's Narration and Voice modes use Apple's on-device speech recognition (Speech framework, SpeechAnalyzer). For a language whose speech pack is not on the device yet, the app asks the user before downloading it from Apple through the system's AssetInventory API; the pack is system speech data, not app code, and the app works without it (Auto-scroll mode, and Voice mode in English). After the one-time download the language works offline. Speech is processed on the device where the device supports it, and the app never records or uploads it for its own use."
 
 ## What this was not tested with
 

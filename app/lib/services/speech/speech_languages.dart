@@ -8,6 +8,7 @@ library;
 import 'dart:io' show Platform;
 import 'dart:ui' show PlatformDispatcher;
 
+import '../providers.dart' show StudioNotifier;
 import 'native_speech_recognizer.dart';
 
 /// A language tag the platform recognisers take (`en-US`, `pt-BR`, ...) and the name shown for it.
@@ -150,6 +151,8 @@ Future<String> speechLanguageForScript({
   required String setting,
   required String script,
 }) async {
+  // The built-in demo is English only, whatever the reading-language setting or the device's language is.
+  if (script == StudioNotifier.welcome) return defaultSpeechLanguage;
   final auto = setting == autoSpeechLanguage;
   return resolveSpeechLanguage(
     setting: setting,

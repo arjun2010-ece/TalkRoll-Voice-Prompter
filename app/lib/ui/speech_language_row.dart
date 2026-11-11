@@ -62,6 +62,8 @@ class _SpeechLanguageLineState extends ConsumerState<SpeechLanguageLine> {
     }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    // The demo script is English only, so its language is shown but can't be changed.
+    final demo = widget.script == StudioNotifier.welcome;
     final title = widget.dense ? theme.textTheme.bodyMedium : theme.textTheme.bodyLarge;
     final muted = (widget.dense ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)?.copyWith(color: scheme.onSurfaceVariant);
     return Row(children: [
@@ -72,10 +74,11 @@ class _SpeechLanguageLineState extends ConsumerState<SpeechLanguageLine> {
           future: _language,
           builder: (context, snap) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(snap.hasData ? 'Listening for ${speechLanguageName(snap.data!)}' : 'Checking the language…', style: title),
-            Text(setting == autoSpeechLanguage ? 'Automatic, from your script' : 'Chosen by you', style: muted),
+            Text(demo ? 'The demo script is in English' : setting == autoSpeechLanguage ? 'Automatic, from your script' : 'Chosen by you', style: muted),
           ]),
         ),
       ),
+      if (!demo)
       TextButton(
         onPressed: () async {
           final picked = await showDialog<String>(context: context, builder: (_) => _LanguageDialog(current: setting));

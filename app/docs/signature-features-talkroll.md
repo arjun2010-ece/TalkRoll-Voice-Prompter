@@ -279,7 +279,7 @@ The Mac app doesn't record, so when someone retakes a section their screen recor
 
 ## 7. App Review cleanup (Phase 0)
 
-- **Demo content:** the demo script contains placeholder copy ("Brightside sorts it into today…"). Replace it with real copy explaining TalkRoll, showing sections and at least two action cues (one with hold). Search the repo for any other placeholder or lorem text.
+- **Demo content:** done. The demo script (`StudioNotifier.welcome`) now explains TalkRoll with three sections, two action cues and one hold cue; "Tap New" on mobile, "Choose New" on desktop; read-only everywhere.
 - **Bundled sample audio:** ship a short sample recording (about 20–30 s) that matches the demo script, so a reviewer can try Narration mode instantly. Arjun provides the final recording. Until then, use a placeholder file from any source, marked `TODO(arjun): replace sample audio`.
 - **"Hidden from screen recording": remove it from iOS, iPadOS and Android (decided).** Mobile records the camera, never the phone's screen, so the prompter can't appear in mobile videos anyway. The option is unnecessary there, and iOS can't reliably back the claim. Remove the setting, its copy (e.g. in "More text options") and any related code on mobile. **Keep it unchanged on macOS.**
 - **Permission strings:** clear, specific purpose strings for camera, microphone, speech recognition, Photos (add-only), and anything new on macOS. Example: "TalkRoll uses speech recognition on your device to follow your voice and to sync your script to an audio recording."

@@ -126,15 +126,22 @@ class StudioState {
 }
 
 class StudioNotifier extends Notifier<StudioState> {
-  static const welcome =
-      'Welcome to TalkRoll.\n\n'
-      'Replace this text with your own script, or press Import to open a file. '
-      'The preview on the right shows exactly how your words will look.\n\n'
-      'When you are ready, press Start. The prompter floats above every other '
-      'app, so you can read while you present, and it stays hidden from screen '
-      'sharing and recordings.\n\n'
-      'Try the Top center position: placing your words right under the camera '
-      'helps you keep eye contact with your audience.';
+  /// The built-in demo script. "Tap New" on phones and tablets, "Choose New" on desktop; the text is fixed for the run, so it can still be
+  /// compared with the open script.
+  static final welcome =
+      '[Welcome]\n'
+      'Hi, this is TalkRoll, a teleprompter that follows your voice. '
+      'Your words scroll as you speak, so you can look at the camera instead of your notes.\n\n'
+      '{{ Smile and look at the camera }}\n\n'
+      '[How it works]\n'
+      'Split your script into sections by putting a name in square brackets on its own line. '
+      'Add an action cue in double curly braces for things you want to do, like a smile or a gesture. '
+      'A cue with an exclamation mark holds the prompter until you press Continue.\n\n'
+      '{{! Take a breath, then press Continue }}\n\n'
+      '[Your turn]\n'
+      'This demo is just for looking at. '
+      '${isMobile ? 'Tap' : 'Choose'} New to write your own script, then record it section by section and retake any part you like.\n\n'
+      '{{ Wave goodbye }}';
   String? _currentId;
 
   @override

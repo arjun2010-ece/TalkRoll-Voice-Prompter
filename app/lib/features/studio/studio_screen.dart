@@ -655,6 +655,8 @@ class _EditorState extends ConsumerState<_Editor> {
     final text = isMobile ? _controller.text : script;
     final empty = text.trim().isEmpty;
     final canSave = dirty && cleanScript(_controller.text).isNotEmpty;
+    // The built-in demo is for looking at on phones and tablets too: no editing, Save, Cancel or inserts.
+    final demo = isMobile && script == StudioNotifier.welcome && ref.read(studioProvider.notifier).currentId == null;
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 16, 0),
@@ -665,11 +667,11 @@ class _EditorState extends ConsumerState<_Editor> {
             child: Text.rich(
               TextSpan(children: [
                 TextSpan(
-                  text: dirty ? 'Unsaved changes' : 'Saved',
+                  text: demo ? '' : (dirty ? 'Unsaved changes' : 'Saved'),
                   style: TextStyle(color: dirty ? scheme.secondary : scheme.onSurfaceVariant),
                 ),
                 TextSpan(
-                  text: ' · ${_stats(text)}',
+                  text: demo ? _stats(text) : ' · ${_stats(text)}',
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
               ]),
@@ -678,7 +680,7 @@ class _EditorState extends ConsumerState<_Editor> {
               style: theme.textTheme.bodySmall,
             ),
           ),
-          if (isMobile) ...[
+          if (isMobile && !demo) ...[
             TextButton(
               onPressed: dirty ? _cancel : null,
               child: const Text('Cancel'),
@@ -699,7 +701,12 @@ class _EditorState extends ConsumerState<_Editor> {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
+            child: demo
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Welcome to TalkRoll', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
+                  )
+                : TextField(
               controller: _titleController,
               maxLength: SavedScript.maxTitleLength,
               maxLines: 1,
@@ -765,6 +772,7 @@ class _EditorState extends ConsumerState<_Editor> {
       child: TextField(
         controller: _controller,
         focusNode: _focus,
+        readOnly: demo,
         autofocus: script.isEmpty,
         maxLines: null,
         expands: true,
@@ -848,7 +856,7 @@ class _EditorState extends ConsumerState<_Editor> {
                   titleField,
                   const Divider(indent: 24, endIndent: 24),
                   const SizedBox(height: 4),
-                  insertRow,
+                  if (!demo) insertRow,
                   body,
                 ],
               ),

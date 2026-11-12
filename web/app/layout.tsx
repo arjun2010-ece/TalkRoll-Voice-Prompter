@@ -6,22 +6,30 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
 export const metadata: Metadata = {
   metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: {
-    default: "TalkRoll — Native macOS Teleprompter",
+    default: "TalkRoll — Best Teleprompter App That Follows Your Voice",
     template: "%s | TalkRoll",
   },
   description:
-    "A native macOS teleprompter with smooth scrolling, live voice following, and recorded-audio script synchronization.",
+    "The best teleprompter app for every script. Voice-activated scrolling that follows your words, auto-scroll, and narration sync on Mac, iPhone, iPad, and Android. Record video, retake sections, free to try.",
   applicationName: "TalkRoll",
   keywords: [
-    "macOS teleprompter",
+    "best teleprompter app",
+    "teleprompter app",
+    "voice-activated teleprompter",
+    "voice scrolling teleprompter",
+    "teleprompter that follows your voice",
+    "teleprompter for iPhone",
+    "teleprompter for iPad",
+    "teleprompter for Android",
     "teleprompter for Mac",
-    "voice controlled teleprompter",
-    "audio synced teleprompter",
-    "video recording teleprompter",
-    "presentation prompter",
+    "free teleprompter app",
+    "video teleprompter app",
+    "teleprompter for Zoom",
+    "script reader",
     "floating teleprompter",
-    "script reader for Mac",
+    "mirror teleprompter text",
   ],
+
   authors: [{ name: "Arjun Sah" }],
   creator: "Arjun Sah",
   publisher: "TalkRoll",
@@ -41,17 +49,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "TalkRoll — Native macOS Teleprompter",
+    title: "TalkRoll — Best Teleprompter App That Follows Your Voice",
     description:
-      "Stay on script with smooth scrolling, live voice following, and recorded-audio synchronization on your Mac.",
+      "Voice-activated scrolling, auto-scroll, and narration sync on Mac, iPhone, iPad, and Android. Record video and retake sections.",
     siteName: "TalkRoll",
     url: siteUrl,
   },
   twitter: {
     card: "summary",
-    title: "TalkRoll — Native macOS Teleprompter",
+    title: "TalkRoll — Best Teleprompter App That Follows Your Voice",
     description:
-      "A thoughtful macOS teleprompter for normal scrolling, voice following, and recorded audio.",
+      "The best teleprompter app: it follows your voice on Mac, iPhone, iPad, and Android.",
   },
 };
 

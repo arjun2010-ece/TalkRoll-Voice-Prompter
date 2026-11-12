@@ -369,7 +369,12 @@ class _ProTab extends ConsumerWidget {
                   Text('$used of $freeScriptLimit free scripts used${pro.changesStarted ? ' · ${pro.changesLeft} of $freeChangeLimit free changes left' : ''}', style: muted),
                 ]),
                 const SizedBox(height: 6),
-                Text('Your first $freeScriptLimit saved scripts are free, and you can present them as often as you like. Editing and exporting them is always free.', style: muted),
+                Text(
+                  scriptLimitsActive
+                      ? 'Your first $freeScriptLimit saved scripts are free, up to $freeWordLimit words each, and you can present them as often as you like. Small edits and exporting are always free; replacing a script or rewriting most of one takes a free change.'
+                      : 'Your first $freeScriptLimit saved scripts are free, and you can present them as often as you like. Editing and exporting them is always free.',
+                  style: muted,
+                ),
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () => showPaywall(context, source: 'settings'),

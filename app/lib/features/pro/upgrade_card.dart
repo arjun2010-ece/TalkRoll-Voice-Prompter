@@ -85,7 +85,7 @@ class UpgradeCard extends ConsumerWidget {
         ),
         if (pro.changesStarted && !limit) ...[
           const SizedBox(height: 8),
-          Text('${pro.changesLeft} of $freeChangeLimit free changes left. A new script takes one once all $freeScriptLimit slots were used.', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          Text('${pro.changesLeft} of $freeChangeLimit free changes left. ${scriptLimitsActive ? 'A new script, or a rewrite of most of a script, takes one once all $freeScriptLimit slots were used.' : 'A new script takes one once all $freeScriptLimit slots were used.'}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         ],
         if (limit) ...[
           const SizedBox(height: 8),

@@ -94,25 +94,16 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     if (_onNotes) return ref.read(noteEditorSaveProvider)?.call();
     final cleaned = cleanScript(_controller.text);
     if (!_dirty.value || cleaned.isEmpty) return;
-    // Free limits (macOS for now): over 800 words or a big rewrite. The text stays in the box, only the save waits.
-    final studio = ref.read(studioProvider.notifier);
-    final verdict = studio.checkSave(cleaned);
-    var rewriteConfirmed = false;
-    if (verdict == SaveVerdict.tooLong || verdict == SaveVerdict.noChangesLeft) {
-      studio.signalBlocked(verdict, cleaned);
-      return;
-    }
-    if (verdict == SaveVerdict.rewriteCostsChange) {
-      if (!await confirmBigRewrite(context, ref) || !mounted) return;
-      rewriteConfirmed = true;
-    }
+    // Free limits: over 800 words or a big rewrite. The text stays in the box, only the save waits.
+    final gate = await checkSaveLimits(context, ref, cleaned);
+    if (!gate.proceed || !mounted) return;
     _controller.value = TextEditingValue(
       text: cleaned,
       selection: TextSelection.collapsed(offset: _controller.selection.baseOffset.clamp(0, cleaned.length)),
     );
     final saved = ref
         .read(studioProvider.notifier)
-        .commitScript(cleaned, title: _titleController.text.trim(), rewriteConfirmed: rewriteConfirmed);
+        .commitScript(cleaned, title: _titleController.text.trim(), rewriteConfirmed: gate.rewriteConfirmed);
     _publishDirty();
     await saved;
   }

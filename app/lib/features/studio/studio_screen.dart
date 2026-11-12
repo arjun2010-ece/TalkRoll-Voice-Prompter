@@ -119,9 +119,15 @@ void _resetFollow(WidgetRef ref) {
   ref.read(audioPathProvider.notifier).set(null);
 }
 
-String _stats(String body) {
+String _stats(String body, {bool limited = false}) {
   final words = wordCount(body);
   if (words == 0) return 'Empty script';
+  if (limited) {
+    // Free plan: show the limit before it is hit.
+    final time = readingTimeLabel(words);
+    final sections = sectionMarkers(body).length;
+    return '$words / $freeWordLimit words · $time${sections == 0 ? '' : ' · $sections ${sections == 1 ? 'section' : 'sections'}'}';
+  }
   final time = readingTimeLabel(words);
   final sections = sectionMarkers(body).length;
   return '$words ${words == 1 ? 'word' : 'words'} · $time${sections == 0 ? '' : ' · $sections ${sections == 1 ? 'section' : 'sections'}'}';
@@ -540,9 +546,13 @@ class _EditorState extends ConsumerState<_Editor> {
     setState(() {});
   }
 
-  Future<void> _save() async {
+  /// True when the draft was saved; false when there was nothing to save or the free limits refused it.
+  Future<bool> _save() async {
     final cleaned = cleanScript(_controller.text);
-    if (cleaned.isEmpty) return;
+    if (cleaned.isEmpty) return false;
+    // Free limits (word limit, big rewrite): a refused save leaves the draft in the box untouched.
+    final gate = await checkSaveLimits(context, ref, cleaned);
+    if (!gate.proceed || !mounted) return false;
     _controller.value = TextEditingValue(
       text: cleaned,
       selection: TextSelection.collapsed(
@@ -552,10 +562,11 @@ class _EditorState extends ConsumerState<_Editor> {
     FocusManager.instance.primaryFocus?.unfocus();
     final saved = ref
         .read(studioProvider.notifier)
-        .commitScript(cleaned, title: _titleController.text.trim());
+        .commitScript(cleaned, title: _titleController.text.trim(), rewriteConfirmed: gate.rewriteConfirmed);
     _publishDirty();
     setState(() {});
     await saved;
+    return true;
   }
 
   Future<void> _cancel() async {
@@ -626,7 +637,8 @@ class _EditorState extends ConsumerState<_Editor> {
   Future<void> _start() async {
     if (_isDirty) {
       if (cleanScript(_controller.text).isEmpty) return;
-      await _save();
+      // A save the free limits refused must not start the prompter on the old text.
+      if (!await _save()) return;
     }
     if (!mounted) return;
     final mode = ref.read(settingsProvider).mode;
@@ -658,6 +670,8 @@ class _EditorState extends ConsumerState<_Editor> {
     final canSave = dirty && cleanScript(_controller.text).isNotEmpty;
     // The built-in demo is for looking at on phones and tablets too: no editing, Save, Cancel or inserts.
     final demo = isMobile && script == StudioNotifier.welcome && ref.read(studioProvider.notifier).currentId == null;
+    final limited = ref.watch(proProvider.select((p) => p.limitsApply));
+    final overLimit = limited && wordCount(text) > freeWordLimit;
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 16, 0),
@@ -672,8 +686,8 @@ class _EditorState extends ConsumerState<_Editor> {
                   style: TextStyle(color: dirty ? scheme.secondary : scheme.onSurfaceVariant),
                 ),
                 TextSpan(
-                  text: demo ? _stats(text) : ' · ${_stats(text)}',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
+                  text: demo ? _stats(text, limited: limited) : ' · ${_stats(text, limited: limited)}',
+                  style: TextStyle(color: overLimit ? scheme.error : scheme.onSurfaceVariant, fontWeight: overLimit ? FontWeight.w700 : null),
                 ),
               ]),
               maxLines: 2,

@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/script/clean_script.dart';
 import '../../services/platform.dart';
+import '../../core/entitlements/entitlements.dart';
+import '../../core/script/reading_time.dart';
 import '../../services/providers.dart';
+import '../pro/free_change_prompt.dart';
+import '../pro/pro_state.dart';
 import '../../ui/discard_changes_dialog.dart';
 
 /// Edits the current script from a prompter screen. Returns true when the text
@@ -48,7 +52,11 @@ class _ScriptEditorSheetState extends ConsumerState<_ScriptEditorSheet> {
 
   Future<void> _save() async {
     final navigator = Navigator.of(context);
-    await ref.read(studioProvider.notifier).commitScript(cleanScript(_controller.text));
+    final cleaned = cleanScript(_controller.text);
+    // Free limits (word limit, big rewrite): a refused save keeps the sheet open with the draft.
+    final gate = await checkSaveLimits(context, ref, cleaned);
+    if (!gate.proceed || !mounted) return;
+    await ref.read(studioProvider.notifier).commitScript(cleaned, rewriteConfirmed: gate.rewriteConfirmed);
     navigator.pop();
   }
 
@@ -73,7 +81,28 @@ class _ScriptEditorSheetState extends ConsumerState<_ScriptEditorSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
             child: Row(children: [
-              Expanded(child: Text('Edit script', style: theme.textTheme.titleLarge)),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    // Free plan: the word limit shows before it is hit.
+                    final limited = ref.watch(proProvider.select((p) => p.limitsApply));
+                    final words = wordCount(_controller.text);
+                    final over = limited && words > freeWordLimit;
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Edit script', style: theme.textTheme.titleLarge),
+                      if (limited)
+                        Text(
+                          '$words / $freeWordLimit words',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: over ? theme.colorScheme.error : theme.colorScheme.onSurfaceVariant,
+                            fontWeight: over ? FontWeight.w700 : null,
+                          ),
+                        ),
+                    ]);
+                  },
+                ),
+              ),
               if (isMobile) ...[
                 TextButton(
                   onPressed: () => dirty ? _cancel(false) : Navigator.of(context).pop(),

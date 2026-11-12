@@ -311,7 +311,7 @@ class _ProContent extends ConsumerWidget {
           ]),
           const SizedBox(height: 10),
           if (!pro.isPro) ...[
-            Text('$used of $freeScriptLimit free scripts used${pro.changesStarted ? ', ${pro.changesLeft} of $freeChangeLimit free changes left' : ''}. Pro lets you save and present as many as you like. Editing and exporting your scripts is always free.', style: muted),
+            Text('$used of $freeScriptLimit free scripts used${pro.changesStarted ? ', ${pro.changesLeft} of $freeChangeLimit free changes left' : ''}. Pro lets you save and present as many as you like. ${scriptLimitsActive ? 'Free scripts hold up to $freeWordLimit words. Small edits and exporting are always free; replacing a script or rewriting most of one takes a free change.' : 'Editing and exporting your scripts is always free.'}', style: muted),
             const SizedBox(height: 12),
             LinearProgressIndicator(value: used / freeScriptLimit, minHeight: 4, color: proAccent, backgroundColor: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(2)),
             const SizedBox(height: 14),

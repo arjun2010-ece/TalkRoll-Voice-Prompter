@@ -61,7 +61,7 @@ const bigRewriteShare = 0.6;
 
 /// Whether the 800-word limit and the big-rewrite rule are on for this platform. Switched on one platform at a time as
 /// each is tested; where it is off, scripts of any length save as before and a rewrite is always free.
-bool get scriptLimitsActive => Platform.isMacOS || Platform.isIOS;
+bool get scriptLimitsActive => Platform.isMacOS || Platform.isIOS || Platform.isAndroid;
 
 enum ProPlan { free, monthly, yearly, lifetime }
 

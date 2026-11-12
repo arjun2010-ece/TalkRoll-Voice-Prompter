@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/entitlements/entitlements.dart';
+import '../core/script/reading_time.dart' show wordCount;
 import '../core/script/saved_script.dart';
 import '../core/shortcuts/shortcut_binding.dart';
 import '../features/pro/pro_state.dart';
@@ -125,6 +126,9 @@ class StudioState {
   );
 }
 
+/// What saving a script does under the free limits; see [StudioNotifier.checkSave].
+enum SaveVerdict { ok, tooLong, rewriteCostsChange, noChangesLeft }
+
 class StudioNotifier extends Notifier<StudioState> {
   /// The built-in demo script. "Tap New" on phones and tablets, "Choose New" on desktop; the text is fixed for the run, so it can still be
   /// compared with the open script.
@@ -161,6 +165,41 @@ class StudioNotifier extends Notifier<StudioState> {
   /// the free scripts are used up.
   bool canPresentNow(ProState pro) => ((Platform.isAndroid || Platform.isMacOS || Platform.isIOS) && isDemo) || pro.canPresent(_currentId);
 
+  /// The text of the open script as last saved, or null when it was never saved (new, imported, the demo).
+  String? get _savedBody => state.history.where((s) => s.id == _currentId).firstOrNull?.body;
+
+  /// What saving [text] over the open script does under the free limits (macOS for now): fine, refused because it is
+  /// over [freeWordLimit] words, refused because it is a big rewrite with no free change left, or allowed but takes a
+  /// free change (the screen asks first, then passes `rewriteConfirmed`).
+  SaveVerdict checkSave(String text) {
+    final pro = ref.read(proProvider);
+    if (pro.overWordLimit(text)) return SaveVerdict.tooLong;
+    final before = _savedBody;
+    if (before == null || !pro.rewriteCostsChange(before, text)) return SaveVerdict.ok;
+    return pro.changesLeft > 0 ? SaveVerdict.rewriteCostsChange : SaveVerdict.noChangesLeft;
+  }
+
+  /// Opens the upgrade sheet with the reason a save was refused.
+  void signalBlocked(SaveVerdict why, [String? text]) {
+    final notifier = ref.read(saveBlockedProvider.notifier);
+    switch (why) {
+      case SaveVerdict.tooLong:
+        notifier.blocked(
+          'A free script holds up to $freeWordLimit words, and this one has ${wordCount(text ?? state.script)}. '
+          'Pro has no word limit. Your text is still here to read and copy.',
+          'Longer scripts with Pro',
+        );
+      case SaveVerdict.noChangesLeft:
+        notifier.blocked(
+          "You've used your $freeChangeLimit free changes, and this edit rewrites most of the script. "
+          'Smaller edits are always free; Pro has no limits.',
+          'No free changes left',
+        );
+      case SaveVerdict.ok || SaveVerdict.rewriteCostsChange:
+        notifier.blocked();
+    }
+  }
+
   Timer? _saveTimer;
   Future<void> _saving = Future.value();
 
@@ -183,11 +222,15 @@ class StudioNotifier extends Notifier<StudioState> {
     _saveTimer = Timer(const Duration(seconds: 1), flush);
   }
 
-  /// Replaces the script with [text] from an explicit Save and stores it at once.
-  Future<void> commitScript(String text, {String? title}) {
+  /// Replaces the script with [text] from an explicit Save and stores it at once. [rewriteConfirmed]: the reader agreed
+  /// to spend a free change on a big rewrite (see [checkSave]).
+  Future<void> commitScript(String text, {String? title, bool rewriteConfirmed = false}) {
+    _rewriteConfirmed = rewriteConfirmed;
     state = state.copyWith(script: text, title: title);
     return flush();
   }
+
+  bool _rewriteConfirmed = false;
 
   /// Saves pending edits now. Blank text and the untouched welcome text are
   /// placeholders, not scripts, so they are never saved.
@@ -203,6 +246,19 @@ class StudioNotifier extends Notifier<StudioState> {
         ref.read(saveBlockedProvider.notifier).blocked();
       }
       return _saving;
+    }
+    // The free limits (macOS for now): an over-long script or an unconfirmed big rewrite is not saved. The text stays on
+    // screen, readable and copyable; only the save is refused.
+    final confirmed = _rewriteConfirmed;
+    _rewriteConfirmed = false;
+    final verdict = checkSave(text);
+    if (verdict == SaveVerdict.tooLong || verdict == SaveVerdict.noChangesLeft) {
+      signalBlocked(verdict);
+      return _saving;
+    }
+    if (verdict == SaveVerdict.rewriteCostsChange) {
+      if (!confirmed) return _saving;
+      ref.read(proProvider.notifier).recordRewrite();
     }
     return _persist(_currentId ??= DateTime.now().microsecondsSinceEpoch.toString(), text, state.title);
   }

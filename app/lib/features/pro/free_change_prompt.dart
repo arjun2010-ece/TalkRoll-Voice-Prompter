@@ -26,3 +26,24 @@ Future<bool> confirmFreeChange(BuildContext context, WidgetRef ref) async {
   );
   return ok ?? false;
 }
+
+/// Asks before a save that rewrites most of a script (more than 60% of its words) takes one of the shared free changes.
+/// Only called when [ProState.rewriteCostsChange] says it will. True when the reader agrees.
+Future<bool> confirmBigRewrite(BuildContext context, WidgetRef ref) async {
+  final left = ref.read(proProvider).changesLeft;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Use a free change?'),
+      content: Text(
+        'This edit changes more than 60% of the words in this script, so saving it takes one of your free changes. '
+        'You have $left left, and ${left - 1} after this one. Smaller edits are always free.',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep editing')),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Save and use a change')),
+      ],
+    ),
+  );
+  return ok ?? false;
+}

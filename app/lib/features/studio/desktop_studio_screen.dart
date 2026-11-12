@@ -94,13 +94,25 @@ class _DesktopStudioScreenState extends ConsumerState<DesktopStudioScreen> {
     if (_onNotes) return ref.read(noteEditorSaveProvider)?.call();
     final cleaned = cleanScript(_controller.text);
     if (!_dirty.value || cleaned.isEmpty) return;
+    // Free limits (macOS for now): over 800 words or a big rewrite. The text stays in the box, only the save waits.
+    final studio = ref.read(studioProvider.notifier);
+    final verdict = studio.checkSave(cleaned);
+    var rewriteConfirmed = false;
+    if (verdict == SaveVerdict.tooLong || verdict == SaveVerdict.noChangesLeft) {
+      studio.signalBlocked(verdict, cleaned);
+      return;
+    }
+    if (verdict == SaveVerdict.rewriteCostsChange) {
+      if (!await confirmBigRewrite(context, ref) || !mounted) return;
+      rewriteConfirmed = true;
+    }
     _controller.value = TextEditingValue(
       text: cleaned,
       selection: TextSelection.collapsed(offset: _controller.selection.baseOffset.clamp(0, cleaned.length)),
     );
     final saved = ref
         .read(studioProvider.notifier)
-        .commitScript(cleaned, title: _titleController.text.trim());
+        .commitScript(cleaned, title: _titleController.text.trim(), rewriteConfirmed: rewriteConfirmed);
     _publishDirty();
     await saved;
   }
@@ -718,14 +730,18 @@ class _EditorPane extends ConsumerWidget {
                           wordsPerMinute: spokenWordsPerMinute.toDouble(),
                         );
                         final sections = sectionMarkers(text).length;
+                        // Free plan: show the limit before it is hit ("612 / 800 words"), in red once over it.
+                        final limited = ref.watch(proProvider).limitsApply;
+                        final over = limited && words > freeWordLimit;
                         return Text(
                           words == 0
                               ? 'Empty'
-                              : '$words words${time.isEmpty ? '' : ' · $time'}${sections == 0 ? '' : ' · $sections ${sections == 1 ? 'section' : 'sections'}'}',
+                              : '${limited ? '$words / $freeWordLimit' : '$words'} words${time.isEmpty ? '' : ' · $time'}${sections == 0 ? '' : ' · $sections ${sections == 1 ? 'section' : 'sections'}'}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                            color: over ? scheme.error : scheme.onSurfaceVariant,
+                            fontWeight: over ? FontWeight.w700 : null,
                           ),
                         );
                       },

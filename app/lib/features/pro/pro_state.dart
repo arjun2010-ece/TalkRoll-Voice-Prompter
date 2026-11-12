@@ -35,6 +35,7 @@ class ProNotifier extends Notifier<ProState> {
     ref.onDispose(updates.cancel);
     return ProState(
       presented: _decode(ref.read(prefsProvider).getString(_proKey)),
+      rewrites: _decodeRewrites(ref.read(prefsProvider).getString(_proKey)),
       plan: _cachedPlan(),
       live: {for (final s in ref.read(libraryProvider).load()) s.id},
     );
@@ -65,12 +66,26 @@ class ProNotifier extends Notifier<ProState> {
     }
   }
 
-  String get _encoded => jsonEncode({'presented': state.presented.toList()});
+  static int _decodeRewrites(String? raw) {
+    if (raw == null) return 0;
+    try {
+      return ((jsonDecode(raw) as Map<String, Object?>)['rewrites'] as int? ?? 0).clamp(0, freeChangeLimit);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  String get _encoded => jsonEncode({'presented': state.presented.toList(), 'rewrites': state.rewrites});
 
   Future<void> _restore() async {
-    final kept = _decode(await _store.read());
-    if (kept.difference(state.presented).isNotEmpty) {
-      state = state.copyWith(presented: {...state.presented, ...kept});
+    final raw = await _store.read();
+    final kept = _decode(raw);
+    final keptRewrites = _decodeRewrites(raw);
+    if (kept.difference(state.presented).isNotEmpty || keptRewrites > state.rewrites) {
+      state = state.copyWith(
+        presented: {...state.presented, ...kept},
+        rewrites: keptRewrites > state.rewrites ? keptRewrites : state.rewrites,
+      );
       ref.read(prefsProvider).setString(_proKey, _encoded);
     }
     if (state.presented.isNotEmpty) await _store.write(_encoded);
@@ -89,6 +104,12 @@ class ProNotifier extends Notifier<ProState> {
   void recordStart(String id) {
     if (state.presented.contains(id)) return;
     state = state.copyWith(presented: {...state.presented, id});
+    _save();
+  }
+
+  /// Spends one free change on a big rewrite that was just saved.
+  void recordRewrite() {
+    state = state.copyWith(rewrites: (state.rewrites + 1).clamp(0, freeChangeLimit));
     _save();
   }
 
@@ -131,9 +152,19 @@ final upgradeCardHiddenProvider = NotifierProvider<UpgradeCardHidden, bool>(Upgr
 /// listens and opens the upgrade sheet, so every way of creating a script (New, Import, Duplicate, typing over the
 /// demo) gets the same answer.
 class SaveBlocked extends Notifier<int> {
+  /// Why the last save was refused, for the sheet's line; null means the free scripts are used up.
+  String? reason;
+
+  /// Heading for a refused save that is not about the script count; null for the usual "Unlimited scripts".
+  String? headline;
+
   @override
   int build() => 0;
-  void blocked() => state = state + 1;
+  void blocked([String? why, String? title]) {
+    reason = why;
+    headline = title;
+    state = state + 1;
+  }
 }
 
 final saveBlockedProvider = NotifierProvider<SaveBlocked, int>(SaveBlocked.new);

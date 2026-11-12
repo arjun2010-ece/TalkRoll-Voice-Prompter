@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import '../script/reading_time.dart';
+import '../script/rewrite_diff.dart';
 import '../script/saved_script.dart';
 
 /// Paywall seam. Phase 3 replaces [UnlockedEntitlements] with the real state
@@ -51,6 +53,16 @@ const freeChangeLimit = 15;
 /// off, a deleted script keeps its free slot as before.
 bool get freeChangesActive => Platform.isAndroid || Platform.isMacOS || Platform.isIOS;
 
+/// Words a free script may hold. Action cues and section titles do not count.
+const freeWordLimit = 800;
+
+/// A save that changes more than this share of a script's words is a "big rewrite" and takes a free change.
+const bigRewriteShare = 0.6;
+
+/// Whether the 800-word limit and the big-rewrite rule are on for this platform. Switched on one platform at a time as
+/// each is tested; where it is off, scripts of any length save as before and a rewrite is always free.
+bool get scriptLimitsActive => Platform.isMacOS;
+
 enum ProPlan { free, monthly, yearly, lifetime }
 
 /// Prices shown on the paywall; the stores will supply them in the user's currency once purchases are connected.
@@ -63,7 +75,7 @@ class ProPrices {
 }
 
 class ProState {
-  const ProState({this.presented = const {}, this.plan = ProPlan.free, this.live = const {}});
+  const ProState({this.presented = const {}, this.plan = ProPlan.free, this.live = const {}, this.rewrites = 0});
 
   /// Ids of the scripts that use up a free slot, in the order they were counted: a script counts the first time it is
   /// saved or presented. A deleted script stays in the list, so deleting never hands its slot back for nothing.
@@ -73,13 +85,22 @@ class ProState {
   /// Ids of the scripts that exist now (the library). Used by the free changes to tell a deleted script from a kept one.
   final Set<String> live;
 
+  /// Free changes spent on big rewrites (a save that changed more than [bigRewriteShare] of a script's words).
+  final int rewrites;
+
   bool get isPro => plan != ProPlan.free;
+
+  /// The free script limits (words per script, big rewrites) apply to this user now.
+  bool get limitsApply => proEnforced && !isPro && scriptLimitsActive;
+
+  /// [text] is longer than a free script may be.
+  bool overWordLimit(String text) => limitsApply && wordCount(text) > freeWordLimit;
 
   /// Free slots in use: the counted scripts that still exist (with the free changes on), or every counted script.
   int get used => freeChangesActive ? presented.where(live.contains).length : presented.length;
 
   /// Free changes spent: every script counted after the first [freeScriptLimit] replaced one.
-  int get changesUsed => freeChangesActive ? (presented.length - freeScriptLimit).clamp(0, freeChangeLimit) : 0;
+  int get changesUsed => freeChangesActive ? ((presented.length - freeScriptLimit).clamp(0, freeChangeLimit) + rewrites).clamp(0, freeChangeLimit) : 0;
   int get changesLeft => freeChangeLimit - changesUsed;
 
   /// The free changes matter now: all the free scripts have been counted at least once.
@@ -108,8 +129,17 @@ class ProState {
   /// Whether a new script may be saved: the limit is off, the user is Pro, or a free slot is left. Once the free scripts are used a new script is not created at all; the upgrade sheet opens instead.
   bool get canCreate => !proEnforced || isPro || _hasRoom;
 
-  ProState copyWith({Set<String>? presented, ProPlan? plan, Set<String>? live}) =>
-      ProState(presented: presented ?? this.presented, plan: plan ?? this.plan, live: live ?? this.live);
+  /// Saving [after] over the saved [before] would be a big rewrite that takes a free change: only once all the free
+  /// scripts are counted, and only for a script that was saved before.
+  bool rewriteCostsChange(String before, String after) =>
+      limitsApply && changesStarted && changedWordShare(before, after) > bigRewriteShare;
+
+  ProState copyWith({Set<String>? presented, ProPlan? plan, Set<String>? live, int? rewrites}) => ProState(
+    presented: presented ?? this.presented,
+    plan: plan ?? this.plan,
+    live: live ?? this.live,
+    rewrites: rewrites ?? this.rewrites,
+  );
 }
 
 /// Why the upgrade sheet opens: the free scripts or the free changes ran out.

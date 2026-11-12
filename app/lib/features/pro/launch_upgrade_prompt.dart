@@ -34,7 +34,8 @@ class _LaunchUpgradePromptState extends ConsumerState<LaunchUpgradePrompt> {
   Widget build(BuildContext context) {
     // A new script was refused because the free scripts are used up: say why and offer Pro.
     ref.listen(saveBlockedProvider, (_, _) {
-      showPaywall(context, source: 'save', reason: '${proLimitReason(ref.read(proProvider))} A new one can\'t be saved.');
+      final why = ref.read(saveBlockedProvider.notifier).reason;
+      showPaywall(context, source: 'save', headline: ref.read(saveBlockedProvider.notifier).headline, reason: why ?? '${proLimitReason(ref.read(proProvider))} A new one can\'t be saved.');
     });
     return widget.child;
   }

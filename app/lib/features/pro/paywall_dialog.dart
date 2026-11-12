@@ -10,17 +10,18 @@ import '../onboarding/onboarding_widgets.dart' show onboardingHero, onboardingTh
 import 'pro_state.dart';
 
 /// Opens the plans. [reason] sits under the title when the paywall came from a locked Start. [title] replaces the
-/// usual heading (the welcome tour restates the reader's goal). [source] says which surface opened it (`start`, `card`,
+/// usual heading (the welcome tour restates the reader's goal). [headline] is for a refused save (word limit, free changes):
+/// it replaces "Unlimited scripts" and [reason] is then a whole sentence that needs nothing added. [source] says which surface opened it (`start`, `card`,
 /// `settings`, `launch`, `onboarding`), for the event log only.
-Future<void> showPaywall(BuildContext context, {String? reason, String? title, String source = 'start'}) async {
+Future<void> showPaywall(BuildContext context, {String? reason, String? title, String? headline, String source = 'start'}) async {
   final container = ProviderScope.containerOf(context);
   container.read(proProvider.notifier).notePromptShown();
   container.read(analyticsProvider).log('upgrade_prompt_shown', {'source': source});
   if (isMobile || isMacOS) {
     // Phones, tablets and the Mac get a full screen of plans; Windows keeps the sheet.
-    await Navigator.of(context).push(MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => PaywallScreen(reason: reason)));
+    await Navigator.of(context).push(MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => PaywallScreen(reason: reason, headline: headline)));
   } else {
-    await showDialog<void>(context: context, builder: (_) => PaywallDialog(reason: reason, title: title));
+    await showDialog<void>(context: context, builder: (_) => PaywallDialog(reason: reason, title: title ?? headline, complete: headline != null));
   }
   container.read(analyticsProvider).log('upgrade_prompt_closed', {'source': source});
 }
@@ -74,8 +75,9 @@ int? _yearlySaving(List<ProOffer> offers) {
 }
 
 class PaywallDialog extends ConsumerStatefulWidget {
-  const PaywallDialog({super.key, this.reason, this.title});
+  const PaywallDialog({super.key, this.reason, this.title, this.complete = false});
   final String? reason;
+  final bool complete;
   final String? title;
 
   @override
@@ -179,15 +181,17 @@ class _PaywallDialogState extends ConsumerState<PaywallDialog> {
             Text(
               widget.reason == null
                   ? 'Save and present as many scripts as you like.'
+                  : widget.complete
+                  ? widget.reason!
                   : '${widget.reason} Pro lets you save and present as many as you like.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
-            for (final line in const [
+            for (final line in [
               'Save and present unlimited scripts',
               'Get it back on a new phone or computer with Restore Purchases',
-              'Editing and exporting your scripts stay free',
+              scriptLimitsActive ? 'Small edits and exporting stay free' : 'Editing and exporting your scripts stay free',
             ])
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
@@ -371,8 +375,9 @@ Future<void> showSubscriptionCheckAlert(BuildContext context) => showDialog<void
 
 /// The plans on phones and tablets: a full screen with the plan rows, one buy button and the store links below.
 class PaywallScreen extends ConsumerStatefulWidget {
-  const PaywallScreen({super.key, this.reason});
+  const PaywallScreen({super.key, this.reason, this.headline});
   final String? reason;
+  final String? headline;
 
   @override
   ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
@@ -470,14 +475,18 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Unlimited scripts', style: onboardingHero(context)?.copyWith(fontSize: 30)),
+                                      Text(widget.headline ?? 'Unlimited scripts', style: onboardingHero(context)?.copyWith(fontSize: 30)),
                                       const SizedBox(height: 16),
                                       Text(
-                                        widget.reason == null ? 'Save and present as many scripts as you need.' : '${widget.reason} Pro lets you save and present as many as you need.',
+                                        widget.reason == null
+                                            ? 'Save and present as many scripts as you need.'
+                                            : widget.headline != null
+                                            ? widget.reason!
+                                            : '${widget.reason} Pro lets you save and present as many as you need.',
                                         style: theme.textTheme.bodyLarge?.copyWith(fontSize: 17, height: 1.3),
                                       ),
                                       const SizedBox(height: 8),
-                                      Text('Editing and exporting stay free.', style: muted),
+                                      Text(scriptLimitsActive ? 'Small edits and exporting stay free.' : 'Editing and exporting stay free.', style: muted),
                                     ],
                                   ),
                                 ),
